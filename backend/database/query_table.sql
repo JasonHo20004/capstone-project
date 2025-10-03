@@ -3,34 +3,37 @@
 -- =============================================================================
 -- Drop tables in reverse order of creation to handle dependencies
 DROP TABLE IF EXISTS user_activities CASCADE;
-DROP TABLE IF EXISTS transactions CASCADE;
 DROP TABLE IF EXISTS user_answers CASCADE;
 DROP TABLE IF EXISTS user_lessons CASCADE;
 DROP TABLE IF EXISTS comments CASCADE;
+DROP TABLE IF EXISTS transactions CASCADE;
 DROP TABLE IF EXISTS ratings CASCADE;
 DROP TABLE IF EXISTS questions CASCADE;
 DROP TABLE IF EXISTS lessons CASCADE;
+DROP TABLE IF EXISTS passages CASCADE;
 DROP TABLE IF EXISTS sections CASCADE;
 DROP TABLE IF EXISTS courses CASCADE;
 DROP TABLE IF EXISTS practice_sessions CASCADE;
 DROP TABLE IF EXISTS subscription_contracts CASCADE;
-DROP TABLE IF EXISTS topup_orders CASCADE;
 DROP TABLE IF EXISTS deck_tags CASCADE;
 DROP TABLE IF EXISTS flashcards CASCADE;
 DROP TABLE IF EXISTS flashcard_decks CASCADE;
-DROP TABLE IF EXISTS tags CASCADE;
+DROP TABLE IF EXISTS media_assets CASCADE;   
 DROP TABLE IF EXISTS score_conversions CASCADE;
 DROP TABLE IF EXISTS test_skills CASCADE;
 DROP TABLE IF EXISTS tests CASCADE;
+DROP TABLE IF EXISTS tags CASCADE;
 DROP TABLE IF EXISTS english_test_types CASCADE;
+DROP TABLE IF EXISTS user_notifications CASCADE;
+DROP TABLE IF EXISTS notifications CASCADE;
+DROP TABLE IF EXISTS notification_types CASCADE;
 DROP TABLE IF EXISTS wallets CASCADE;
 DROP TABLE IF EXISTS administrator_profiles CASCADE;
 DROP TABLE IF EXISTS course_seller_profiles CASCADE;
-DROP TABLE IF EXISTS user_notifications CASCADE;
+DROP TABLE IF EXISTS topup_orders CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS notifications CASCADE;
-DROP TABLE IF EXISTS notification_types CASCADE;
 DROP TABLE IF EXISTS subscription_plans CASCADE;
+
 
 -- Drop ENUM types
 DROP TYPE IF EXISTS user_role CASCADE;
@@ -43,20 +46,22 @@ DROP TYPE IF EXISTS course_level CASCADE;
 DROP TYPE IF EXISTS session_status CASCADE;
 DROP TYPE IF EXISTS question_type CASCADE;
 DROP TYPE IF EXISTS skill_type CASCADE;
+DROP TYPE IF EXISTS media_type CASCADE;
 
 -- =============================================================================
 -- Define custom ENUM types with snake_case convention
 -- =============================================================================
-CREATE TYPE user_role AS ENUM ('Administrator', 'CourseSeller');
-CREATE TYPE payment_method AS ENUM ('Momo', 'Zalopay', 'Banking', 'Applepay');
-CREATE TYPE order_status AS ENUM ('Pending', 'Success', 'Failed');
-CREATE TYPE transaction_type AS ENUM ('Deposit', 'Payment', 'MonthlyFee', 'Withdraw');
-CREATE TYPE transaction_status AS ENUM ('Pending', 'Success', 'Failed');
-CREATE TYPE course_status AS ENUM ('Pending', 'Active', 'Refuse', 'Inactive', 'Delete');
-CREATE TYPE course_level AS ENUM ('A1', 'A2', 'B1', 'B2', 'C1', 'C2');
-CREATE TYPE session_status AS ENUM ('Ongoing', 'Completed');
-CREATE TYPE question_type AS ENUM ('MULTIPLE_CHOICE', 'ESSAY', 'FILL_IN_THE_BLANK');
-CREATE TYPE skill_type AS ENUM ('READING', 'LISTENING', 'WRITING', 'SPEAKING');
+CREATE TYPE USER_ROLE AS ENUM ('ADMINISTRATOR', 'COURSESELLER');
+CREATE TYPE PAYMENT_METHOD AS ENUM ('MOMO', 'ZALOPAY', 'BANKING', 'APPLEPAY');
+CREATE TYPE ORDER_STATUS AS ENUM ('PENDING', 'SUCCESS', 'FAILED');
+CREATE TYPE TRANSACTION_TYPE AS ENUM ('DEPOSIT', 'PAYMENT', 'MONTHLYFEE', 'WITHDRAW');
+CREATE TYPE TRANSACTION_STATUS AS ENUM ('PENDING', 'SUCCESS', 'FAILED');
+CREATE TYPE COURSE_STATUS AS ENUM ('PENDING', 'ACTIVE', 'REFUSE', 'INACTIVE', 'DELETE');
+CREATE TYPE COURSE_LEVEL AS ENUM ('A1', 'A2', 'B1', 'B2', 'C1', 'C2');
+CREATE TYPE SESSION_STATUS AS ENUM ('ONGOING', 'COMPLETED');
+CREATE TYPE QUESTION_TYPE AS ENUM ('MULTIPLE_CHOICE', 'ESSAY', 'FILL_IN_THE_BLANK');
+CREATE TYPE SKILL_TYPE AS ENUM ('READING', 'LISTENING', 'WRITING', 'SPEAKING');
+CREATE TYPE MEDIA_TYPE AS ENUM ('AUDIO', 'IMAGE', 'VIDEO');
 
 -- =============================================================================
 -- Core Tables (Level 0 - No dependencies)
@@ -182,23 +187,35 @@ CREATE TABLE courses (
   description TEXT,
   price NUMERIC(10, 2) NOT NULL CHECK (price >= 0),
   course_level course_level,
-  course_seller_id UUID NOT NULL REFERENCES course_seller_profiles(id),
+  -- course_seller_id UUID NOT NULL REFERENCES course_seller_profiles(id),
+  course_seller_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   final_test_id UUID REFERENCES tests(id) ON DELETE SET NULL,
   rating FLOAT CHECK (rating >= 0 AND rating <= 5),
-  status course_status DEFAULT 'Pending'
+  status course_status DEFAULT 'PENDING'
 );
 
 CREATE TABLE sections (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title VARCHAR(100) NOT NULL,
-  audio_url VARCHAR(255),
-  image_urls TEXT[],
+  --audio_url TEXT,
+  --image_urls TEXT[],
   test_id UUID REFERENCES tests(id) ON DELETE CASCADE,
   skill skill_type NOT NULL,
   duration_in_seconds FLOAT CHECK (duration_in_seconds > 0),
   total_questions INT,
   total_score FLOAT
 );
+
+CREATE TABLE passages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  section_id UUID NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  passage_order INT, 
+  UNIQUE (section_id, passage_order)
+);
+
+
+
 
 CREATE TABLE test_skills (
   test_id UUID NOT NULL REFERENCES tests(id) ON DELETE CASCADE,
@@ -226,14 +243,14 @@ CREATE TABLE practice_sessions (
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   test_id UUID NOT NULL REFERENCES tests(id) ON DELETE CASCADE,
   selected_sections TEXT[],
-  status session_status,
+  status session_status NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   completed_at TIMESTAMPTZ
 );
 
 CREATE TABLE subscription_contracts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  course_seller_id UUID NOT NULL REFERENCES course_seller_profiles(id),
+  course_seller_id UUID NOT NULL REFERENCES users(id),
   status BOOLEAN DEFAULT TRUE,
   subscription_plan_id UUID NOT NULL REFERENCES subscription_plans(id),
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -254,6 +271,14 @@ CREATE TABLE lessons (
   course_id UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE
 );
 
+CREATE TABLE media_assets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  asset_type MEDIA_TYPE NOT NULL,
+  asset_url TEXT NOT NULL UNIQUE,
+  lesson_id UUID NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+  description TEXT
+);
+
 CREATE TABLE questions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   section_id UUID NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
@@ -264,12 +289,16 @@ CREATE TABLE questions (
   correct_answer_index INT,
   word_limit INT,
   correct_answer TEXT,
+  passage_id UUID NOT NULL REFERENCES passages(id) ON DELETE CASCADE,
+  media_id UUID NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
   CONSTRAINT proper_question_fields CHECK (
     (question_type = 'MULTIPLE_CHOICE' AND options IS NOT NULL AND correct_answer_index IS NOT NULL) OR
     (question_type = 'ESSAY' AND word_limit IS NOT NULL) OR
     (question_type = 'FILL_IN_THE_BLANK' AND correct_answer IS NOT NULL)
   )
 );
+
+
 
 CREATE TABLE ratings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -328,8 +357,8 @@ CREATE TABLE user_answers (
 CREATE TABLE user_activities (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id),
-  transaction_id UUID REFERENCES transactions(id),
-  course_id UUID REFERENCES courses(id),
+  transaction_id UUID NOT NULL REFERENCES transactions(id),
+  course_id UUID NOT NULL REFERENCES courses(id),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   expires_at TIMESTAMPTZ
 );
