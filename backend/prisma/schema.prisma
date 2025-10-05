@@ -117,6 +117,7 @@ model User {
   userAnswers             UserAnswer[]
   userActivities          UserActivity[]
   comments                Comment[]
+  
 
   @@map("users")
 }
@@ -211,6 +212,7 @@ model Test {
   passingScore        Float?           @map("passing_score")
   englishTestTypeId   String           @map("english_test_type_id") @db.Uuid
   englishTestType     EnglishTestType  @relation(fields: [englishTestTypeId], references: [id])
+  practiceCount       Int?             @map("practice_count")
   courses             Course[]
   sections            Section[]
   testSkills          TestSkill[]
@@ -283,11 +285,12 @@ model Course {
   courseLevel   CourseLevel? @map("course_level")
   courseSellerId String  @map("course_seller_id") @db.Uuid
   finalTestId   String?  @map("final_test_id") @db.Uuid
-  rating        Float?
+  ratingCount   Int?     @map("rating_count")
   status        CourseStatus @default(PENDING)
   user          User     @relation(fields: [courseSellerId], references: [id], onDelete: Cascade)
   test          Test?    @relation(fields: [finalTestId], references: [id], onDelete: SetNull)
   ratings       Rating[]
+  lessons       Lesson[]
 
   @@map("courses")
 }
@@ -300,6 +303,8 @@ model Section {
   durationInSeconds   Float?   @map("duration_in_seconds")
   totalQuestions      Int?     @map("total_questions")
   totalScore          Float?   @map("total_score")
+  passage             Passage[]  
+  questions           Question[]
   test                Test?    @relation(fields: [testId], references: [id], onDelete: Cascade)
 
   @@map("sections")
@@ -401,6 +406,7 @@ model Transaction {
 model UserLesson {
   lessonId String @map("lesson_id") @db.Uuid
   userId   String @map("user_id") @db.Uuid
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([lessonId, userId])
@@ -415,6 +421,7 @@ model UserAnswer {
   answerText          String?          @map("answer_text")
   selectedOptionIndex Int?             @map("selected_option_index")
   isCorrect           Boolean?         @map("is_correct")
+  question            Question         @relation(fields: [questionId], references: [id], onDelete: Cascade)
   practiceSession     PracticeSession  @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
   user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -441,7 +448,72 @@ model Comment {
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   parentCommentId  String? @map("parent_comment_id") @db.Uuid
   lessonId         String  @map("lesson_id") @db.Uuid
+  lesson           Lesson  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   user             User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("comments")
+}
+
+
+model Lesson {
+  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title            String      @db.VarChar(100)
+  description      String?
+  durationInSeconds Float?     @map("duration_in_seconds")
+  videoUrl         String?     @map("video_url")
+  lessonOrder      Int?        @map("lesson_order")
+  materials        String[]
+  commentCount     Int?        @map("comment_count")
+  courseId         String      @map("course_id") @db.Uuid
+  mediaAssets      MediaAsset[]
+  course           Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  userLessons      UserLesson[]
+  comments         Comment[]
+
+  @@map("lessons")
+} 
+
+
+model Passage {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sectionId      String   @map("section_id") @db.Uuid
+  content        String
+  passageOrder   Int?     @map("passage_order")
+  section        Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  questions      Question[]
+
+  @@unique([sectionId, passageOrder])
+  @@map("passages")
+}
+
+model MediaAsset {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assetType   MediaType @map("asset_type")
+  assetUrl    String    @unique @map("asset_url")
+  lessonId    String    @map("lesson_id") @db.Uuid
+  description String?
+  lesson      Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions   Question[]
+
+  @@map("media_assets")
+}
+
+model Question {
+  id                    String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sectionId             String      @map("section_id") @db.Uuid
+  questionText          String?     @map("question_text")
+  imageUrl              String?     @map("image_url")
+  questionType          QuestionType @map("question_type")
+  options               String[]
+  correctAnswerIndex    Int?        @map("correct_answer_index")
+  wordLimit             Int?        @map("word_limit")
+  correctAnswer         String?     @map("correct_answer")
+  passageId             String      @map("passage_id") @db.Uuid
+  mediaId               String      @map("media_id") @db.Uuid
+  section               Section     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  passage               Passage     @relation(fields: [passageId], references: [id], onDelete: Cascade)
+  mediaAsset            MediaAsset  @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  userAnswers           UserAnswer[]
+
+  @@map("questions")
 }
