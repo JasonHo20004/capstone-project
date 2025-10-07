@@ -1,4 +1,4 @@
-import { PrismaClient } from '../../generated/prisma';
+import { PrismaClient } from "../../generated/prisma/index.js";
 
 // =============================================================================
 // Database Service Singleton
@@ -10,8 +10,11 @@ class DatabaseService {
 
   private constructor() {
     this.prisma = new PrismaClient({
-      log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
-      errorFormat: 'pretty',
+      log:
+        process.env.NODE_ENV === "development"
+          ? ["query", "info", "warn", "error"]
+          : ["error"],
+      errorFormat: "pretty",
     });
   }
 
@@ -41,9 +44,9 @@ class DatabaseService {
   public async connect(): Promise<void> {
     try {
       await this.prisma.$connect();
-      console.log('✅ Database connected successfully');
+      console.log("✅ Database connected successfully");
     } catch (error) {
-      console.error('❌ Database connection failed:', error);
+      console.error("❌ Database connection failed:", error);
       throw error;
     }
   }
@@ -55,9 +58,9 @@ class DatabaseService {
   public async disconnect(): Promise<void> {
     try {
       await this.prisma.$disconnect();
-      console.log('✅ Database disconnected successfully');
+      console.log("✅ Database disconnected successfully");
     } catch (error) {
-      console.error('❌ Database disconnection failed:', error);
+      console.error("❌ Database disconnection failed:", error);
       throw error;
     }
   }
@@ -80,7 +83,7 @@ class DatabaseService {
       await this.prisma.$queryRaw`SELECT 1`;
       return true;
     } catch (error) {
-      console.error('❌ Database health check failed:', error);
+      console.error("❌ Database health check failed:", error);
       return false;
     }
   }
@@ -93,7 +96,7 @@ class DatabaseService {
     return {
       connected: this.prisma !== null,
       timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV || 'development',
+      environment: process.env.NODE_ENV || "development",
     };
   }
 }
