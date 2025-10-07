@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import type { PasswordValidationResult } from '../types';
+import type { PasswordValidationResult } from '../types/user.types';
 
 // =============================================================================
 // Password Utilities

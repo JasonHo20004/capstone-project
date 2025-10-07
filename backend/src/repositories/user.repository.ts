@@ -1,6 +1,5 @@
 import { PrismaClient, UserRole } from '../../generated/prisma';
 import { databaseService } from '../services';
-import type { IUserRepository } from './interfaces/IUserRepository';
 import type {
   User,
   CreateUserDto,
@@ -21,7 +20,7 @@ import { hashPassword, comparePassword, validatePassword } from '../utils/passwo
 // User Repository Implementation
 // =============================================================================
 
-export class UserRepository implements IUserRepository {
+export class UserRepository {
   private prisma: PrismaClient;
 
   constructor() {

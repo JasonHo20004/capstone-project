@@ -2,7 +2,7 @@ import type {
   CreateUserDto,
   UpdateUserDto,
   UserValidationResult,
-} from '../types';
+} from '../types/user.types';
 import { UserRole } from '../../generated/prisma';
 
 // =============================================================================
