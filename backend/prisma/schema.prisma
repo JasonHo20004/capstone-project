@@ -117,6 +117,7 @@ model User {
   userAnswers             UserAnswer[]
   userActivities          UserActivity[]
   comments                Comment[]
+  policy                  Policy?
   
 
   @@map("users")
@@ -516,4 +517,14 @@ model Question {
   userAnswers           UserAnswer[]
 
   @@map("questions")
+}
+
+model Policy {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  content   String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  userId    String   @unique @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("policies")
 }

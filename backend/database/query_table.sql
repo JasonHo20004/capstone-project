@@ -3,6 +3,7 @@
 -- =============================================================================
 -- Drop tables in reverse order of creation to handle dependencies
 DROP TABLE IF EXISTS user_activities CASCADE;
+DROP TABLE IF EXISTS policies CASCADE;
 DROP TABLE IF EXISTS user_answers CASCADE;
 DROP TABLE IF EXISTS user_lessons CASCADE;
 DROP TABLE IF EXISTS comments CASCADE;
@@ -78,6 +79,13 @@ CREATE TABLE users (
   english_level VARCHAR(100),
   learning_goals TEXT[],
   role user_role NOT NULL
+);
+
+CREATE TABLE policies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  user_id UUID NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE notification_types (
