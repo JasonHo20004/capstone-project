@@ -1,9 +1,9 @@
-import { UserRepository } from "../repositories/user.repository";
+import { UserRepository } from "@/modules/users/repositories/user.repository";
 import bcrypt from 'bcrypt';
-import type { CreateUserInput } from '../dtos/user.dto';
+import type { CreateUserInput } from '@/modules/users/dtos/user.dto';
 // const prisma = new PrismaClient();
 // const { User } = prisma;
-import type { User } from "../../../../generated/prisma";
+import type { User } from "@prisma/client";
 // import type { User } from "@/generated/prisma";
 
 export class UserService {

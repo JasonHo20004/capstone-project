@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --clear-screen=false src/server.ts",
-    "build": "tsc",
+    "build": "tsc && tsc-alias",
     "build:esbuild": "esbuild src/server.ts --bundle --platform=node --target=node20 --format=esm --outdir=dist --external:@prisma/client --external=prisma",
     "start": "node dist/server.js"
   },
@@ -31,6 +31,7 @@
     "prisma": "^6.16.2",
     "ts-node-dev": "^2.0.0",
     "tsx": "^4.20.6",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "tsc-alias": "^1.8.16"
   }
 }
