@@ -1,6 +1,6 @@
 import { databaseService } from '@/services/database.service';
-import type { User } from "@prisma/client";
-import type { CreateUserInput } from '../dtos/user.dto';
+import type { User } from '@/../generated/prisma';
+import type { CreateUserInput } from '@/modules/users/dtos/user.dto';
 
 export class UserRepository  {
 
