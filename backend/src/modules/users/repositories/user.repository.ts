@@ -1,15 +1,13 @@
-// src/modules/users/user.repository.ts
-
 import { databaseService } from '../../../services/database.service';
+import type { User } from "../../../../generated/prisma";
+import type { CreateUserInput } from '../dtos/user.dto';
 
-export const userRepository = {
-  /**
-   * Lấy danh sách tất cả người dùng từ cơ sở dữ liệu.
-   * Chỉ chọn các trường an toàn để trả về.
-   */
-  async findAll() {
-    const prisma = databaseService.getClient();
-    return prisma.user.findMany({
+export class UserRepository  {
+
+  private prisma = databaseService.getClient();
+
+  public async findAll() {
+    return this.prisma.user.findMany({
       select: {
         id: true,
         email: true,
@@ -23,8 +21,20 @@ export const userRepository = {
         createdAt: true
       },
       orderBy: {
-        createdAt: 'desc' // Sắp xếp theo người dùng mới nhất
+        createdAt: 'desc' 
       }
+    });
+
+  }
+
+  public async findUserByEmail(email: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { email },
+    });
+  }
+  public async createUser(userData: CreateUserInput): Promise<User> {
+    return this.prisma.user.create({
+      data: userData,
     });
   }
 };
