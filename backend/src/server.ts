@@ -1,6 +1,6 @@
-import app from './app.js'; 
+import app from './app'; 
 import dotenv from 'dotenv';
-import { databaseService } from './services/database.service.js';
+import { databaseService } from './services/database.service';
 
 // Load environment variables from .env file
 dotenv.config();

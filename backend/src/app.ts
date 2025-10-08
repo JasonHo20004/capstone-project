@@ -2,7 +2,7 @@
 import express from 'express';
 import cors from 'cors';
 
-import userRouter from './modules/users/routes/user.route.js';
+import userRouter from './modules/users/routes/user.route';
 
 
 // Create Express app instance

@@ -1,6 +1,6 @@
 // src/modules/users/user.repository.ts
 
-import { databaseService } from '../../../services/database.service.js';
+import { databaseService } from '../../../services/database.service';
 
 export const userRepository = {
   /**
