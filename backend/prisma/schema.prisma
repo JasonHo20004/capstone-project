@@ -86,6 +86,11 @@ enum MediaType {
   VIDEO
 }
 
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
 // =============================================================================
 // Core Models
 // =============================================================================
@@ -118,6 +123,7 @@ model User {
   userActivities          UserActivity[]
   comments                Comment[]
   policy                  Policy?
+  courseSellerApplication CourseSellerApplication?
   
 
   @@map("users")
@@ -166,7 +172,7 @@ model CourseSellerProfile {
   id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   certification String[]
   expertise     String[]
-  isActive      Boolean @default(false) @map("is_active")
+  isActive      Boolean @default(false)  @map("is_active")
   userId        String  @unique @map("user_id") @db.Uuid
   user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -179,6 +185,22 @@ model AdministratorProfile {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("administrator_profiles")
+}
+
+model CourseSellerApplication {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String            @unique @map("user_id") @db.Uuid
+  certification   String[]
+  expertise       String[]
+  message         String?
+  status          ApplicationStatus @default(PENDING)
+  rejectionReason String?           @map("rejection_reason")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("course_seller_applications")
 }
 
 model Wallet {

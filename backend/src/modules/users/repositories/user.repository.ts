@@ -1,9 +1,9 @@
 import { databaseService } from "@/services/database.service";
-import type { User, CourseSellerProfile } from "@/../generated/prisma";
+import type { User, CourseSellerApplication , CourseSellerProfile} from "@/../generated/prisma";
 import type {
   SafeUser,
   CreateUserInput,
-  CreateCourseSellerInput,
+  CreateCourseSellerApplicationInput,
 } from "@/modules/users/dtos/user.dto";
 export class UserRepository {
   private prisma = databaseService.getClient();
@@ -36,9 +36,11 @@ export class UserRepository {
 
   public async findCourseSellerById(
     id: string
-  ): Promise<CourseSellerProfile | null> {
-    return this.prisma.courseSellerProfile.findUnique({
-      where: { userId: id },
+  ): Promise<CourseSellerApplication | null> {
+    return this.prisma.courseSellerApplication.findUnique({
+      where: { userId: id,
+        status: "PENDING"
+      },
     });
   }
   public async createUser(userData: CreateUserInput): Promise<User> {
@@ -47,18 +49,26 @@ export class UserRepository {
     });
   }
 
-  public async createCourseSellerProfile(
+  public async createCourseSellerApplication(
     idUser: string,
-    userData: CreateCourseSellerInput["body"]
-  ): Promise<CourseSellerProfile> {
-    const profileDataToCreate = {
+    userData: CreateCourseSellerApplicationInput["body"]
+  ): Promise<CourseSellerApplication> {
+    const applicationDataToCreate = {
       userId: idUser,
       certification: userData.certification,
       expertise: userData.expertise,
     };
 
+    return this.prisma.courseSellerApplication.create({
+      data: applicationDataToCreate,
+    });
+  }
+
+  public async createCourseSellerProfile(
+    userData: any
+  ): Promise<CourseSellerProfile> {
     return this.prisma.courseSellerProfile.create({
-      data: profileDataToCreate,
+      data: userData,
     });
   }
   public async findUserById(id: string): Promise<User | null> {

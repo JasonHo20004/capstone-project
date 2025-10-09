@@ -4,10 +4,10 @@ import type {
   SafeUser,
   CreateUserInput,
   UpdateUserInput,
-  CreateCourseSellerInput,
+  CreateCourseSellerApplicationInput,
 } from "@/modules/users/dtos/user.dto";
 
-import type { CourseSellerProfile } from "@/../generated/prisma"
+import type { CourseSellerApplication } from "@/../generated/prisma"
 
 export class UserService {
   private userRepository = new UserRepository();
@@ -75,24 +75,24 @@ export class UserService {
     return null;
   }
 
-  public async createCourseSellerProfile(
+  public async createCourseSellerApplication(
     userId: string,
-    updateData: CreateCourseSellerInput["body"]
-  ): Promise<CourseSellerProfile | null> {
+    updateData: CreateCourseSellerApplicationInput["body"]
+  ): Promise<CourseSellerApplication | null> {
 
     const existingCourseSeller = await this.userRepository.findCourseSellerById(
       userId
     );
     // console.log(existingCourseSeller)
     if (existingCourseSeller) {
-      throw new Error("Course Seller is found");
+      throw new Error("Course Seller is Pending");
     }
 
-    const newCourseSeller = await this.userRepository.createCourseSellerProfile(
+    const newCourseSellerApplication = await this.userRepository.createCourseSellerApplication(
       userId,
       updateData
     );
 
-    return newCourseSeller;
+    return newCourseSellerApplication;
   }
 }

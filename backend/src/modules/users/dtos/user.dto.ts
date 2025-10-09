@@ -40,12 +40,8 @@ export const createUserDTO = z.object({
 
 export const updateUserDTO = z.object({
   body: z.object({
-    fullName: z.string().nonempty().optional(),
-    phoneNumber: z.string().nullable().optional(),
-    dateOfBirth: z.coerce.date().optional(),
-    profilePicture: z.string().nullable().optional(),
-    englishLevel: z.string().nullable().optional(),
-    learningGoals: z.array(z.string()).optional(),
+    rejectionReason: z.string().nonempty().optional(),
+    messsage: z.string().nullable().optional(),
   }),
   
   params: z.object({
@@ -54,7 +50,7 @@ export const updateUserDTO = z.object({
 });
 
 
-export const createCourseSellerProfileDTO = z.object({
+export const createCourseSellerApplicationDTO = z.object({
   body: z.object({
     certification: z.array(z.string()),
     expertise: z.array(z.string()),
@@ -70,6 +66,6 @@ export const createCourseSellerProfileDTO = z.object({
 export type CreateUserInput = z.infer<typeof createUserDTO>["body"];
 export type UpdateUserInput = z.infer<typeof updateUserDTO>;
 
-export type CreateCourseSellerInput = z.infer<typeof createCourseSellerProfileDTO>
+export type CreateCourseSellerApplicationInput = z.infer<typeof createCourseSellerApplicationDTO>
 
 export type SafeUser = Omit<User, 'password'>;

@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { UserService } from '@/modules/users/services/user.service';
-import type { UpdateUserInput, CreateCourseSellerInput } from '@/modules/users/dtos/user.dto';
+import type { UpdateUserInput, CreateCourseSellerApplicationInput } from '@/modules/users/dtos/user.dto';
 
 
 export class UserController {
@@ -73,13 +73,13 @@ export class UserController {
     }
   };
 
-  public createCourseSellerProfile = async (req: Request<CreateCourseSellerInput['params'], {}, CreateCourseSellerInput['body']>, res: Response): Promise<void> => {
+  public createCourseSellerAppolication = async (req: Request<CreateCourseSellerApplicationInput['params'], {}, CreateCourseSellerApplicationInput['body']>, res: Response): Promise<void> => {
     try {
       const userId  = req.params.userId;
       const updateData = req.body;
 
       // Gọi service để thực hiện logic cập nhật
-      const updatedUser = await this.userService.createCourseSellerProfile(userId, updateData);
+      const updatedUser = await this.userService.createCourseSellerApplication(userId, updateData);
 
       res.status(200).json({
         success: true,
