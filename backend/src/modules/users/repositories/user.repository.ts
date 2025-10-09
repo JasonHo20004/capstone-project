@@ -1,9 +1,7 @@
-import { databaseService } from '@/services/database.service';
-import type { User } from '@/../generated/prisma';
-import type { CreateUserInput } from '@/modules/users/dtos/user.dto';
-
-export class UserRepository  {
-
+import { databaseService } from "@/services/database.service";
+import type { User } from "@/../generated/prisma";
+import type { SafeUser,CreateUserInput } from "@/modules/users/dtos/user.dto";
+export class UserRepository {
   private prisma = databaseService.getClient();
 
   public async findAll() {
@@ -18,13 +16,12 @@ export class UserRepository  {
         englishLevel: true,
         learningGoals: true,
         role: true,
-        createdAt: true
+        createdAt: true,
       },
       orderBy: {
-        createdAt: 'desc' 
-      }
+        createdAt: "desc",
+      },
     });
-
   }
 
   public async findUserByEmail(email: string): Promise<User | null> {
@@ -37,4 +34,28 @@ export class UserRepository  {
       data: userData,
     });
   }
-};
+  public async findUserById(id: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { id } });
+  }
+
+   public async updateUser(userId: string, data: any): Promise<SafeUser> {
+    return this.prisma.user.update({
+      where: {
+        id: userId,
+      },
+      data: data,
+      select: {  
+        id: true,
+        email: true,
+        fullName: true,
+        phoneNumber: true,
+        dateOfBirth: true,
+        profilePicture: true,
+        englishLevel: true,
+        learningGoals: true,
+        role: true,
+        createdAt: true,
+      }
+    });
+  }
+}

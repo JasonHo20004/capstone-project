@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { User } from "@/../generated/prisma";
 
 export const createUserDTO = z.object({
   body: z.object({
@@ -33,8 +34,27 @@ export const createUserDTO = z.object({
             ? "This field is required"
             : "Invalid Password",
       })
-      .max(20),
+      .max(20).nullable(),
+  }),
+});
+
+export const updateUserDTO = z.object({
+  body: z.object({
+    fullName: z.string().nonempty().optional(),
+    phoneNumber: z.string().nullable().optional(),
+    dateOfBirth: z.coerce.date().optional(),
+    profilePicture: z.string().nullable().optional(),
+    englishLevel: z.string().nullable().optional(),
+    learningGoals: z.array(z.string()).optional(),
+  }),
+  
+  params: z.object({
+    userId: z.uuid({ error: 'User ID is not correct' }),
   }),
 });
 
 export type CreateUserInput = z.infer<typeof createUserDTO>["body"];
+export type UpdateUserInput = z.infer<typeof updateUserDTO>;
+
+
+export type SafeUser = Omit<User, 'password'>;

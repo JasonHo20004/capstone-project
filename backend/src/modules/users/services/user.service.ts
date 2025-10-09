@@ -1,14 +1,15 @@
 import { UserRepository } from "@/modules/users/repositories/user.repository";
-import bcrypt from 'bcrypt';
-import type { CreateUserInput } from '@/modules/users/dtos/user.dto';
-// const prisma = new PrismaClient();
-// const { User } = prisma;
-import type { User } from "@/../generated/prisma";
-// import type { User } from "@/generated/prisma";
+import bcrypt from "bcrypt";
+import type {
+  SafeUser,
+  CreateUserInput,
+  UpdateUserInput,
+} from "@/modules/users/dtos/user.dto";
+// import type { User } from "@/../generated/prisma";
 
 export class UserService {
   private userRepository = new UserRepository();
-  public async getAllUsers() : Promise<Omit<User, 'password'>[]>{
+  public async getAllUsers(): Promise<SafeUser[]> {
     try {
       const users = await this.userRepository.findAll();
 
@@ -18,24 +19,58 @@ export class UserService {
       throw new Error("Failed to retrieve users");
     }
   }
-  
-  public async createUser(userData: CreateUserInput ): Promise<Omit<User, 'password'>> {
-    // 1. Kiểm tra nghiệp vụ: Email đã tồn tại chưa?
-    const existingUser = await this.userRepository.findUserByEmail(userData.email);
+
+  public async createUser(userData: CreateUserInput): Promise<SafeUser> {
+    const existingUser = await this.userRepository.findUserByEmail(
+      userData.email
+    );
     if (existingUser) {
-      throw new Error('Email is already in use');
+      throw new Error("Email is already in use");
     }
 
-    // 2. Xử lý dữ liệu: Mã hóa mật khẩu
     const hashedPassword = await bcrypt.hash(userData.password, 10);
 
-    // 3. Gọi Repository để lưu vào database
     const newUser = await this.userRepository.createUser({
       ...userData,
       password: hashedPassword,
     });
-    
+
     const { password, ...userWithoutPassword } = newUser;
     return userWithoutPassword;
+  }
+  public async updateUser(
+    userId: string,
+    updateData: UpdateUserInput["body"]
+  ): Promise<SafeUser | null> {
+    const existingUser = await this.userRepository.findUserById(userId);
+    if (!existingUser) {
+      throw new Error("User not found");
+    }
+
+    const dataToUpdate: any = {};
+
+    Object.keys(updateData).forEach((key) => {
+      const value = updateData[key as keyof typeof updateData];
+      if (value !== undefined) {
+        dataToUpdate[key as keyof typeof dataToUpdate] = value;
+      }
+    });
+
+    if (Object.keys(dataToUpdate).length === 0) {
+      const { password, ...userWithoutPassword } = existingUser;
+      return userWithoutPassword;
+    }
+
+    const updatedUser = await this.userRepository.updateUser(
+      userId,
+      dataToUpdate 
+    );
+    
+  
+    if (updatedUser) {
+      return updatedUser;
+    }
+    
+    return null;
   }
 }
