@@ -53,8 +53,23 @@ export const updateUserDTO = z.object({
   }),
 });
 
+
+export const createCourseSellerProfileDTO = z.object({
+  body: z.object({
+    certification: z.array(z.string()),
+    expertise: z.array(z.string()),
+  }),
+  params: z.object({
+    userId: z.uuid({ error: 'User ID is not correct' }),
+  }),
+});
+
+
+
+
 export type CreateUserInput = z.infer<typeof createUserDTO>["body"];
 export type UpdateUserInput = z.infer<typeof updateUserDTO>;
 
+export type CreateCourseSellerInput = z.infer<typeof createCourseSellerProfileDTO>
 
 export type SafeUser = Omit<User, 'password'>;

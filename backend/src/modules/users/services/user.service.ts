@@ -4,8 +4,10 @@ import type {
   SafeUser,
   CreateUserInput,
   UpdateUserInput,
+  CreateCourseSellerInput,
 } from "@/modules/users/dtos/user.dto";
-// import type { User } from "@/../generated/prisma";
+
+import type { CourseSellerProfile } from "@/../generated/prisma"
 
 export class UserService {
   private userRepository = new UserRepository();
@@ -63,14 +65,34 @@ export class UserService {
 
     const updatedUser = await this.userRepository.updateUser(
       userId,
-      dataToUpdate 
+      dataToUpdate
     );
-    
-  
+
     if (updatedUser) {
       return updatedUser;
     }
-    
+
     return null;
+  }
+
+  public async createCourseSellerProfile(
+    userId: string,
+    updateData: CreateCourseSellerInput["body"]
+  ): Promise<CourseSellerProfile | null> {
+
+    const existingCourseSeller = await this.userRepository.findCourseSellerById(
+      userId
+    );
+    // console.log(existingCourseSeller)
+    if (existingCourseSeller) {
+      throw new Error("Course Seller is found");
+    }
+
+    const newCourseSeller = await this.userRepository.createCourseSellerProfile(
+      userId,
+      updateData
+    );
+
+    return newCourseSeller;
   }
 }

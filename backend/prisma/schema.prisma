@@ -166,7 +166,7 @@ model CourseSellerProfile {
   id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   certification String[]
   expertise     String[]
-  isActive      Boolean @default(true) @map("is_active")
+  isActive      Boolean @default(false) @map("is_active")
   userId        String  @unique @map("user_id") @db.Uuid
   user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
