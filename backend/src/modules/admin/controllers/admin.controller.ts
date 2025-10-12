@@ -5,6 +5,25 @@ import type {ApproveCourseSellerApplicationInput} from '../dtos/courseSeller.dto
 export class AdminController {
   private adminService = new AdminService();  
 
+  public  getAllUsers= async(_req: Request, res: Response):Promise<void> =>{
+      try {
+        const userProfiles = await this.adminService.getAllUsers();
+        
+        res.status(200).json({
+          success: true,
+          message: 'Get all user profiles successfully',
+          data: userProfiles,
+          count: userProfiles.length
+        });
+  
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          message: 'Failed to get user profiles',
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
   public upgradeToCourseSeller= async(req: Request<ApproveCourseSellerApplicationInput['params'],{},ApproveCourseSellerApplicationInput['body']>, res: Response):Promise<void> =>{
     try {
       const userId = req.params.userId;

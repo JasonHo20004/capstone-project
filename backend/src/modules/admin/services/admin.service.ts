@@ -4,12 +4,25 @@ import type {
   ApplicationStatus,
   CourseSellerProfile,
 } from "@/../generated/prisma";
+import type {
+  SafeUser
+} from "@/modules/users/dtos/user.dto";
 import { UserRepository } from "@/modules/users/repositories/user.repository";
 
 export class AdminService {
   private adminRepository = new AdminRepository();
   private userRepository = new UserRepository();
 
+  public async getAllUsers(): Promise<SafeUser[]> {
+      try {
+        const users = await this.adminRepository.findAll();
+  
+        return users;
+      } catch (error) {
+        console.error("Error in userService.getAllUsers:", error);
+        throw new Error("Failed to retrieve users");
+      }
+    }
   public async upgradeToCourseSeller(
     userId: string,
     status: ApplicationStatus,
