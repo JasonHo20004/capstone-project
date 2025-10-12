@@ -11,13 +11,6 @@ export interface ITokens {
   refreshToken: string;
 }
 
-export type LoginResponse = ITokens & {
-  user: {
-    id: string;
-    email: string;
-    role: UserRole | null;
-  };
-};
 export class AuthService {
   private authRepository = new AuthRepository();
   private userRepository = new UserRepository();
@@ -51,7 +44,7 @@ export class AuthService {
     return newRefreshToken;
   }
 
-  public async login(email: string, password: string): Promise<LoginResponse> {
+  public async login(email: string, password: string): Promise<ITokens> {
     const user = await this.userRepository.findUserByEmail(email);
     if (!user) {
       throw new Error("Invalid email or password");
@@ -70,8 +63,7 @@ export class AuthService {
 
     return {
       accessToken,
-      refreshToken,
-      user: { id: user.id, email: user.email, role: user.role },
+      refreshToken
     };
   }
 

@@ -10,7 +10,7 @@ export class AuthController {
   ): Promise<void> => {
     try {
       const { email, password } = req.body;
-      const {accessToken,refreshToken,user} = await this.authService.login(email, password);
+      const {accessToken,refreshToken} = await this.authService.login(email, password);
      res.cookie('refreshToken', refreshToken, {
         httpOnly: true, 
         secure: false,
@@ -18,7 +18,7 @@ export class AuthController {
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
-      res.json({accessToken,user});
+      res.json({accessToken});
     } catch (error: any) {
       res.status(401).json({ message: error.message });
     }
@@ -34,8 +34,15 @@ export class AuthController {
          res.status(400).json({ message: "Refresh token is required" });
          return
       }
+      
       const tokens = await this.authService.refreshUserToken(refreshToken);
-      res.json(tokens);
+      res.cookie('refreshToken', tokens.refreshToken, {
+        httpOnly: true,
+        secure: false, //true -> https
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      });
+      res.json({ accessToken: tokens.accessToken });
     } catch (error: any) {
       res.status(401).json({ message: error.message });
     }

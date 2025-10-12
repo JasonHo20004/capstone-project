@@ -8,9 +8,12 @@ import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
 const router = Router();
 const adminController = new AdminController();
 
-router.get('/users',authMiddleware,checkRole([UserRole.ADMINISTRATOR]),adminController.getAllUsers);
+router.use(authMiddleware)
+router.use(checkRole([UserRole.ADMINISTRATOR]))
 
-router.post('/upgrade-to-course-seller/:userId/:status',authMiddleware,checkRole([UserRole.ADMINISTRATOR]),validate(approveCourseSellerApplicationDTO),adminController.upgradeToCourseSeller);
+router.get('/users',adminController.getAllUsers);
+
+router.post('/upgrade-to-course-seller/:userId/:status',validate(approveCourseSellerApplicationDTO),adminController.upgradeToCourseSeller);
 
 
 export default router;
