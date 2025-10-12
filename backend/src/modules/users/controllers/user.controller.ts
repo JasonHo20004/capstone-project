@@ -1,16 +1,13 @@
 import type { Request, Response } from 'express';
 import { UserService } from '@/modules/users/services/user.service';
-import type { UpdateUserInput, CreateCourseSellerApplicationInput } from '@/modules/users/dtos/user.dto';
+import type { UpdateUserInput, CreateCourseSellerApplicationInput, CreateUserInput } from '@/modules/users/dtos/user.dto';
 
 
 export class UserController {
   private userService = new UserService();  
 
-  
-
-  public register= async(req: Request<UpdateUserInput['body']>, res: Response):Promise<void> =>{
+  public register= async(req: Request<{}, any, CreateUserInput['body']>, res: Response):Promise<void> =>{
     try {
-
       const userData = req.body;
       const newUser = await this.userService.createUser(userData);
       
@@ -60,7 +57,6 @@ export class UserController {
       const userId  = req.params.userId;
       const updateData = req.body;
 
-      // Gọi service để thực hiện logic cập nhật
       const updatedUser = await this.userService.createCourseSellerApplication(userId, updateData);
 
       res.status(200).json({
@@ -71,7 +67,6 @@ export class UserController {
     } catch (error) {
       if (error instanceof Error && error.message.includes('not found')) {
         res.status(404).json({ success: false, message: error.message }); 
-        // 404 Not Found
         return;
       }
       res.status(500).json({

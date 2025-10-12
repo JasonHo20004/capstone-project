@@ -10,10 +10,10 @@ import type {
 import type { CourseSellerApplication } from "@/../generated/prisma"
 
 export class UserService {
-  private userRepository = new UserRepository();
+  private userRepository = new UserRepository(); 
   
 
-  public async createUser(userData: CreateUserInput): Promise<SafeUser> {
+  public async createUser(userData: CreateUserInput['body']): Promise<SafeUser> {
     const existingUser = await this.userRepository.findUserByEmail(
       userData.email
     );
