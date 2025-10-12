@@ -1,0 +1,60 @@
+import type { Request, Response } from "express";
+import {AuthService} from "../services/auth.service";
+
+export class AuthController {
+  private authService = new AuthService();
+
+  public loginController = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const { email, password } = req.body;
+      const {accessToken,refreshToken,user} = await this.authService.login(email, password);
+     res.cookie('refreshToken', refreshToken, {
+        httpOnly: true, 
+        secure: false,
+        sameSite: 'strict', 
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      res.json({accessToken,user});
+    } catch (error: any) {
+      res.status(401).json({ message: error.message });
+    }
+  };
+
+  public refreshTokenController = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const { refreshToken } = req.cookies;
+      if (!refreshToken) {
+         res.status(400).json({ message: "Refresh token is required" });
+         return
+      }
+      const tokens = await this.authService.refreshUserToken(refreshToken);
+      res.json(tokens);
+    } catch (error: any) {
+      res.status(401).json({ message: error.message });
+    }
+  };
+
+  public logoutController = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const { refreshToken } = req.body;
+      if (!refreshToken) {
+       res.status(400).json({ message: "Refresh token is required" });
+       return
+      }
+      await this.authService.logout(refreshToken);
+      res.status(200).json({ message: "Logged out successfully" });
+    } catch (error: any) {
+      res.status(500).json({ message: "An error occurred" });
+    }
+  };
+}
