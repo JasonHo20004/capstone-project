@@ -39,10 +39,15 @@ export const createUserDTO = z.object({
   }),
 });
 
+
 export const updateUserDTO = z.object({
   body: z.object({
-    rejectionReason: z.string().nonempty().optional(),
-    messsage: z.string().nullable().optional(),
+    fullName: z.string().nonempty().optional(),
+    phoneNumber: z.string().nullable().optional(),
+    dateOfBirth: z.coerce.date().optional(),
+    profilePicture: z.string().nullable().optional(),
+    englishLevel: z.string().nullable().optional(),
+    learningGoals: z.array(z.string()).optional(),
   }),
   
   params: z.object({

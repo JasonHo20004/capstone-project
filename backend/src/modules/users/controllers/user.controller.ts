@@ -6,7 +6,7 @@ import type { UpdateUserInput, CreateCourseSellerApplicationInput, CreateUserInp
 export class UserController {
   private userService = new UserService();  
 
-  public register= async(req: Request<{}, any, CreateUserInput['body']>, res: Response):Promise<void> =>{
+  public register= async(req: Request<{},any, CreateUserInput['body']>, res: Response):Promise<void> =>{
     try {
       const userData = req.body;
       const newUser = await this.userService.createUser(userData);
