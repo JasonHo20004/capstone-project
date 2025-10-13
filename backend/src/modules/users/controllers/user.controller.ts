@@ -2,6 +2,8 @@ import type { Request, Response } from 'express';
 import { UserService } from '@/modules/users/services/user.service';
 import type { UpdateUserInput, CreateCourseSellerApplicationInput, CreateUserInput } from '@/modules/users/dtos/user.dto';
 
+import type { AuthenticatedRequest } from '@/middlewares/auth.middleware';
+
 
 export class UserController {
   private userService = new UserService();  
@@ -25,12 +27,11 @@ export class UserController {
       });
     }
   }
-  public updateUser = async (req: Request<UpdateUserInput['params'], {}, UpdateUserInput['body']>, res: Response): Promise<void> => {
+  public updateUser = async (req:AuthenticatedRequest & { body: UpdateUserInput['body'] }, res: Response): Promise<void> => {
     try {
-      const { userId } = req.params;
+      const userId = req.user!.userId
       const updateData = req.body;
 
-      // Gọi service để thực hiện logic cập nhật
       const updatedUser = await this.userService.updateUser(userId, updateData);
 
       res.status(200).json({
@@ -52,9 +53,10 @@ export class UserController {
     }
   };
 
-  public createCourseSellerAppolication = async (req: Request<CreateCourseSellerApplicationInput['params'], {}, CreateCourseSellerApplicationInput['body']>, res: Response): Promise<void> => {
+  public createCourseSellerAppolication = async (req: 
+    AuthenticatedRequest & {body: CreateCourseSellerApplicationInput['body'] }, res: Response): Promise<void> => {
     try {
-      const userId  = req.params.userId;
+      const userId = req.user!.userId
       const updateData = req.body;
 
       const updatedUser = await this.userService.createCourseSellerApplication(userId, updateData);

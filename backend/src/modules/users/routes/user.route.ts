@@ -12,5 +12,5 @@ router.post('/register',validate(createUserDTO),userController.register);
 
 router.put('/me/update',authMiddleware,validate(updateUserDTO),userController.updateUser);
 
-router.post('/me/course-seller-application/:userId', validate(createCourseSellerApplicationDTO),userController.createCourseSellerAppolication);
+router.post('/me/course-seller-application',authMiddleware ,validate(createCourseSellerApplicationDTO),userController.createCourseSellerAppolication);
 export default router;
