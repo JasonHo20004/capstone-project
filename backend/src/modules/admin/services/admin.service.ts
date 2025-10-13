@@ -8,7 +8,7 @@ import type {
 } from "@/../generated/prisma";
 import { UserRepository } from "@/modules/users/repositories/user.repository";
 import { databaseService } from "@/services/database.service";
-import { NotificationService, NotificationType } from "./notification.service";
+import { NotificationService, NOTIFICATION_TYPES } from "./notification.service";
 
 export class AdminService {
   private adminRepository = new AdminRepository();
@@ -109,7 +109,7 @@ export class AdminService {
     // Send welcome notification to Course Seller
     const welcomeNotification = await this.notificationService.createRenewalReminderNotifications(
       [newContract.id],
-      NotificationType.RENEWAL_REMINDER
+      NOTIFICATION_TYPES.RENEWAL_REMINDER
     );
 
     if (welcomeNotification.length > 0) {
@@ -126,7 +126,7 @@ export class AdminService {
     // Create notifications using the notification service
     const notifications = await this.notificationService.createRenewalReminderNotifications(
       data.contractIds,
-      data.notificationType as NotificationType
+      data.notificationType
     );
 
     // Send bulk notifications
@@ -228,7 +228,7 @@ export class AdminService {
     // Send notification to Course Seller about account lock
     const sellerNotification = await this.notificationService.createRenewalReminderNotifications(
       [contractId],
-      NotificationType.SELLER_ACCOUNT_LOCKED
+      NOTIFICATION_TYPES.SELLER_ACCOUNT_LOCKED
     );
 
     if (sellerNotification.length > 0) {
@@ -262,7 +262,7 @@ export class AdminService {
     // Send renewal confirmation notification
     const renewalNotification = await this.notificationService.createRenewalReminderNotifications(
       [data.contractId],
-      NotificationType.RENEWAL_REMINDER
+      NOTIFICATION_TYPES.RENEWAL_REMINDER
     );
 
     if (renewalNotification.length > 0) {

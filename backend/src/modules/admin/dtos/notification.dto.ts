@@ -1,52 +1,50 @@
-import { z } from "zod";
+import { z } from 'zod';
 
-// Get user notifications DTO
-export const getUserNotificationsDTO = z.object({
-  params: z.object({
-    userId: z.uuid({ message: 'User ID must be a valid UUID' })
-  }),
-  query: z.object({
-    page: z.string().optional().transform(val => val ? parseInt(val) : 1),
-    limit: z.string().optional().transform(val => val ? parseInt(val) : 10),
-    unreadOnly: z.string().optional().transform(val => val === 'true'),
-    type: z.string().optional()
-  })
+// Create
+export const createNotificationSchema = z.object({
+  title: z.string().min(1),
+  content: z.string().min(1),
+  notificationTypeId: z.uuid(),
+  seen: z.boolean().optional()
 });
+export type CreateNotificationDto = z.input<typeof createNotificationSchema>;
 
-export type GetUserNotificationsInput = z.infer<typeof getUserNotificationsDTO>;
-
-// Mark notification as read DTO
-export const markNotificationReadDTO = z.object({
-  params: z.object({
-    notificationId: z.uuid({ message: 'Notification ID must be a valid UUID' })
-  })
+// Update
+export const updateNotificationSchema = z.object({
+  title: z.string().min(1).optional(),
+  content: z.string().min(1).optional(),
+  notificationTypeId: z.uuid().optional(),
+  seen: z.boolean().optional()
 });
+export type UpdateNotificationDto = z.input<typeof updateNotificationSchema>;
 
-export type MarkNotificationReadInput = z.infer<typeof markNotificationReadDTO>;
-
-// Mark all notifications as read DTO
-export const markAllNotificationsReadDTO = z.object({
-  params: z.object({
-    userId: z.uuid({ message: 'User ID must be a valid UUID' })
-  })
+// Response shapes
+export const notificationResponseSchema = z.object({
+  id: z.uuid(),
+  title: z.string(),
+  content: z.string(),
+  createdAt: z.iso.date(),
+  seen: z.boolean(),
+  notificationTypeId: z.uuid(),
+  notificationType: z
+    .object({
+      id: z.uuid(),
+      name: z.string(),
+      isLocked: z.boolean()
+    })
+    .optional()
 });
+export type NotificationResponseDto = z.infer<typeof notificationResponseSchema>;
 
-export type MarkAllNotificationsReadInput = z.infer<typeof markAllNotificationsReadDTO>;
-
-// Archive notification DTO
-export const archiveNotificationDTO = z.object({
-  params: z.object({
-    notificationId: z.uuid({ message: 'Notification ID must be a valid UUID' })
-  })
+export const notificationWithUsersSchema = notificationResponseSchema.extend({
+  users: z
+    .array(
+      z.object({
+        id: z.uuid(),
+        fullName: z.string(),
+        email: z.email()
+      })
+    )
+    .optional()
 });
-
-export type ArchiveNotificationInput = z.infer<typeof archiveNotificationDTO>;
-
-// Get notification stats DTO
-export const getNotificationStatsDTO = z.object({
-  params: z.object({
-    userId: z.uuid({ message: 'User ID must be a valid UUID' })
-  })
-});
-
-export type GetNotificationStatsInput = z.infer<typeof getNotificationStatsDTO>;
+export type NotificationWithUsersDto = z.infer<typeof notificationWithUsersSchema>;

@@ -1,36 +1,43 @@
 import { databaseService } from "@/services/database.service";
+import { NotificationTypeRepository } from "../repositories/notificationType.repository";
+import { NotificationRepository } from "../repositories/notification.repository";
 
 export interface NotificationData {
   recipientId: string;
   recipientEmail: string;
   recipientName: string;
-  notificationType: NotificationType;
+  notificationTypeName: string;
   contractId?: string;
   courseId?: string;
   title: string;
   content: string;
 }
 
-export enum NotificationType {
-  RENEWAL_REMINDER = 'RENEWAL_REMINDER',
-  EXPIRATION_WARNING = 'EXPIRATION_WARNING',
-  FINAL_NOTICE = 'FINAL_NOTICE',
-  SELLER_ACCOUNT_LOCKED = 'SELLER_ACCOUNT_LOCKED',
-  COURSE_SELLER_DISABLED = 'COURSE_SELLER_DISABLED'
-}
+export const NOTIFICATION_TYPES = {
+  RENEWAL_REMINDER: 'RENEWAL_REMINDER',
+  EXPIRATION_WARNING: 'EXPIRATION_WARNING',
+  FINAL_NOTICE: 'FINAL_NOTICE',
+  SELLER_ACCOUNT_LOCKED: 'SELLER_ACCOUNT_LOCKED',
+  COURSE_SELLER_DISABLED: 'COURSE_SELLER_DISABLED'
+} as const;
 
 export interface NotificationResult {
   sentCount: number;
   failedCount: number;
-  details: Array<{
-    recipientId: string;
-    success: boolean;
-    error?: string;
-  }>;
+  details: NotificationDetail[];
 }
+
+export interface NotificationDetail {
+  recipientId: string;
+  success:boolean;
+  error?:string;
+}
+
 
 export class NotificationService {
   private prisma = databaseService.getClient();
+  private notificationTypeRepository = new NotificationTypeRepository();
+  private notificationRepository = new NotificationRepository();
 
   /**
    * Send notifications to multiple recipients
@@ -70,21 +77,8 @@ export class NotificationService {
    */
   public async sendNotification(notification: NotificationData): Promise<void> {
     try {
-      // 1. Save in-app notification to database
       await this.saveInAppNotification(notification);
 
-      // 2. Send email notification (optional - can be enabled later)
-      // await this.sendEmailNotification(notification);
-
-      // 3. Send push notification (optional - for mobile apps)
-      // await this.sendPushNotification(notification);
-
-      // 4. Log notification for debugging
-      console.log(`[NOTIFICATION] ${notification.notificationType}:`);
-      console.log(`  To: ${notification.recipientName} (${notification.recipientEmail})`);
-      console.log(`  Title: ${notification.title}`);
-      console.log(`  Content: ${notification.content}`);
-      console.log(`  Type: ${notification.notificationType}`);
       if (notification.contractId) console.log(`  Contract ID: ${notification.contractId}`);
       if (notification.courseId) console.log(`  Course ID: ${notification.courseId}`);
       console.log('---');
@@ -95,10 +89,27 @@ export class NotificationService {
     }
   }
 
-  /**
-   * Save in-app notification to database
-   */
   private async saveInAppNotification(notification: NotificationData): Promise<void> {
+    let notificationType = await this.notificationTypeRepository.findByName(notification.notificationTypeName);
+    
+    if (!notificationType) {
+      notificationType = await this.notificationTypeRepository.create({
+        name: notification.notificationTypeName,
+        isLocked: true
+      });
+    }
+
+    // Create the notification
+    const createdNotification = await this.notificationRepository.create({
+      title: notification.title,
+      content: notification.content,
+      notificationTypeId: notificationType.id,
+      seen: false
+    });
+
+    // Add the notification to the user
+    await this.notificationRepository.addToUsers(createdNotification.id, [notification.recipientId]);
+
     const metadata: any = {};
     
     if (notification.contractId) {
@@ -114,7 +125,7 @@ export class NotificationService {
         userId: notification.recipientId,
         title: notification.title,
         content: notification.content,
-        type: notification.notificationType,
+        type: notification.notificationTypeName,
         contractId: notification.contractId || null,
         courseId: notification.courseId || null,
         metadata: Object.keys(metadata).length > 0 ? metadata : null,
@@ -125,40 +136,40 @@ export class NotificationService {
   }
 
   /**
-   * Send email notification (placeholder for future implementation)
+   * Send email notification
    */
-  private async sendEmailNotification(_notification: NotificationData): Promise<void> {
-    // TODO: Implement email sending using SendGrid, AWS SES, etc.
-    // Example:
-    // await emailService.send({
-    //   to: notification.recipientEmail,
-    //   subject: notification.title,
-    //   html: this.generateEmailTemplate(notification)
-    // });
+  // private async sendEmailNotification(_notification: NotificationData): Promise<void> {
+  //   // TODO: Implement email sending using SendGrid, AWS SES, etc.
+  //   // Example:
+  //   // await emailService.send({
+  //   //   to: notification.recipientEmail,
+  //   //   subject: notification.title,
+  //   //   html: this.generateEmailTemplate(notification)
+  //   // });
     
-    console.log(`[EMAIL] Would send email to ${notification.recipientEmail}`);
-  }
+  //   console.log(`[EMAIL] Would send email to ${notification.recipientEmail}`);
+  // }
 
   /**
-   * Send push notification (placeholder for future implementation)
+   * Send push notification
    */
-  private async sendPushNotification(_notification: NotificationData): Promise<void> {
-    // TODO: Implement push notifications using Firebase, OneSignal, etc.
-    // Example:
-    // await pushService.send({
-    //   userId: notification.recipientId,
-    //   title: notification.title,
-    //   body: notification.content,
-    //   data: { type: notification.notificationType }
-    // });
+  // private async sendPushNotification(_notification: NotificationData): Promise<void> {
+  //   // TODO: Implement push notifications using Firebase, OneSignal, etc.
+  //   // Example:
+  //   // await pushService.send({
+  //   //   userId: notification.recipientId,
+  //   //   title: notification.title,
+  //   //   body: notification.content,
+  //   //   data: { type: notification.notificationType }
+  //   // });
     
-    console.log(`[PUSH] Would send push notification to ${notification.recipientId}`);
-  }
+  //   console.log(`[PUSH] Would send push notification to ${notification.recipientId}`);
+  // }
 
   /**
    * Generate email template (placeholder)
    */
-  private generateEmailTemplate(_notification: NotificationData): string {
+  private generateEmailTemplate(notification: NotificationData): string {
     return `
       <html>
         <body>
@@ -176,7 +187,7 @@ export class NotificationService {
    */
   public async createRenewalReminderNotifications(
     contractIds: string[],
-    notificationType: NotificationType
+    notificationTypeName: string
   ): Promise<NotificationData[]> {
     const contracts = await this.prisma.subscriptionContract.findMany({
       where: { id: { in: contractIds } },
@@ -194,7 +205,7 @@ export class NotificationService {
 
     return contracts.map(contract => {
       const { title, content } = this.getNotificationContent(
-        notificationType,
+        notificationTypeName,
         contract.user.fullName,
         contract.expiresAt,
         contract.subscriptionPlan.name
@@ -204,7 +215,7 @@ export class NotificationService {
         recipientId: contract.courseSellerId,
         recipientEmail: contract.user.email,
         recipientName: contract.user.fullName,
-        notificationType,
+        notificationTypeName,
         contractId: contract.id,
         title,
         content
@@ -265,7 +276,7 @@ export class NotificationService {
         recipientId: activity.user.id,
         recipientEmail: activity.user.email,
         recipientName: activity.user.fullName,
-        notificationType: NotificationType.COURSE_SELLER_DISABLED,
+        notificationTypeName: NOTIFICATION_TYPES.COURSE_SELLER_DISABLED,
         courseId: activity.courseId,
         title,
         content
@@ -277,33 +288,33 @@ export class NotificationService {
    * Get notification content based on type
    */
   private getNotificationContent(
-    type: NotificationType,
+    typeName: string,
     sellerName: string,
     expiresAt: Date,
     planName: string
   ): { title: string; content: string } {
     const daysUntilExpiry = Math.ceil((expiresAt.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
 
-    switch (type) {
-      case NotificationType.RENEWAL_REMINDER:
+    switch (typeName) {
+      case NOTIFICATION_TYPES.RENEWAL_REMINDER:
         return {
           title: 'Contract Renewal Reminder',
           content: `Dear ${sellerName},\n\nYour ${planName} contract will expire in ${daysUntilExpiry} days. Please renew your contract to continue providing courses on our platform.\n\nThank you for being part of our community!`
         };
 
-      case NotificationType.EXPIRATION_WARNING:
+      case NOTIFICATION_TYPES.EXPIRATION_WARNING:
         return {
           title: 'Contract Expiration Warning',
           content: `Dear ${sellerName},\n\nYour ${planName} contract will expire in ${daysUntilExpiry} days. This is your final reminder to renew your contract. Failure to renew will result in account suspension.\n\nPlease contact support if you need assistance.`
         };
 
-      case NotificationType.FINAL_NOTICE:
+      case NOTIFICATION_TYPES.FINAL_NOTICE:
         return {
           title: 'Final Contract Notice',
           content: `Dear ${sellerName},\n\nYour ${planName} contract has expired. Your account has been suspended and you can no longer create new courses. Please renew your contract to restore access.\n\nYour existing courses remain available to enrolled students.`
         };
 
-      case NotificationType.SELLER_ACCOUNT_LOCKED:
+      case NOTIFICATION_TYPES.SELLER_ACCOUNT_LOCKED:
         return {
           title: 'Account Suspended',
           content: `Dear ${sellerName},\n\nYour account has been suspended due to contract expiration. Please renew your contract to restore access to course creation features.\n\nYour existing courses remain available to enrolled students.`
@@ -344,7 +355,7 @@ export class NotificationService {
   }
 
   /**
-   * Get contracts that need renewal notifications (for scheduled notifications)
+   * Get contracts that need renewal notifications
    */
   public async getContractsNeedingNotifications(daysBeforeExpiry: number = 7): Promise<string[]> {
     const targetDate = new Date();
@@ -358,7 +369,7 @@ export class NotificationService {
           lte: targetDate
         },
         lastNotificationAt: {
-          lt: new Date(Date.now() - 24 * 60 * 60 * 1000) // Not notified in the last 24 hours
+          lt: new Date(Date.now() - 24 * 60 * 60 * 1000)
         }
       },
       select: {
@@ -370,7 +381,7 @@ export class NotificationService {
   }
 
   /**
-   * Send scheduled renewal notifications (can be called by cron job)
+   * Send scheduled renewal notifications
    */
   public async sendScheduledRenewalNotifications(): Promise<{
     sentCount: number;
@@ -402,7 +413,7 @@ export class NotificationService {
     if (contractsExpiringSoon.length > 0) {
       const result = await this.sendRenewalNotification(
         contractsExpiringSoon,
-        NotificationType.RENEWAL_REMINDER
+        NOTIFICATION_TYPES.RENEWAL_REMINDER
       );
       totalSent += result.sentCount;
       totalFailed += result.failedCount;
@@ -413,7 +424,7 @@ export class NotificationService {
     if (contractsExpiringTomorrow.length > 0) {
       const result = await this.sendRenewalNotification(
         contractsExpiringTomorrow,
-        NotificationType.EXPIRATION_WARNING
+        NOTIFICATION_TYPES.EXPIRATION_WARNING
       );
       totalSent += result.sentCount;
       totalFailed += result.failedCount;
@@ -424,7 +435,7 @@ export class NotificationService {
     if (expiredContracts.length > 0) {
       const result = await this.sendRenewalNotification(
         expiredContracts.map(c => c.id),
-        NotificationType.FINAL_NOTICE
+        NOTIFICATION_TYPES.FINAL_NOTICE
       );
       totalSent += result.sentCount;
       totalFailed += result.failedCount;
@@ -439,13 +450,13 @@ export class NotificationService {
   }
 
   /**
-   * Helper method to send renewal notifications (used by scheduled notifications)
+   * Helper method to send renewal notifications
    */
   private async sendRenewalNotification(
     contractIds: string[],
-    type: NotificationType
+    typeName: string
   ): Promise<{ sentCount: number; failedCount: number }> {
-    const notifications = await this.createRenewalReminderNotifications(contractIds, type);
+    const notifications = await this.createRenewalReminderNotifications(contractIds, typeName);
     const result = await this.sendBulkNotifications(notifications);
 
     // Update notification timestamps for successful sends
@@ -463,8 +474,6 @@ export class NotificationService {
       failedCount: result.failedCount
     };
   }
-
-  // ===== In-App Notification Management Methods =====
 
   /**
    * Get user's notifications with pagination and filtering
@@ -584,9 +593,9 @@ export class NotificationService {
   }
 
   /**
-   * Get notification statistics for a user
+   * Get notification statistics for a user (in-app notifications)
    */
-  public async getNotificationStats(userId: string): Promise<{
+  public async getUserNotificationStats(userId: string): Promise<{
     total: number;
     unread: number;
     byType: Record<string, number>;
@@ -646,5 +655,146 @@ export class NotificationService {
     });
 
     return { deletedCount: result.count };
+  }
+
+  /**
+   * Get all notification types
+   */
+  public async getNotificationTypes() {
+    return await this.notificationTypeRepository.findWithNotificationCounts();
+  }
+
+  /**
+   * Create a new notification type
+   */
+  public async createNotificationType(data: { name: string; isLocked?: boolean }) {
+    return await this.notificationTypeRepository.create(data);
+  }
+
+  /**
+   * Update notification type
+   */
+  public async updateNotificationType(id: string, data: { name?: string; isLocked?: boolean }) {
+    return await this.notificationTypeRepository.update(id, data);
+  }
+
+  /**
+   * Delete notification type
+   */
+  public async deleteNotificationType(id: string) {
+    return await this.notificationTypeRepository.delete(id);
+  }
+
+  /**
+   * Lock notification type
+   */
+  public async lockNotificationType(id: string) {
+    return await this.notificationTypeRepository.lock(id);
+  }
+
+  /**
+   * Unlock notification type
+   */
+  public async unlockNotificationType(id: string) {
+    return await this.notificationTypeRepository.unlock(id);
+  }
+
+  /**
+   * Get all notifications with pagination
+   */
+  public async getNotifications(options: {
+    page?: number;
+    limit?: number;
+    includeType?: boolean;
+    includeUsers?: boolean;
+  } = {}) {
+    return await this.notificationRepository.findAll(options);
+  }
+
+  /**
+   * Get notification by ID
+   */
+  public async getNotificationById(id: string, includeUsers: boolean = false) {
+    return await this.notificationRepository.findById(id, includeUsers);
+  }
+
+  /**
+   * Create a new notification
+   */
+  public async createNotification(data: {
+    title: string;
+    content: string;
+    notificationTypeId: string;
+    seen?: boolean;
+  }) {
+    return await this.notificationRepository.create(data);
+  }
+
+  /**
+   * Update notification
+   */
+  public async updateNotification(id: string, data: {
+    title?: string;
+    content?: string;
+    notificationTypeId?: string;
+    seen?: boolean;
+  }) {
+    return await this.notificationRepository.update(id, data);
+  }
+
+  /**
+   * Delete notification
+   */
+  public async deleteNotification(id: string) {
+    return await this.notificationRepository.delete(id);
+  }
+
+  /**
+   * Get notifications by type
+   */
+  public async getNotificationsByType(notificationTypeId: string, options: {
+    page?: number;
+    limit?: number;
+  } = {}) {
+    return await this.notificationRepository.findByType(notificationTypeId, options);
+  }
+
+  /**
+   * Get notifications by user
+   */
+  public async getNotificationsByUser(userId: string, options: {
+    page?: number;
+    limit?: number;
+    unreadOnly?: boolean;
+  } = {}) {
+    return await this.notificationRepository.findByUser(userId, options);
+  }
+
+  /**
+   * Mark notification as seen for user
+   */
+  public async markNotificationAsSeenForUser(notificationId: string, userId: string) {
+    return await this.notificationRepository.markAsSeenForUser(notificationId, userId);
+  }
+
+  /**
+   * Add notification to users
+   */
+  public async addNotificationToUsers(notificationId: string, userIds: string[]) {
+    return await this.notificationRepository.addToUsers(notificationId, userIds);
+  }
+
+  /**
+   * Remove notification from users
+   */
+  public async removeNotificationFromUsers(notificationId: string, userIds: string[]) {
+    return await this.notificationRepository.removeFromUsers(notificationId, userIds);
+  }
+
+  /**
+   * Get notification statistics
+   */
+  public async getNotificationStats() {
+    return await this.notificationRepository.getStats();
   }
 }
