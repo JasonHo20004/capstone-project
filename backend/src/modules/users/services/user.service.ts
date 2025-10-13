@@ -10,19 +10,10 @@ import type {
 import type { CourseSellerApplication } from "@/../generated/prisma"
 
 export class UserService {
-  private userRepository = new UserRepository();
-  public async getAllUsers(): Promise<SafeUser[]> {
-    try {
-      const users = await this.userRepository.findAll();
+  private userRepository = new UserRepository(); 
+  
 
-      return users;
-    } catch (error) {
-      console.error("Error in userService.getAllUsers:", error);
-      throw new Error("Failed to retrieve users");
-    }
-  }
-
-  public async createUser(userData: CreateUserInput): Promise<SafeUser> {
+  public async createUser(userData: CreateUserInput['body']): Promise<SafeUser> {
     const existingUser = await this.userRepository.findUserByEmail(
       userData.email
     );

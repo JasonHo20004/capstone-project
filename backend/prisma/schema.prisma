@@ -106,7 +106,7 @@ model User {
   englishLevel     String?     @map("english_level") @db.VarChar(100)
   learningGoals    String[]    @map("learning_goals")
   role             UserRole?
-
+  refreshTokens RefreshToken[]
   // Relationships
   courseSellerProfile     CourseSellerProfile?
   administratorProfile    AdministratorProfile?
@@ -130,6 +130,15 @@ model User {
   @@map("users")
 }
 
+model RefreshToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) 
+  hashedToken String   @unique @map("hashed_token")
+  userId       String       @map("user_id") @db.Uuid
+  revoked   Boolean  @default(false)
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
 model NotificationType {
   id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name          String         @unique @db.VarChar(50)
@@ -198,7 +207,6 @@ model CourseSellerApplication {
   status          ApplicationStatus @default(PENDING)
   rejectionReason String?           @map("rejection_reason")
   createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
