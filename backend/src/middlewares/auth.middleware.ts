@@ -1,5 +1,5 @@
 import type { Response, NextFunction, Request } from "express";
-import jwt,{TokenExpiredError} from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 import type { UserRole } from "@/../generated/prisma";
 
 export interface AuthenticatedRequest extends Request {
@@ -31,7 +31,7 @@ export const authMiddleware = (
 
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
      if (err) {
-      if (err instanceof TokenExpiredError) {
+      if (err instanceof jwt.TokenExpiredError) {
         res.status(401).json({
           message: "Unauthorized: Token has expired",
           code: "TOKEN_EXPIRED", 

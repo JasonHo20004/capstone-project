@@ -48,11 +48,7 @@ export const updateUserDTO = z.object({
     profilePicture: z.string().nullable().optional(),
     englishLevel: z.string().nullable().optional(),
     learningGoals: z.array(z.string()).optional(),
-  }),
-  
-  params: z.object({
-    userId: z.uuid({ error: 'User ID is not correct' }),
-  }),
+  })
 });
 
 
