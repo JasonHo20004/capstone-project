@@ -4,6 +4,7 @@ import cors from 'cors';
 
 import userRouter from './modules/users/routes/user.route';
 import adminRouter from './modules/admin/routes/admin.route';
+import notificationRouter from './modules/admin/routes/notification.route';
 
 // Create Express app instance
 const app = express();
@@ -19,4 +20,5 @@ app.get('/', (_req, res) => {
 // Modular Routes
 app.use('/api/users', userRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/notifications', notificationRouter);
 export default app;
