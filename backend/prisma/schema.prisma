@@ -133,6 +133,7 @@ model User {
 model NotificationType {
   id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name          String         @unique @db.VarChar(50)
+  isLocked      Boolean        @default(false) @map("is_locked")
   notifications Notification[]
 
   @@map("notification_types")
