@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { User } from "@/../generated/prisma";
-
+// DTO là lớp bảo vệ và nó sẽ là con của Input (Interface)
+// Khi mà 
 export const createUserDTO = z.object({
   body: z.object({
     email: z.email({
@@ -38,10 +39,15 @@ export const createUserDTO = z.object({
   }),
 });
 
+
 export const updateUserDTO = z.object({
   body: z.object({
-    rejectionReason: z.string().nonempty().optional(),
-    messsage: z.string().nullable().optional(),
+    fullName: z.string().nonempty().optional(),
+    phoneNumber: z.string().nullable().optional(),
+    dateOfBirth: z.coerce.date().optional(),
+    profilePicture: z.string().nullable().optional(),
+    englishLevel: z.string().nullable().optional(),
+    learningGoals: z.array(z.string()).optional(),
   }),
   
   params: z.object({
@@ -63,7 +69,7 @@ export const createCourseSellerApplicationDTO = z.object({
 
 
 
-export type CreateUserInput = z.infer<typeof createUserDTO>["body"];
+export type CreateUserInput = z.infer<typeof createUserDTO>;
 export type UpdateUserInput = z.infer<typeof updateUserDTO>;
 
 export type CreateCourseSellerApplicationInput = z.infer<typeof createCourseSellerApplicationDTO>
