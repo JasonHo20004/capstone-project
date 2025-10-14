@@ -10,6 +10,8 @@ const userController = new UserController();
 
 router.post('/register',validate(createUserDTO),userController.register);
 
+router.get('/me',authMiddleware,userController.getUserInformation);
+
 router.put('/me/update',authMiddleware,validate(updateUserDTO),userController.updateUser);
 
 router.post('/me/course-seller-application',authMiddleware ,validate(createCourseSellerApplicationDTO),userController.createCourseSellerAppolication);

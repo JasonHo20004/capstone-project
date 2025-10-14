@@ -13,6 +13,17 @@ export class UserService {
   private userRepository = new UserRepository(); 
   
 
+  public async getUserInformation(userId:string): Promise<SafeUser> {
+    const existingUser = await this.userRepository.findUserById(
+      userId
+    );
+    if (!existingUser) {
+      throw new Error("Email is already in use");
+    }
+
+     
+    return existingUser;
+  }
   public async createUser(userData: CreateUserInput['body']): Promise<SafeUser> {
     const existingUser = await this.userRepository.findUserByEmail(
       userData.email
