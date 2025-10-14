@@ -20,9 +20,10 @@ export class UserService {
     if (!existingUser) {
       throw new Error("Email is already in use");
     }
+    const { password, ...userWithoutPassword } =existingUser;
 
      
-    return existingUser;
+    return userWithoutPassword;
   }
   public async createUser(userData: CreateUserInput['body']): Promise<SafeUser> {
     const existingUser = await this.userRepository.findUserByEmail(
