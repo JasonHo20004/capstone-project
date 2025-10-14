@@ -5,6 +5,8 @@ import cors from 'cors';
 import userRouter from './modules/users/routes/user.route';
 import adminRouter from './modules/admin/routes/admin.route';
 import authRouter from './modules/auth/routes/auth.route'
+import flashcardDeckRouter from './modules/flashcards/routes/flashcardDeck.route'
+import tagRouter from './modules/flashcards/routes/tag.route'
 import cookieParser from 'cookie-parser'; // Import cookie-parser
 
 // Create Express app instance
@@ -23,4 +25,6 @@ app.get('/', (_req, res) => {
 app.use('/api/users', userRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/auth', authRouter)
+app.use('/api/flashcardDecks',flashcardDeckRouter)
+app.use('/api/tags',tagRouter)
 export default app;
