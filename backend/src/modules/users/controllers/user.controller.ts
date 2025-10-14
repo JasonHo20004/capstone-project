@@ -40,7 +40,6 @@ export class UserController {
     try {
       const userData = req.body;
       const newUser = await this.userService.createUser(userData);
-
       res.status(200).json({
         success: true,
         message: "Register user successfully",
