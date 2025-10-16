@@ -112,6 +112,7 @@ model User {
   administratorProfile    AdministratorProfile?
   wallet                  Wallet?
   userNotifications       UserNotification[]
+  inAppNotifications      InAppNotification[]
   flashcardDecks          FlashcardDeck[]
   topupOrders             TopupOrder[]
   courses                 Course[]
@@ -141,6 +142,7 @@ model RefreshToken {
 model NotificationType {
   id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name          String         @unique @db.VarChar(50)
+  isLocked      Boolean        @default(false) @map("is_locked")
   notifications Notification[]
 
   @@map("notification_types")
@@ -232,6 +234,29 @@ model Notification {
   userNotifications  UserNotification[]
 
   @@map("notifications")
+}
+
+// In-App Notification System
+model InAppNotification {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String      @map("user_id") @db.Uuid
+  title         String      @db.VarChar(255)
+  content       String
+  type          String      @db.VarChar(50) // RENEWAL_REMINDER, EXPIRATION_WARNING, etc.
+  isRead        Boolean     @default(false) @map("is_read")
+  isArchived    Boolean     @default(false) @map("is_archived")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  readAt        DateTime?   @map("read_at") @db.Timestamptz(6)
+  archivedAt    DateTime?   @map("archived_at") @db.Timestamptz(6)
+  
+  // Optional metadata
+  contractId    String?     @map("contract_id") @db.Uuid
+  courseId      String?     @map("course_id") @db.Uuid
+  metadata      Json?       // Store additional data as JSON
+  
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("in_app_notifications")
 }
 
 model Test {
@@ -390,10 +415,15 @@ model PracticeSession {
 model SubscriptionContract {
   id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   courseSellerId     String           @map("course_seller_id") @db.Uuid
-  status             Boolean          @default(true)
+  status             Boolean          @default(true)  // true = active, false = expired/locked
   subscriptionPlanId String           @map("subscription_plan_id") @db.Uuid
   createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   expiresAt          DateTime         @map("expires_at") @db.Timestamptz(6)
+  updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  renewalCount       Int              @default(0) @map("renewal_count")
+  lastRenewalAt      DateTime?        @map("last_renewal_at") @db.Timestamptz(6)
+  notes              String?          @db.Text
+  lastNotificationAt DateTime?        @map("last_notification_at") @db.Timestamptz(6)
   user               User             @relation(fields: [courseSellerId], references: [id])
   subscriptionPlan   SubscriptionPlan @relation(fields: [subscriptionPlanId], references: [id])
   transactions       Transaction[]
