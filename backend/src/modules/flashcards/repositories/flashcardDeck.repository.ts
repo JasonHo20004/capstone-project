@@ -29,4 +29,41 @@ export class FlashcardDeckRepository {
       },
     });
   }
+
+  public async updateDeck(
+    id: string,
+    updateData: {
+        title?: string;
+        description?: string | null;
+        tagIds?: string[];
+    },
+    userId: string
+  ):Promise<FlashcardDeck>{
+    const { tagIds, ...otherData } = updateData;
+ 
+    return  this.prisma.flashcardDeck.update({
+    where: {
+      id: id,
+      userId: userId, 
+    },
+    data: {
+      ...otherData,
+      ...(tagIds !== undefined && {
+        deckTags: {
+          deleteMany: {},
+          create: tagIds.map((id) => ({
+            tagId:id
+          })),
+        }
+      })
+    },
+    include: {
+      deckTags: {
+        select: {
+          tag: true
+        }
+      }
+    }
+  });
+  }
 }

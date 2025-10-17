@@ -9,6 +9,6 @@ const flashcardDeckController = new FlashcardDeckController();
 
 router.post('/create',authMiddleware,validate(createFlashcardDeckDTO),flashcardDeckController.createFlashcardDeck);
 
-router.put('/update',authMiddleware,validate(createFlashcardDeckDTO),flashcardDeckController.updateFlashcardDeck)
+router.put('/update/:flashcardDeckId',authMiddleware,validate(createFlashcardDeckDTO),flashcardDeckController.updateFlashcardDeck)
 
 export default router;

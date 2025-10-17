@@ -17,9 +17,9 @@ export const updateFlashcardDeckDTO = z.object({
     title: z.string({
       error: (issue) =>
         issue.input === undefined ? "This field is required" : "Invalid title",
-    }),
+    }).optional(),
     description: z.string().nullable().optional(),
-    tagIds: z.array(z.uuid("Invalid tag ID format")).nonempty({ message: "You must select at least one tag." }),
+    tagIds: z.array(z.uuid("Invalid tag ID format")).nonempty({ message: "You must select at least one tag." }).optional(),
   }),
   params: z.object({
     id:z.uuid({
