@@ -1,4 +1,4 @@
-import type { Request, Response } from 'express';
+import type {  Response } from 'express';
 import { FlashcardDeckService } from '@/modules/flashcards/services/flashcardDeck.service';
 import type {CreateFlashcardDeckInput } from '@/modules/flashcards/dtos/flashcardDeck.dto';
 import type { AuthenticatedRequest } from '@/middlewares/auth.middleware';
