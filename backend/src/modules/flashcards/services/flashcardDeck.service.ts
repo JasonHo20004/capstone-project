@@ -22,6 +22,7 @@ export class FlashcardDeckService {
 
   public async updateFlashcardDeck(
     id: string,
+    updateData: {
         title?: string;
         description?: string | null;
         tagIds?: string[];
