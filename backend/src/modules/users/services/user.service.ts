@@ -8,11 +8,23 @@ import type {
 } from "@/modules/users/dtos/user.dto";
 
 import type { CourseSellerApplication } from "@/../generated/prisma"
-
+import {WalletRepository} from '@/modules/wallets/repositories/wallet.repository'
 export class UserService {
   private userRepository = new UserRepository(); 
-  
+  private walletRepository = new WalletRepository()
 
+  public async getUserInformation(userId:string): Promise<SafeUser> {
+    const existingUser = await this.userRepository.findUserById(
+      userId
+    );
+    if (!existingUser) {
+      throw new Error("Email is already in use");
+    }
+    const { password, ...userWithoutPassword } =existingUser;
+
+     
+    return userWithoutPassword;
+  }
   public async createUser(userData: CreateUserInput['body']): Promise<SafeUser> {
     const existingUser = await this.userRepository.findUserByEmail(
       userData.email
@@ -28,6 +40,7 @@ export class UserService {
       password: hashedPassword,
     });
 
+    await this.walletRepository.createWallet(newUser.id)
     const { password, ...userWithoutPassword } = newUser;
     return userWithoutPassword;
   }
