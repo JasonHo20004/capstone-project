@@ -66,4 +66,15 @@ export class FlashcardDeckRepository {
     }
   });
   }
+public async deleteDeck(id: string, userId: string): Promise<FlashcardDeck> {
+  const deletedDeck = await this.prisma.flashcardDeck.delete({
+    where: {
+      id: id,
+      userId: userId,
+    },
+  });
+
+  return deletedDeck;
+}
+
 }

@@ -1,7 +1,6 @@
 import { FlashcardDeckRepository } from "@/modules/flashcards/repositories/flashcardDeck.repository";
 import type { CreateFlashcardDeckInput } from "@/modules/flashcards/dtos/flashcardDeck.dto";
 import type { FlashcardDeck } from "@/../generated/prisma";
-
 export class FlashcardDeckService {
   private flashcardDeckRepository = new FlashcardDeckRepository();
 
@@ -49,4 +48,14 @@ export class FlashcardDeckService {
   
     return updateFlashcardDeck
   }
+public async deleteFlashcardDeck(id: string, userId: string): Promise<void> {
+  try {
+    await this.flashcardDeckRepository.deleteDeck(id, userId);
+  } catch (error:any) { 
+      if (error.code === 'P2025') {
+        throw new Error('Flashcard deck not found or user does not have permission.');
+      }
+    throw error;
+  }
+}
 }

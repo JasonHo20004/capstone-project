@@ -286,7 +286,7 @@ model FlashcardDeck {
   userId      String      @map("user_id") @db.Uuid
   user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   flashcards  Flashcard[]
-  deckTags    DeckTag[]
+  deckTags    DeckTag[] 
 
   @@map("flashcard_decks")
 }
