@@ -12,7 +12,28 @@ export class FlashcardRepository {
     deckId: string;
   }): Promise<Flashcard> {
     return this.prisma.flashcard.create({
-      data: flashcardData
+      data: flashcardData,
+    });
+  }
+  public async findFlashcardById(id: string): Promise<Flashcard | null> {
+    return this.prisma.flashcard.findUnique({
+      where: { id: id },
+    });
+  }
+  public async updateFlashcard(
+    flashcardData: {
+      frontContent: string;
+      backContent: string;
+      exampleSentence?: string;
+      audioUrl?: string;
+    },
+    flashcardId: string
+  ): Promise<Flashcard> {
+    return this.prisma.flashcard.update({
+      where: {
+        id: flashcardId,
+      },
+      data: flashcardData,
     });
   }
 }
