@@ -29,6 +29,15 @@ export const updateFlashcardDTO = z.object({
     })
   })
 });
+export const deleteFlashcardDTO = z.object({
+   params: z.object({
+    flashcardId:z.uuid({
+      message: 'Flashcard ID must be a valid UUID'
+    })
+  })
+});
 
 export type CreateFlashcardInput = z.infer<typeof createFlashcardDTO>;
 export type UpdateFlashcardInput = z.infer<typeof updateFlashcardDTO>;
+export type DeleteFlashcardInput = z.infer<typeof deleteFlashcardDTO>;
+

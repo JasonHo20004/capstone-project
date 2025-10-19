@@ -36,4 +36,11 @@ export class FlashcardRepository {
       data: flashcardData,
     });
   }
+   public async deleteFlashcard(id: string,): Promise<Flashcard> {
+      return this.prisma.flashcard.delete({
+        where: {
+          id: id,
+        },
+      });
+    }
 }

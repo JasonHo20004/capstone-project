@@ -3,6 +3,7 @@ import { FlashcardService } from "@/modules/flashcards/services/flashcard.servic
 import type {
   CreateFlashcardInput,
   UpdateFlashcardInput,
+  DeleteFlashcardInput,
 } from "@/modules/flashcards/dtos/flashcard.dto";
 import type { AuthenticatedRequest } from "@/middlewares/auth.middleware";
 
@@ -70,6 +71,33 @@ export class FlashcardController {
       res.status(500).json({
         success: false,
         message: "Failed to update flashcard deck",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+  public deleteFlashcard = async (
+    req: AuthenticatedRequest & {
+      params: DeleteFlashcardInput["params"];
+    },
+    res: Response
+  ): Promise<void> => {
+    try {
+      const userId = req.user!.userId;
+      const { flashcardId } = req.params;
+
+      await this.flashcardService.deleteFlashcard(
+        flashcardId!,
+        userId
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Delete flashcard successfully",
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to delete flashcard ",
         error: error instanceof Error ? error.message : String(error),
       });
     }

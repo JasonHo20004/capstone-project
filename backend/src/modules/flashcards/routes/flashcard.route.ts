@@ -1,7 +1,7 @@
 import { Router } from 'express';
 //import { UserController } from '@/modules/users/controllers/user.controller';
 import { validate } from '@/middlewares/validations.middleware';
-import { createFlashcardDTO,updateFlashcardDTO} from '@/modules/flashcards/dtos/flashcard.dto';
+import { createFlashcardDTO,updateFlashcardDTO,deleteFlashcardDTO} from '@/modules/flashcards/dtos/flashcard.dto';
 import {FlashcardController} from '../controllers/flashcard.controller'
 import { authMiddleware } from '@/middlewares/auth.middleware';
 const router = Router();
@@ -11,4 +11,5 @@ router.post('/create',authMiddleware,validate(createFlashcardDTO),flashcardContr
 
 router.put('/update/:flashcardId',authMiddleware,validate(updateFlashcardDTO),flashcardController.updateFlashcard)
 
+router.delete('/delete/:flashcardId',authMiddleware, validate(deleteFlashcardDTO),flashcardController.deleteFlashcard)
 export default router;
