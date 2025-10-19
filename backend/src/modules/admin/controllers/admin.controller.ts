@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { AdminService } from '@/modules/admin/services/admin.service';
+import type { GetRevenueOverviewInput, GetRevenueByTransactionTypeInput, GetRevenueByPeriodInput} from '../dtos/revenue.dto';
 import type { ApproveCourseSellerApplicationInput } from '../dtos/courseSeller.dto';
 import type {
   CreateContractInput as ContractCreateInput,
@@ -183,7 +184,7 @@ export class AdminController {
     }
   };
 
-  public lockSeller = async (req: Request<ContractLockInput['params'], {}, {}>, res: Response): Promise<void> => {
+  public lockSeller = async (req: Request<ContractLockInput['params']>, res: Response): Promise<void> => {
     try {
       const { contractId } = req.params;
       const result = await this.adminService.lockSellerAccount(contractId);
@@ -238,4 +239,74 @@ export class AdminController {
     }
   };
 
+    public getRevenueOverview = async (req: Request<{}, {}, {}, GetRevenueOverviewInput['query']>, res: Response): Promise<void> => {
+    try {
+      const { period, startDate, endDate } = req.query;
+      const revenueData = await this.adminService.getRevenueOverview(
+        period as string,
+        startDate as string,
+        endDate as string
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Revenue overview retrieved successfully',
+        data: revenueData,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve revenue overview',
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
+  public getRevenueByTransactionType = async (req: Request<{}, {}, {}, GetRevenueByTransactionTypeInput['query']>, res: Response): Promise<void> => {
+    try {
+      const { startDate, endDate, transactionType } = req.query;
+      const revenueData = await this.adminService.getRevenueByTransactionType(
+        startDate as string,
+        endDate as string,
+        transactionType as string
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Revenue by transaction type retrieved successfully',
+        data: revenueData,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve revenue by transaction type',
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
+  public getRevenueByPeriod = async (req: Request<{}, {}, {}, GetRevenueByPeriodInput['query']>, res: Response): Promise<void> => {
+    try {
+      const { period, startDate, endDate, limit, page } = req.query;
+      const revenueData = await this.adminService.getRevenueByPeriod(
+        period as 'day' | 'month' | 'year',
+        startDate as string,
+        endDate as string,
+        limit as number,
+        page as number
+      );
+
+      res.status(200).json({
+        success: true,
+        message: 'Revenue by period retrieved successfully',
+        data: revenueData,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve revenue by period',
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
 };
