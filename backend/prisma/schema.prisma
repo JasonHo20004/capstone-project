@@ -91,6 +91,11 @@ enum ApplicationStatus {
   APPROVED
   REJECTED
 }
+
+enum FlashcardStatus {
+  LEARNING 
+  REVIEW   
+}
 // =============================================================================
 // Core Models
 // =============================================================================
@@ -125,7 +130,7 @@ model User {
   comments                Comment[]
   policy                  Policy?
   courseSellerApplication CourseSellerApplication?
-  
+  userFlashcardProgress UserFlashcardProgress[]
 
   @@map("users")
 }
@@ -383,7 +388,7 @@ model Flashcard {
   audioUrl        String?       @map("audio_url")
   deckId          String        @map("deck_id") @db.Uuid
   deck            FlashcardDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
-
+  userProgress    UserFlashcardProgress[]
   @@map("flashcards")
 }
 
@@ -397,6 +402,22 @@ model DeckTag {
   @@map("deck_tags")
 }
 
+model UserFlashcardProgress {
+  userId      String   @map("user_id") @db.Uuid
+  flashcardId String   @map("flash_card_id") @db.Uuid
+  status      FlashcardStatus @default(LEARNING)
+  nextReviewAt DateTime @default(now()) @map("next_review_at") @db.Timestamptz(6)
+  repetitions  Int      @default(0)
+  
+  easeFactor   Float    @default(2.5) @map("ease_factor")
+
+  interval     Int      @default(0)
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flashcard Flashcard @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+  @@id([userId, flashcardId])
+  @@map("user_flashcard_progress")
+}
 model PracticeSession {
   id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId           String        @map("user_id") @db.Uuid
