@@ -1,6 +1,6 @@
 import type { Response } from "express";
 import { FlashcardReviewService } from "@/modules/flashcards/services/flashcardReview.service";
-import type { GetReviewQueueInput } from "@/modules/flashcards/dtos/flashcardReview.dto";
+import type { GetReviewQueueInput, SubmitReviewInput } from "@/modules/flashcards/dtos/flashcardReview.dto";
 import type { AuthenticatedRequest } from "@/middlewares/auth.middleware";
 
 export class FlashcardReviewController {
@@ -29,6 +29,36 @@ export class FlashcardReviewController {
       });
     }
   };
+public submitReview = async (
+    req: AuthenticatedRequest & {
+      params: SubmitReviewInput["params"];
+      body: SubmitReviewInput["body"];
+    },
+    res: Response
+  ): Promise<void> => {
+    try {
+      const userId = req.user!.userId;
+      const { flashcardId } = req.params;
+      const { quality } = req.body;
 
+      const updatedProgress = await this.reviewService.submitReview(
+        userId,
+        flashcardId,
+        quality
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Review submitted successfully",
+        data: updatedProgress,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to submit review",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
 
 }
