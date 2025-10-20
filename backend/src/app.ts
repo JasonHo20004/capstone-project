@@ -8,6 +8,8 @@ import notificationRouter from './modules/admin/routes/notification.route';
 import authRouter from './modules/auth/routes/auth.route'
 import flashcardDeckRouter from './modules/flashcards/routes/flashcardDeck.route'
 import tagRouter from './modules/flashcards/routes/tag.route'
+import flashcardRouter from './modules/flashcards/routes/flashcard.route'
+import flashcardReviewRouter from './modules/flashcards/routes/flashcardReview.route'
 import cookieParser from 'cookie-parser'; // Import cookie-parser
 
 // Create Express app instance
@@ -30,5 +32,6 @@ app.use('/api/auth', authRouter)
 
 app.use('/api/flashcardDecks',flashcardDeckRouter)
 app.use('/api/tags',tagRouter)
-
+app.use('/api/flashcards', flashcardRouter)
+app.use('/api/flashcard-review',flashcardReviewRouter)
 export default app;
