@@ -11,7 +11,6 @@ export const createFlashcardDTO = z.object({
         issue.input === undefined ? "This field is required" : "Invalid frontContent",
     }).nonempty(),
     exampleSentence: z.string().optional(),
-    audioUrl: z.string().optional(),
     deckId:z.uuid("Invalid Deck ID format")
   }),
 });
@@ -20,8 +19,7 @@ export const updateFlashcardDTO = z.object({
   body: z.object({
     frontContent: z.string().nonempty().optional(),
     backContent: z.string().nonempty().optional(),
-    exampleSentence: z.string().optional(),
-    audioUrl: z.string().optional() 
+    exampleSentence: z.string().optional()
    }),
    params: z.object({
     flashcardId:z.uuid({
