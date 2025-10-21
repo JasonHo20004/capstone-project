@@ -21,4 +21,11 @@ export class TagRepository {
       data: updateData,
     });
   }
+  public async deleteTag(id: string): Promise<Tag> {
+    return this.prisma.tag.delete({
+      where: {
+        id: id,
+      },
+    });
+  }
 }

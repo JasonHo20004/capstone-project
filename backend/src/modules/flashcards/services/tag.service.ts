@@ -24,4 +24,15 @@ export class TagService {
       throw Error("Can not find tagId");
     }
   }
+
+  public async deleteTag(id: string): Promise<void> {
+  try {
+    await this.tagRepository.deleteTag(id);
+  } catch (error:any) { 
+      if (error.code === 'P2025') {
+        throw new Error('Flashcard deck not found or user does not have permission.');
+      }
+    throw error;
+  }
+}
 }
