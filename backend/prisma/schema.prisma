@@ -91,6 +91,19 @@ enum ApplicationStatus {
   APPROVED
   REJECTED
 }
+
+enum FlashcardStatus {
+  LEARNING 
+  REVIEW   
+}
+enum EReasonType {
+  INAPPROPRIATE_CONTENT
+  COPYRIGHT_VIOLATION
+  NOT_AS_DESCRIBED
+  UNRESPONSIVE_INSTRUCTOR
+  INCOMPLETE_CONTENT
+}
+
 // =============================================================================
 // Core Models
 // =============================================================================
@@ -123,9 +136,10 @@ model User {
   userAnswers             UserAnswer[]
   userActivities          UserActivity[]
   comments                Comment[]
+  reports                 Report[]
   policy                  Policy?
   courseSellerApplication CourseSellerApplication?
-  
+  userFlashcardProgress UserFlashcardProgress[]
 
   @@map("users")
 }
@@ -286,7 +300,7 @@ model FlashcardDeck {
   userId      String      @map("user_id") @db.Uuid
   user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   flashcards  Flashcard[]
-  deckTags    DeckTag[]
+  deckTags    DeckTag[] 
 
   @@map("flashcard_decks")
 }
@@ -347,6 +361,7 @@ model Course {
   test          Test?    @relation(fields: [finalTestId], references: [id], onDelete: SetNull)
   ratings       Rating[]
   lessons       Lesson[]
+  reports       Report[]
 
   @@map("courses")
 }
@@ -383,7 +398,7 @@ model Flashcard {
   audioUrl        String?       @map("audio_url")
   deckId          String        @map("deck_id") @db.Uuid
   deck            FlashcardDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
-
+  userProgress    UserFlashcardProgress[]
   @@map("flashcards")
 }
 
@@ -397,6 +412,22 @@ model DeckTag {
   @@map("deck_tags")
 }
 
+model UserFlashcardProgress {
+  userId      String   @map("user_id") @db.Uuid
+  flashcardId String   @map("flash_card_id") @db.Uuid
+  status      FlashcardStatus @default(LEARNING)
+  nextReviewAt DateTime @default(now()) @map("next_review_at") @db.Timestamptz(6)
+  repetitions  Int      @default(0)
+  
+  easeFactor   Float    @default(2.5) @map("ease_factor")
+
+  interval     Int      @default(0)
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flashcard Flashcard @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+  @@id([userId, flashcardId])
+  @@map("user_flashcard_progress")
+}
 model PracticeSession {
   id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId           String        @map("user_id") @db.Uuid
@@ -587,4 +618,17 @@ model Policy {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("policies")
+}
+
+model Report {
+  id   String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  content    String       
+  reasonType EReasonType  @map("reason_type")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  userId     String       @map("user_id") @db.Uuid
+  courseId   String       @map("course_id") @db.Uuid
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course     Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
 }
