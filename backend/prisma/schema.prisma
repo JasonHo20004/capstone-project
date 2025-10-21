@@ -96,6 +96,14 @@ enum FlashcardStatus {
   LEARNING 
   REVIEW   
 }
+enum EReasonType {
+  INAPPROPRIATE_CONTENT
+  COPYRIGHT_VIOLATION
+  NOT_AS_DESCRIBED
+  UNRESPONSIVE_INSTRUCTOR
+  INCOMPLETE_CONTENT
+}
+
 // =============================================================================
 // Core Models
 // =============================================================================
@@ -128,6 +136,7 @@ model User {
   userAnswers             UserAnswer[]
   userActivities          UserActivity[]
   comments                Comment[]
+  reports                 Report[]
   policy                  Policy?
   courseSellerApplication CourseSellerApplication?
   userFlashcardProgress UserFlashcardProgress[]
@@ -352,6 +361,7 @@ model Course {
   test          Test?    @relation(fields: [finalTestId], references: [id], onDelete: SetNull)
   ratings       Rating[]
   lessons       Lesson[]
+  reports       Report[]
 
   @@map("courses")
 }
@@ -608,4 +618,17 @@ model Policy {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("policies")
+}
+
+model Report {
+  id   String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  content    String       
+  reasonType EReasonType  @map("reason_type")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  userId     String       @map("user_id") @db.Uuid
+  courseId   String       @map("course_id") @db.Uuid
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course     Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
 }
