@@ -9,4 +9,16 @@ export class TagRepository {
       data: tagData,
     });
   }
+
+  public async updateTag(
+    id: string,
+    updateData: {
+      name: string;
+    }
+  ): Promise<Tag> {
+    return this.prisma.tag.update({
+      where: { id },
+      data: updateData,
+    });
+  }
 }
