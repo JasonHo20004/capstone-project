@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { NotificationController } from '@/modules/admin/controllers/notification.controller';
+import { NotificationController } from '@/modules/notifications/controllers/notification.controller';
 
 const router = Router();
 const notificationController = new NotificationController();

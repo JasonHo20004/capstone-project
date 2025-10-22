@@ -9,10 +9,9 @@ import type {
 import type { SafeUser } from "@/modules/users/dtos/user.dto";
 import { UserRepository } from "@/modules/users/repositories/user.repository";
 import { databaseService } from "@/services/database.service";
-import {
-  NotificationService,
-  NOTIFICATION_TYPES,
-} from "./notification.service";
+
+import { NotificationService, NOTIFICATION_TYPES } from "@/modules/notifications/services/notification.service";
+
 
 export class AdminService {
   private adminRepository = new AdminRepository();

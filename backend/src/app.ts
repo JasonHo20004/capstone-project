@@ -4,7 +4,7 @@ import cors from 'cors';
 
 import userRouter from './modules/users/routes/user.route';
 import adminRouter from './modules/admin/routes/admin.route';
-import notificationRouter from './modules/admin/routes/notification.route';
+import notificationRouter from './modules/notifications/routes/notification.route';
 import authRouter from './modules/auth/routes/auth.route'
 import flashcardDeckRouter from './modules/flashcards/routes/flashcardDeck.route'
 import tagRouter from './modules/flashcards/routes/tag.route'

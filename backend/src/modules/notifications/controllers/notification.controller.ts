@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { NotificationService } from '@/modules/admin/services/notification.service';
+import { NotificationService } from '@/modules/notifications/services/notification.service';
 
 export class NotificationController {
   private notificationService = new NotificationService();
