@@ -56,10 +56,7 @@ export const createCourseSellerApplicationDTO = z.object({
   body: z.object({
     certification: z.array(z.string()),
     expertise: z.array(z.string()),
-  }),
-  params: z.object({
-    userId: z.uuid({ error: 'User ID is not correct' }),
-  }),
+  })
 });
 
 

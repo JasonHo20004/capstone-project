@@ -1,17 +1,18 @@
 import { AdminRepository } from "@/modules/admin/repositories/admin.repository";
+import { ApplicationStatus } from "@/../generated/prisma";
 import type {
   CourseSellerApplication,
-  ApplicationStatus,
   CourseSellerProfile,
   SubscriptionContract,
-  User
+  User,
 } from "@/../generated/prisma";
-import type {
-  SafeUser
-} from "@/modules/users/dtos/user.dto";
+import type { SafeUser } from "@/modules/users/dtos/user.dto";
 import { UserRepository } from "@/modules/users/repositories/user.repository";
 import { databaseService } from "@/services/database.service";
-import { NotificationService, NOTIFICATION_TYPES } from "./notification.service";
+import {
+  NotificationService,
+  NOTIFICATION_TYPES,
+} from "./notification.service";
 
 export class AdminService {
   private adminRepository = new AdminRepository();
@@ -23,69 +24,89 @@ export class AdminService {
   private async getDefaultSubscriptionPlan() {
     const subscriptionPlan = await this.prisma.subscriptionPlan.findFirst();
     if (!subscriptionPlan) {
-      throw new Error('No subscription plan found. Please create a default subscription plan first.');
+      throw new Error(
+        "No subscription plan found. Please create a default subscription plan first."
+      );
     }
     return subscriptionPlan;
   }
 
   public async getAllUsers(): Promise<SafeUser[]> {
-      try {
-        const users = await this.adminRepository.findAll();
-  
-        return users;
-      } catch (error) {
-        console.error("Error in userService.getAllUsers:", error);
-        throw new Error("Failed to retrieve users");
-      }
+    try {
+      const users = await this.adminRepository.findAll();
+
+      return users;
+    } catch (error) {
+      console.error("Error in userService.getAllUsers:", error);
+      throw new Error("Failed to retrieve users");
     }
+  }
+
   public async upgradeToCourseSeller(
-    userId: string,
+    applicationId: string,
     status: ApplicationStatus,
     rejectionReason?: string,
     message?: any
   ): Promise<CourseSellerApplication | CourseSellerProfile> {
-    const existingCourseSeller = await this.userRepository.findCourseSellerById(
-      userId
+    
+    const existingApplication = await this.adminRepository.findApplicationById(
+      applicationId
     );
-    // console.log(existingCourseSeller)
-    if (!existingCourseSeller) {
-      throw new Error("Course Seller is not Pending");
-    }
-    const dataToUpdate: {
-      status: ApplicationStatus;
-      rejectionReason?:any
-      message?: any
-    } = {
-      status: status,
-    };
-    if (status === "APPROVED") {
-      const approveCourseSellerApplication =
-        await this.adminRepository.approveCourseSellerApplication(
-          userId,
-          dataToUpdate
-        );
 
-      const courseSellerData: {
-        certification: string[];
-        expertise: string[];
-        userId: string;
-      } = {
-        certification: approveCourseSellerApplication.certification,
-        expertise: approveCourseSellerApplication.expertise,
-        userId: userId,
-      };
-      const courseSellerProfile =
-        await this.userRepository.createCourseSellerProfile(courseSellerData);
-      return courseSellerProfile;
+    
+    if (!existingApplication) {
+      throw new Error("Application not found or has been deleted.");
+    }
+
+    if (status === "APPROVED") {
+      // Logic nghiệp vụ và Transaction NẰM TẠI SERVICE
+      const { userId, certification, expertise } = existingApplication;
+
+      try {
+        await this.adminRepository.updateCourseSellerRole(userId);
+
+        // Update application status
+        await this.prisma.courseSellerApplication.update({
+          where: { id: applicationId },
+          data: {
+            status: ApplicationStatus.APPROVED,
+            rejectionReason: null,
+            message: null,
+          },
+        });
+
+        // Create course seller profile
+        const newProfile = await this.userRepository.createCourseSellerProfile({
+          userId: userId,
+          certification: certification,
+          expertise: expertise,
+        });
+
+        return newProfile;
+      } catch (error: any) {
+        if (error.code === "P2002") {
+          // Lỗi unique constraint (user đã có profile)
+          throw new Error("This user already has a Course Seller profile.");
+        }
+
+        throw new Error("Can not approve this application.");
+      }
     } else {
-      dataToUpdate.message = message;
-      dataToUpdate.rejectionReason = rejectionReason;
-      const approveCourseSellerApplication =
-        await this.adminRepository.approveCourseSellerApplication(
-          userId,
-          dataToUpdate
-        );
-      return approveCourseSellerApplication;
+      if (!rejectionReason) {
+        throw new Error("Need to have Rejection Reason.");
+      }
+
+      const dataToUpdate = {
+        status: ApplicationStatus.REJECTED,
+        message: message ,
+        rejectionReason: rejectionReason,
+      };
+
+      // 1. Repository CHỈ query (update)
+      return this.adminRepository.updateApplicationStatus(
+        applicationId,
+        dataToUpdate
+      );
     }
   }
 
@@ -102,9 +123,11 @@ export class AdminService {
     const subscriptionPlan = await this.getDefaultSubscriptionPlan();
 
     // Check if course seller exists
-    const courseSeller = await this.userRepository.findCourseSellerById(data.courseSellerId);
+    const courseSeller = await this.userRepository.findCourseSellerById(
+      data.courseSellerId
+    );
     if (!courseSeller) {
-      throw new Error('Course Seller not found');
+      throw new Error("Course Seller not found");
     }
 
     // Calculate expiration date (30 days from now for monthly plan)
@@ -116,14 +139,15 @@ export class AdminService {
       courseSellerId: data.courseSellerId,
       subscriptionPlanId: subscriptionPlan.id,
       expiresAt,
-      notes: data.notes || undefined
+      notes: data.notes || undefined,
     });
 
     // Send welcome notification to Course Seller
-    const welcomeNotification = await this.notificationService.createRenewalReminderNotifications(
-      [newContract.id],
-      NOTIFICATION_TYPES.RENEWAL_REMINDER
-    );
+    const welcomeNotification =
+      await this.notificationService.createRenewalReminderNotifications(
+        [newContract.id],
+        NOTIFICATION_TYPES.RENEWAL_REMINDER
+      );
 
     if (welcomeNotification.length > 0) {
       await this.notificationService.sendBulkNotifications(welcomeNotification);
@@ -134,30 +158,40 @@ export class AdminService {
 
   public async sendRenewalNotification(data: {
     contractIds: string[];
-    notificationType: 'RENEWAL_REMINDER' | 'EXPIRATION_WARNING' | 'FINAL_NOTICE';
+    notificationType:
+      | "RENEWAL_REMINDER"
+      | "EXPIRATION_WARNING"
+      | "FINAL_NOTICE";
   }): Promise<{ sentCount: number; failedCount: number }> {
     // Create notifications using the notification service
-    const notifications = await this.notificationService.createRenewalReminderNotifications(
-      data.contractIds,
-      data.notificationType
-    );
+    const notifications =
+      await this.notificationService.createRenewalReminderNotifications(
+        data.contractIds,
+        data.notificationType
+      );
 
     // Send bulk notifications
-    const result = await this.notificationService.sendBulkNotifications(notifications);
+    const result = await this.notificationService.sendBulkNotifications(
+      notifications
+    );
 
     // Update notification timestamps for successful sends
     for (const detail of result.details) {
       if (detail.success) {
-        const notification = notifications.find(n => n.recipientId === detail.recipientId);
+        const notification = notifications.find(
+          (n) => n.recipientId === detail.recipientId
+        );
         if (notification?.contractId) {
-          await this.notificationService.updateContractNotificationTimestamp(notification.contractId);
+          await this.notificationService.updateContractNotificationTimestamp(
+            notification.contractId
+          );
         }
       }
     }
 
     return {
       sentCount: result.sentCount,
-      failedCount: result.failedCount
+      failedCount: result.failedCount,
     };
   }
 
@@ -177,7 +211,10 @@ export class AdminService {
           lockedAccounts++;
         }
       } catch (error) {
-        console.error(`Failed to process expired contract ${contract.id}:`, error);
+        console.error(
+          `Failed to process expired contract ${contract.id}:`,
+          error
+        );
       }
     }
 
@@ -192,57 +229,68 @@ export class AdminService {
       where: { id: contractId },
       include: {
         user: true,
-        subscriptionPlan: true
-      }
+        subscriptionPlan: true,
+      },
     });
 
     if (!contract) {
-      throw new Error('Contract not found');
+      throw new Error("Contract not found");
     }
 
     // Check active students
     const enrolledStudents = await this.prisma.userActivity.findMany({
       where: {
         courseId: {
-          in: await this.prisma.course.findMany({
-            where: { courseSellerId: contract.courseSellerId },
-            select: { id: true }
-          }).then(courses => courses.map(c => c.id))
+          in: await this.prisma.course
+            .findMany({
+              where: { courseSellerId: contract.courseSellerId },
+              select: { id: true },
+            })
+            .then((courses) => courses.map((c) => c.id)),
         },
         expiresAt: {
-          gt: new Date()
-        }
+          gt: new Date(),
+        },
       },
       include: {
         user: {
           select: {
             id: true,
             fullName: true,
-            email: true
-          }
-        }
-      }
+            email: true,
+          },
+        },
+      },
     });
 
-      if (enrolledStudents.length > 0) {
-        // Create and send notifications for enrolled students
-        const studentNotifications = await this.notificationService.createEnrolledStudentNotifications(
+    if (enrolledStudents.length > 0) {
+      // Create and send notifications for enrolled students
+      const studentNotifications =
+        await this.notificationService.createEnrolledStudentNotifications(
           contract.courseSellerId,
           contract.user.fullName
         );
-        
-        const notificationResult = await this.notificationService.sendBulkNotifications(studentNotifications);
-        console.log(`Sent notifications to ${notificationResult.sentCount} enrolled students for locked account`);
-      }
+
+      const notificationResult =
+        await this.notificationService.sendBulkNotifications(
+          studentNotifications
+        );
+      console.log(
+        `Sent notifications to ${notificationResult.sentCount} enrolled students for locked account`
+      );
+    }
 
     // Lock the account
-    const lockResult = await this.adminRepository.lockCourseSellerAccount(contractId);
+    const lockResult = await this.adminRepository.lockCourseSellerAccount(
+      contractId
+    );
 
     // Send notification to Course Seller about account lock
-    const sellerNotification = await this.notificationService.createRenewalReminderNotifications(
-      [contractId],
-      NOTIFICATION_TYPES.SELLER_ACCOUNT_LOCKED
-    );
+    const sellerNotification =
+      await this.notificationService.createRenewalReminderNotifications(
+        [contractId],
+        NOTIFICATION_TYPES.SELLER_ACCOUNT_LOCKED
+      );
 
     if (sellerNotification.length > 0) {
       await this.notificationService.sendBulkNotifications(sellerNotification);
@@ -259,24 +307,31 @@ export class AdminService {
     const currentContract = await this.prisma.subscriptionContract.findUnique({
       where: { id: data.contractId },
       include: {
-        subscriptionPlan: true
-      }
+        subscriptionPlan: true,
+      },
     });
 
     if (!currentContract) {
-      throw new Error('Contract not found');
+      throw new Error("Contract not found");
     }
 
     const currentExpiry = currentContract.expiresAt;
-    const newExpiresAt = new Date(currentExpiry.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const newExpiresAt = new Date(
+      currentExpiry.getTime() + 30 * 24 * 60 * 60 * 1000
+    );
 
-    const renewedContract = await this.adminRepository.renewContract(data.contractId, newExpiresAt, data.notes || undefined);
+    const renewedContract = await this.adminRepository.renewContract(
+      data.contractId,
+      newExpiresAt,
+      data.notes || undefined
+    );
 
     // Send renewal confirmation notification
-    const renewalNotification = await this.notificationService.createRenewalReminderNotifications(
-      [data.contractId],
-      NOTIFICATION_TYPES.RENEWAL_REMINDER
-    );
+    const renewalNotification =
+      await this.notificationService.createRenewalReminderNotifications(
+        [data.contractId],
+        NOTIFICATION_TYPES.RENEWAL_REMINDER
+      );
 
     if (renewalNotification.length > 0) {
       await this.notificationService.sendBulkNotifications(renewalNotification);
@@ -297,7 +352,9 @@ export class AdminService {
     );
   }
 
-  public async getContractHistory(sellerId: string): Promise<SubscriptionContract[]> {
+  public async getContractHistory(
+    sellerId: string
+  ): Promise<SubscriptionContract[]> {
     return await this.adminRepository.getContractHistory(sellerId);
   }
 

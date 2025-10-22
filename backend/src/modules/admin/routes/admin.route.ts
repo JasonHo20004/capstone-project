@@ -16,13 +16,12 @@ import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
 const router = Router();
 const adminController = new AdminController();
 
-router.post('/upgrade-to-course-seller/:userId/:status', validate(approveCourseSellerApplicationDTO), adminController.upgradeToCourseSeller);
 router.use(authMiddleware)
 router.use(checkRole([UserRole.ADMINISTRATOR]))
 
 router.get('/users',adminController.getAllUsers);
 
-router.post('/upgrade-to-course-seller/:userId/:status',validate(approveCourseSellerApplicationDTO),adminController.upgradeToCourseSeller);
+router.post('/upgrade-to-course-seller/:applicationId/:status',validate(approveCourseSellerApplicationDTO),adminController.upgradeToCourseSeller);
 
 // Contract Management
 router.get('/contracts/dashboard', adminController.getContractDashboard);

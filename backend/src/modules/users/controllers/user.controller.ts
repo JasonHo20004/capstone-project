@@ -7,7 +7,7 @@ import type {
 } from "@/modules/users/dtos/user.dto";
 
 import type { AuthenticatedRequest } from "@/middlewares/auth.middleware";
-import type { ReplOptions } from "repl";
+// import type { ReplOptions } from "repl";
 
 export class UserController {
   private userService = new UserService();
@@ -99,7 +99,7 @@ export class UserController {
 
       res.status(200).json({
         success: true,
-        message: "User profile updated successfully",
+        message: "Create CourseSeller profile successfully",
         data: updatedUser,
       });
     } catch (error) {
@@ -109,7 +109,7 @@ export class UserController {
       }
       res.status(500).json({
         success: false,
-        message: "Failed to update user profile",
+        message: "Failed to Create CourseSeller profile",
         error: error instanceof Error ? error.message : String(error),
       });
     }
