@@ -87,11 +87,15 @@ export class UserService {
     const existingCourseSeller = await this.userRepository.findCourseSellerById(
       userId
     );
-    // console.log(existingCourseSeller)
+
     if (existingCourseSeller) {
-      throw new Error("Course Seller is Pending");
+      throw new Error("Course Seller is Existence");
     }
 
+    const existingApplication = await this.userRepository.findApplicationIsPending(userId)
+     if (existingApplication) {
+      throw new Error("Application of this user is Pending");
+    }
     const newCourseSellerApplication = await this.userRepository.createCourseSellerApplication(
       userId,
       updateData
