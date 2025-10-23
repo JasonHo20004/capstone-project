@@ -14,6 +14,7 @@ import { databaseService } from "@/services/database.service";
 import { NotificationService, NOTIFICATION_TYPES } from "./notification.service";
 import type { RevenueOverviewResponse} from "../dtos/revenue.dto";
 
+
 export class AdminService {
   private adminRepository = new AdminRepository();
   private userRepository = new UserRepository();
