@@ -16,13 +16,12 @@ export class FlashcardController {
   ): Promise<void> => {
     try {
       const userId = req.user!.userId;
-      const { frontContent, backContent, exampleSentence, audioUrl, deckId } =
+      const { frontContent, backContent, exampleSentence, deckId } =
         req.body;
       const newFlashcard = await this.flashcardService.createFlashcard(userId, {
         frontContent,
         backContent,
         exampleSentence,
-        audioUrl,
         deckId,
       });
 
@@ -50,14 +49,13 @@ export class FlashcardController {
     try {
       const userId = req.user!.userId;
       const { flashcardId } = req.params;
-      const { frontContent, backContent, exampleSentence, audioUrl } = req.body;
+      const { frontContent, backContent, exampleSentence } = req.body;
       const updatedFlashcard = await this.flashcardService.updateFlashcard(
         userId,
         {
           frontContent,
           backContent,
-          exampleSentence,
-          audioUrl,
+          exampleSentence
         },
         flashcardId!
       );

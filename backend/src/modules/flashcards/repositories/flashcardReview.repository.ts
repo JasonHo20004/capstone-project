@@ -48,4 +48,35 @@ export class FlashcardReviewRepository {
       take: limit,
     });
   }
+  public async upsertProgress(
+    userId: string,
+    flashcardId: string
+  ): Promise<UserFlashcardProgress> {
+    return this.prisma.userFlashcardProgress.upsert({
+      where: {
+        userId_flashcardId: { userId, flashcardId },
+      },
+      create: {
+        userId,
+        flashcardId,
+      },
+      update: {},
+    });
+  }
+
+  public async updateProgress(
+    userId: string,
+    flashcardId: string,
+    data: Partial<UserFlashcardProgress> 
+  ): Promise<UserFlashcardProgress> {
+ 
+    const { userId: _, flashcardId: __, ...updateData } = data;
+
+    return this.prisma.userFlashcardProgress.update({
+      where: {
+        userId_flashcardId: { userId, flashcardId },
+      },
+      data: updateData,
+    });
+  }
 }
