@@ -12,6 +12,7 @@ import {
 } from '@/modules/admin/dtos/contract.dto';
 import { UserRole }  from "@/../generated/prisma";
 import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
+import revenueRoute from './revenue.route';
 
 const router = Router();
 const adminController = new AdminController();
@@ -33,5 +34,8 @@ router.get('/contracts/:sellerId/history', validate(getContractHistoryDTO), admi
 router.post('/contracts/:contractId/lock-seller', validate(lockSellerDTO), adminController.lockSeller);
 router.post('/contracts/handle-non-renewal', adminController.handleNonRenewal);
 router.post('/contracts/send-scheduled-notifications', adminController.sendScheduledNotifications);
+
+
+router.use('/revenue', revenueRoute);
 
 export default router;

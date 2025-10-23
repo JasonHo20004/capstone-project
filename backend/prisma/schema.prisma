@@ -418,7 +418,7 @@ model UserFlashcardProgress {
   status      FlashcardStatus @default(LEARNING)
   nextReviewAt DateTime @default(now()) @map("next_review_at") @db.Timestamptz(6)
   repetitions  Int      @default(0)
-  
+  learningStep Int @default(0) @map("learning_step")
   easeFactor   Float    @default(2.5) @map("ease_factor")
 
   interval     Int      @default(0)
