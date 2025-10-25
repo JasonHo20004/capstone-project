@@ -1,10 +1,4 @@
 import { databaseService } from "@/services/database.service";
-import type { Wallet} from "@/../generated/prisma";
-// import type {
-//   SafeUser,
-//   CreateUserInput,
-//   CreateCourseSellerApplicationInput,
-// } from "@/modules/users/dtos/user.dto";
 export class WalletRepository {
   private prisma = databaseService.getClient();
 

@@ -100,7 +100,11 @@ class DatabaseService {
     };
   }
 }
-
+// Export transaction
+export type PrismaTx = Omit<
+  PrismaClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
 // Export singleton instance
 export const databaseService = DatabaseService.getInstance();
 export default databaseService;
