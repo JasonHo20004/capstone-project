@@ -12,7 +12,7 @@ import {
 } from '@/modules/admin/dtos/contract.dto';
 import { UserRole }  from "@/../generated/prisma";
 import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
-import revenueRoute from './revenue.route';
+import revenueRoute from '../../revenue/routes/revenue.route';
 
 const router = Router();
 const adminController = new AdminController();
