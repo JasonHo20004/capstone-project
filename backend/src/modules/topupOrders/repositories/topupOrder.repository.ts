@@ -15,4 +15,12 @@ export class TopupOrderRepository {
       data:  topupOrderData 
     });
   }
+   public async findPendingTopupOrder(userId:string): Promise<TopupOrder|null> {
+    return this.prisma.topupOrder.findFirst({
+      where:{
+        userId:userId,
+        status:"PENDING"
+      }
+    });
+  }
 }

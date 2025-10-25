@@ -13,10 +13,14 @@ export class TopupOrderService {
     const existingUser = await this.userRepository.findUserById(
       userId
     );
-    if (existingUser) {
-      throw new Error("User is already existence");
+    if (!existingUser) {
+      throw new Error("User is not existence");
     }
 
+    const existingPendingTopupOrder = await this.topupOrderRepository.findPendingTopupOrder(userId)
+    if (existingPendingTopupOrder){
+      throw Error("Topup of this User is PENDING")
+    }
     return this.topupOrderRepository.createOrder({
         userId: userId,
         realMoney: realMoney,
