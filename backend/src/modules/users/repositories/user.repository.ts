@@ -1,5 +1,9 @@
 import { databaseService } from "@/services/database.service";
-import type { User, CourseSellerApplication , CourseSellerProfile} from "@/../generated/prisma";
+import type {
+  User,
+  CourseSellerApplication,
+  CourseSellerProfile,
+} from "@/../generated/prisma";
 import type {
   SafeUser,
   CreateUserInput,
@@ -8,28 +12,30 @@ import type {
 export class UserRepository {
   private prisma = databaseService.getClient();
 
-
   public async findUserByEmail(email: string): Promise<User | null> {
     return this.prisma.user.findUnique({
       where: { email },
     });
   }
 
-  public async findCourseSellerById(
-    id: string
-  ): Promise<CourseSellerApplication | null> {
-    return this.prisma.courseSellerApplication.findUnique({
-      where: { userId: id,
-        status: "PENDING"
-      },
+  public async findCourseSellerById(id: string): Promise<SafeUser | null> {
+    return this.prisma.user.findUnique({
+      where: { id: id, role: "COURSESELLER" },
     });
   }
-  public async createUser(userData: CreateUserInput['body']): Promise<User> {
+  public async createUser(userData: CreateUserInput["body"]): Promise<User> {
     return this.prisma.user.create({
       data: userData,
     });
   }
 
+  public async findApplicationIsPending(
+    userId: string
+  ): Promise<CourseSellerApplication | null> {
+    return this.prisma.courseSellerApplication.findUnique({
+      where: { userId: userId, status: "PENDING" },
+    });
+  }
   public async createCourseSellerApplication(
     idUser: string,
     userData: CreateCourseSellerApplicationInput["body"]
@@ -45,11 +51,13 @@ export class UserRepository {
     });
   }
 
-  public async createCourseSellerProfile(
-    userData: any
-  ): Promise<CourseSellerProfile> {
+  public async createCourseSellerProfile(userData: {
+    userId: string;
+    certification: string[];
+    expertise: string[];
+  }): Promise<CourseSellerProfile> {
     return this.prisma.courseSellerProfile.create({
-      data: userData,
+      data: { ...userData, isActive: false },
     });
   }
   public async findUserById(id: string): Promise<User | null> {

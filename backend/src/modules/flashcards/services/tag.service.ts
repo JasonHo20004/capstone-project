@@ -5,14 +5,34 @@ import type { Tag } from "@/../generated/prisma";
 export class TagService {
   private tagRepository = new TagRepository();
 
-  public async createTag(
-    tagData:CreateTagInput['body']
-  ): Promise<Tag> {
-
-    const newTag = await this.tagRepository.createTag(
-      tagData
-    );
+  public async createTag(tagData: CreateTagInput["body"]): Promise<Tag> {
+    const newTag = await this.tagRepository.createTag(tagData);
 
     return newTag;
   }
+
+  public async updateTag(
+    id: string,
+    updateData: {
+      name: string;
+    }
+  ): Promise<Tag> {
+    try {
+      const updateTag = await this.tagRepository.updateTag(id, updateData);
+      return updateTag;
+    } catch {
+      throw Error("Can not find tagId");
+    }
+  }
+
+  public async deleteTag(id: string): Promise<void> {
+  try {
+    await this.tagRepository.deleteTag(id);
+  } catch (error:any) { 
+      if (error.code === 'P2025') {
+        throw new Error('Flashcard deck not found or user does not have permission.');
+      }
+    throw error;
+  }
+}
 }

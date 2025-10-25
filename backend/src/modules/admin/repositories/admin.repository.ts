@@ -1,11 +1,10 @@
 import { databaseService } from "@/services/database.service";
-import type { 
+import type {
   CourseSellerApplication,
   SubscriptionContract,
-  User
+  User,
+  ApplicationStatus
 } from "@/../generated/prisma";
-
-import type { CourseSellerApplication } from "@/../generated/prisma";
 
 export class AdminRepository {
   private prisma = databaseService.getClient();
@@ -29,18 +28,48 @@ export class AdminRepository {
       },
     });
   }
+  public async updateApplicationStatus(
+    applicationId: string,
+    dataToUpdate: {
+      status: ApplicationStatus;
+      rejectionReason?: string;
+      message?: string;
+    }
+  ): Promise<CourseSellerApplication> {
+    return this.prisma.courseSellerApplication.update({
+      where: {
+        id: applicationId,
+      },
+      data: dataToUpdate,
+    });
+  }
+  public async updateCourseSellerRole(userId: string): Promise<void> {
+      await this.prisma.user.update({
+        where: {
+          id: userId,
+        },
+        data:{role:"COURSESELLER"}
+      });
+    }
   public async approveCourseSellerApplication(
-    userId: string,
+    applicationId: string,
     dataToUpdate: any
   ): Promise<CourseSellerApplication> {
     return this.prisma.courseSellerApplication.update({
       where: {
-        userId: userId,
+        id: applicationId,
       },
       data: dataToUpdate,
     });
   }
 
+  public async findApplicationById(
+    id: string
+  ): Promise<CourseSellerApplication | null> {
+    return this.prisma.courseSellerApplication.findUnique({
+      where: { id: id, status: "PENDING" },
+    });
+  }
   // Contract Management Methods
   public async getContractDashboard(): Promise<{
     activeContracts: number;
@@ -52,13 +81,19 @@ export class AdminRepository {
     const now = new Date();
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    const [activeContracts, expiringContracts, expiredContracts, totalRevenue, renewalCount] = await Promise.all([
+    const [
+      activeContracts,
+      expiringContracts,
+      expiredContracts,
+      totalRevenue,
+      renewalCount,
+    ] = await Promise.all([
       // Active contracts count
       this.prisma.subscriptionContract.count({
         where: {
           status: true,
-          expiresAt: { gt: now }
-        }
+          expiresAt: { gt: now },
+        },
       }),
       // Contracts expiring in 7 days
       this.prisma.subscriptionContract.findMany({
@@ -66,67 +101,66 @@ export class AdminRepository {
           status: true,
           expiresAt: {
             gte: now,
-            lte: sevenDaysFromNow
-          }
+            lte: sevenDaysFromNow,
+          },
         },
         include: {
           user: {
             select: {
               id: true,
               fullName: true,
-              email: true
-            }
+              email: true,
+            },
           },
-          subscriptionPlan: true
-        }
+          subscriptionPlan: true,
+        },
       }),
       // Expired contracts
       this.prisma.subscriptionContract.findMany({
         where: {
-          OR: [
-            { status: false },
-            { expiresAt: { lt: now } }
-          ]
+          OR: [{ status: false }, { expiresAt: { lt: now } }],
         },
         include: {
           user: {
             select: {
               id: true,
               fullName: true,
-              email: true
-            }
+              email: true,
+            },
           },
-          subscriptionPlan: true
-        }
+          subscriptionPlan: true,
+        },
       }),
       // Total revenue from active contracts
       this.prisma.subscriptionContract.aggregate({
         where: {
           status: true,
-          expiresAt: { gt: now }
+          expiresAt: { gt: now },
         },
         _sum: {
-          renewalCount: true
-        }
+          renewalCount: true,
+        },
       }),
       // Total renewals for rate calculation
       this.prisma.subscriptionContract.aggregate({
         _sum: {
-          renewalCount: true
-        }
-      })
+          renewalCount: true,
+        },
+      }),
     ]);
 
-    const renewalRate = totalRevenue._sum.renewalCount && renewalCount._sum.renewalCount 
-      ? (totalRevenue._sum.renewalCount / renewalCount._sum.renewalCount) * 100 
-      : 0;
+    const renewalRate =
+      totalRevenue._sum.renewalCount && renewalCount._sum.renewalCount
+        ? (totalRevenue._sum.renewalCount / renewalCount._sum.renewalCount) *
+          100
+        : 0;
 
     return {
       activeContracts,
       expiringContracts,
       expiredContracts,
       totalRevenue: totalRevenue._sum.renewalCount || 0,
-      renewalRate: Math.round(renewalRate * 100) / 100
+      renewalRate: Math.round(renewalRate * 100) / 100,
     };
   }
 
@@ -142,12 +176,12 @@ export class AdminRepository {
         subscriptionPlanId: data.subscriptionPlanId,
         expiresAt: data.expiresAt,
         notes: data.notes || null,
-        status: true
+        status: true,
       },
       include: {
         user: true,
-        subscriptionPlan: true
-      }
+        subscriptionPlan: true,
+      },
     });
   }
 
@@ -163,16 +197,18 @@ export class AdminRepository {
         status: true,
         renewalCount: { increment: 1 },
         lastRenewalAt: new Date(),
-        notes: notes || null
+        notes: notes || null,
       },
       include: {
         user: true,
-        subscriptionPlan: true
-      }
+        subscriptionPlan: true,
+      },
     });
   }
 
-  public async getExpiringContracts(days: number = 7): Promise<SubscriptionContract[]> {
+  public async getExpiringContracts(
+    days: number = 7
+  ): Promise<SubscriptionContract[]> {
     const now = new Date();
     const futureDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 
@@ -181,19 +217,19 @@ export class AdminRepository {
         status: true,
         expiresAt: {
           gte: now,
-          lte: futureDate
-        }
+          lte: futureDate,
+        },
       },
       include: {
         user: {
           select: {
             id: true,
             fullName: true,
-            email: true
-          }
+            email: true,
+          },
         },
-        subscriptionPlan: true
-      }
+        subscriptionPlan: true,
+      },
     });
   }
 
@@ -202,21 +238,18 @@ export class AdminRepository {
 
     return this.prisma.subscriptionContract.findMany({
       where: {
-        OR: [
-          { status: false },
-          { expiresAt: { lt: now } }
-        ]
+        OR: [{ status: false }, { expiresAt: { lt: now } }],
       },
       include: {
         user: {
           select: {
             id: true,
             fullName: true,
-            email: true
-          }
+            email: true,
+          },
         },
-        subscriptionPlan: true
-      }
+        subscriptionPlan: true,
+      },
     });
   }
 
@@ -229,27 +262,29 @@ export class AdminRepository {
       where: { id: contractId },
       data: {
         status,
-        notes: notes || null
+        notes: notes || null,
       },
       include: {
         user: true,
-        subscriptionPlan: true
-      }
+        subscriptionPlan: true,
+      },
     });
   }
 
-  public async getContractHistory(sellerId: string): Promise<SubscriptionContract[]> {
+  public async getContractHistory(
+    sellerId: string
+  ): Promise<SubscriptionContract[]> {
     return this.prisma.subscriptionContract.findMany({
       where: {
-        courseSellerId: sellerId
+        courseSellerId: sellerId,
       },
       include: {
         subscriptionPlan: true,
-        transactions: true
+        transactions: true,
       },
       orderBy: {
-        createdAt: 'desc'
-      }
+        createdAt: "desc",
+      },
     });
   }
 
@@ -260,12 +295,12 @@ export class AdminRepository {
     const contract = await this.prisma.subscriptionContract.update({
       where: { id: contractId },
       data: {
-        status: false
+        status: false,
       },
       include: {
         user: true,
-        subscriptionPlan: true
-      }
+        subscriptionPlan: true,
+      },
     });
 
     const user = await this.prisma.user.update({
@@ -273,13 +308,12 @@ export class AdminRepository {
       data: {
         courseSellerProfile: {
           update: {
-            isActive: false
-          }
-        }
-      }
+            isActive: false,
+          },
+        },
+      },
     });
 
     return { contract, user };
   }
-
 }

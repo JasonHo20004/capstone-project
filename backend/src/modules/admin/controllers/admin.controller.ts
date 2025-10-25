@@ -34,11 +34,11 @@ export class AdminController {
     }
   public upgradeToCourseSeller= async(req: Request<ApproveCourseSellerApplicationInput['params'],{},ApproveCourseSellerApplicationInput['body']>, res: Response):Promise<void> =>{
     try {
-      const userId = req.params.userId;
+      const applicationId = req.params.applicationId;
       const status = req.params.status;
       const rejectionReason = req.body.rejectionReason;
       const message = req.body.message;
-      const upgradedCourseSeller = await this.adminService.upgradeToCourseSeller(userId,status, rejectionReason, message);
+      const upgradedCourseSeller = await this.adminService.upgradeToCourseSeller(applicationId,status, rejectionReason, message);
       
       res.status(200).json({
         success: true,
@@ -183,7 +183,7 @@ export class AdminController {
     }
   };
 
-  public lockSeller = async (req: Request<ContractLockInput['params'], {}, {}>, res: Response): Promise<void> => {
+  public lockSeller = async (req: Request<ContractLockInput['params']>, res: Response): Promise<void> => {
     try {
       const { contractId } = req.params;
       const result = await this.adminService.lockSellerAccount(contractId);
@@ -238,4 +238,5 @@ export class AdminController {
     }
   };
 
-};
+  
+}

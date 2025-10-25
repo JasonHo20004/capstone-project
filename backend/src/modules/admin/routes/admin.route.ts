@@ -12,17 +12,17 @@ import {
 } from '@/modules/admin/dtos/contract.dto';
 import { UserRole }  from "@/../generated/prisma";
 import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
+import revenueRoute from '../../revenue/routes/revenue.route';
 
 const router = Router();
 const adminController = new AdminController();
 
-router.post('/upgrade-to-course-seller/:userId/:status', validate(approveCourseSellerApplicationDTO), adminController.upgradeToCourseSeller);
 router.use(authMiddleware)
 router.use(checkRole([UserRole.ADMINISTRATOR]))
 
 router.get('/users',adminController.getAllUsers);
 
-router.post('/upgrade-to-course-seller/:userId/:status',validate(approveCourseSellerApplicationDTO),adminController.upgradeToCourseSeller);
+router.post('/upgrade-to-course-seller/:applicationId/:status',validate(approveCourseSellerApplicationDTO),adminController.upgradeToCourseSeller);
 
 // Contract Management
 router.get('/contracts/dashboard', adminController.getContractDashboard);
@@ -34,5 +34,8 @@ router.get('/contracts/:sellerId/history', validate(getContractHistoryDTO), admi
 router.post('/contracts/:contractId/lock-seller', validate(lockSellerDTO), adminController.lockSeller);
 router.post('/contracts/handle-non-renewal', adminController.handleNonRenewal);
 router.post('/contracts/send-scheduled-notifications', adminController.sendScheduledNotifications);
+
+
+router.use('/revenue', revenueRoute);
 
 export default router;
