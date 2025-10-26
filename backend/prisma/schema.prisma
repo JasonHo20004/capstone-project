@@ -309,7 +309,7 @@ model TopupOrder {
   id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId        String      @map("user_id") @db.Uuid
   realMoney     Decimal     @map("real_money") @db.Decimal(12, 2)
-  realAmount    Decimal?    @map("real_amount") @db.Decimal(12, 2)
+  realAmount    Decimal    @map("real_amount") @db.Decimal(12, 2)
   currency      String      @default("VND") @db.VarChar(10)
   paymentMethod PaymentMethod @map("payment_method")
   status        OrderStatus

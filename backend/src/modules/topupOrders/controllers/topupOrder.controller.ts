@@ -1,6 +1,6 @@
 import type {Response } from "express";
 import { TopupOrderService } from "@/modules/topupOrders/services/topupOrder.service";
-import type { CreateTopupInput } from "@/modules/topupOrders/dtos/topupOrder.dto";
+import type { CreateTopupInput, ConfirmPaymentInput } from "@/modules/topupOrders/dtos/topupOrder.dto";
 
 import type { AuthenticatedRequest } from "@/middlewares/auth.middleware";
 
@@ -24,6 +24,28 @@ export class TopupOrderController {
       res.status(500).json({
         success: false,
         message: "Failed to Create topup order",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+  public confirmPayment = async (
+    req: AuthenticatedRequest & { body: ConfirmPaymentInput["body"] },
+    res: Response,
+  ): Promise<void> => {
+    try {
+      const { orderId } = req.body;
+      
+      const updatedWallet = await this.topupOrderService.confirmPayment(orderId);
+
+      res.status(200).json({
+        success: true,
+        message: "Topup successfully!",
+        data: updatedWallet,
+      });
+    } catch (error) {
+       res.status(500).json({
+        success: false,
+        message: "Failed to Topup",
         error: error instanceof Error ? error.message : String(error),
       });
     }
