@@ -140,7 +140,8 @@ model User {
   policy                  Policy?
   courseSellerApplication CourseSellerApplication?
   userFlashcardProgress UserFlashcardProgress[]
-
+  order Order[] 
+  cart Cart[]
   @@map("users")
 }
 
@@ -226,6 +227,7 @@ model CourseSellerApplication {
 
   @@map("course_seller_applications")
 }
+
 
 model Wallet {
   id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -362,7 +364,7 @@ model Course {
   ratings       Rating[]
   lessons       Lesson[]
   reports       Report[]
-
+  cartItems CartItem[]
   @@map("courses")
 }
 
@@ -490,8 +492,42 @@ model Transaction {
   topupOrder              TopupOrder?       @relation(fields: [topupOrderId], references: [id])
   subscriptionContract    SubscriptionContract? @relation(fields: [subscriptionContractId], references: [id])
   userActivities          UserActivity[]
-
+  orderId     String?   @unique @map("order_id") @db.Uuid 
+  order       Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
   @@map("transactions")
+}
+
+model CartItem{
+  id String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  courseId String @map("course_id") @db.Uuid
+  addedAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(6) 
+  priceAtTime Float @map("price_at_time")
+  cartId String @map("cart_id") @db.Uuid
+  course Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  cart Cart  @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  @@map("cart_item")
+}
+model Cart{
+  id String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId   String @map("user_id") @db.Uuid
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6) 
+  order Order?
+  cartItems CartItem[]
+  @@map("carts")
+}
+model Order {
+  id String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId   String @map("user_id") @db.Uuid
+  totalAmount Float @map("total_amount") 
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6) 
+  cartId String @unique @map("cart_id") @db.Uuid
+  transactionId String @map("transaction_id") @db.Uuid
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cart     Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  transaction Transaction?
+  @@map("orders")
+
 }
 
 // Placeholder models for complete relationships
@@ -504,6 +540,7 @@ model UserLesson {
   @@id([lessonId, userId])
   @@map("user_lessons")
 }
+
 
 model UserAnswer {
   id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
