@@ -10,6 +10,9 @@ import flashcardDeckRouter from './modules/flashcards/routes/flashcardDeck.route
 import tagRouter from './modules/flashcards/routes/tag.route'
 import flashcardRouter from './modules/flashcards/routes/flashcard.route'
 import flashcardReviewRouter from './modules/flashcards/routes/flashcardReview.route'
+import courseRouter from './modules/courses/routes/course.route'
+import lessonRouter from './modules/courses/routes/lesson.route'
+import testRouter from './modules/tests/routes/test.route'
 import cookieParser from 'cookie-parser'; // Import cookie-parser
 
 // Create Express app instance
@@ -34,4 +37,10 @@ app.use('/api/flashcardDecks',flashcardDeckRouter)
 app.use('/api/tags',tagRouter)
 app.use('/api/flashcards', flashcardRouter)
 app.use('/api/flashcard-review',flashcardReviewRouter)
+
+// Course Management Routes
+app.use('/api/v1/courses', courseRouter);
+app.use('/api/v1', lessonRouter);
+app.use('/api/v1', testRouter);
+
 export default app;
