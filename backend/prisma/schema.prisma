@@ -46,6 +46,8 @@ enum TransactionStatus {
 }
 
 enum CourseStatus {
+  DRAFT
+  PUBLISHED
   PENDING
   ACTIVE
   REFUSE
@@ -95,6 +97,10 @@ enum ApplicationStatus {
 enum FlashcardStatus {
   LEARNING 
   REVIEW   
+}
+enum TestType {
+  SUPPLEMENTARY
+  FINAL
 }
 enum EReasonType {
   INAPPROPRIATE_CONTENT
@@ -276,19 +282,35 @@ model InAppNotification {
 model Test {
   id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title               String           @db.VarChar(100)
-  courseLevel         CourseLevel?     @map("course_level")
+  courseLevel        CourseLevel?     @map("course_level")
   durationInMinutes   Int?             @map("duration_in_minutes")
   totalScore          Float?           @map("total_score")
   passingScore        Float?           @map("passing_score")
+  maxAttempts         Int?             @map("max_attempts")
+  testType            TestType?        @map("test_type")
   englishTestTypeId   String           @map("english_test_type_id") @db.Uuid
   englishTestType     EnglishTestType  @relation(fields: [englishTestTypeId], references: [id])
   practiceCount       Int?             @map("practice_count")
   courses             Course[]
+  courseTests         CourseTest[]
   sections            Section[]
   testSkills          TestSkill[]
   practiceSessions    PracticeSession[]
+  questions           Question[]
+  createdAt           DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("tests")
+}
+
+model CourseTest {
+  courseId String @map("course_id") @db.Uuid
+  testId   String @map("test_id") @db.Uuid
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  test     Test   @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, testId])
+  @@map("course_tests")
 }
 
 model FlashcardDeck {
@@ -351,7 +373,9 @@ model Course {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title         String   @db.VarChar(100)
   description   String?
+  shortDescription String? @map("short_description") @db.VarChar(255)
   price         Decimal  @db.Decimal(10, 2)
+  category      String?  @db.VarChar(100)
   courseLevel   CourseLevel? @map("course_level")
   courseSellerId String  @map("course_seller_id") @db.Uuid
   finalTestId   String?  @map("final_test_id") @db.Uuid
@@ -362,6 +386,9 @@ model Course {
   ratings       Rating[]
   lessons       Lesson[]
   reports       Report[]
+  courseTests   CourseTest[]
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("courses")
 }
@@ -370,7 +397,7 @@ model Section {
   id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title               String   @db.VarChar(100)
   testId              String?  @map("test_id") @db.Uuid
-  skill               SkillType
+  skill               SkillType?
   durationInSeconds   Float?   @map("duration_in_seconds")
   totalQuestions      Int?     @map("total_questions")
   totalScore          Float?   @map("total_score")
@@ -592,7 +619,8 @@ model MediaAsset {
 
 model Question {
   id                    String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sectionId             String      @map("section_id") @db.Uuid
+  testId                String?     @map("test_id") @db.Uuid
+  sectionId             String?     @map("section_id") @db.Uuid
   questionText          String?     @map("question_text")
   imageUrl              String?     @map("image_url")
   questionType          QuestionType @map("question_type")
@@ -600,11 +628,13 @@ model Question {
   correctAnswerIndex    Int?        @map("correct_answer_index")
   wordLimit             Int?        @map("word_limit")
   correctAnswer         String?     @map("correct_answer")
-  passageId             String      @map("passage_id") @db.Uuid
-  mediaId               String      @map("media_id") @db.Uuid
-  section               Section     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  passage               Passage     @relation(fields: [passageId], references: [id], onDelete: Cascade)
-  mediaAsset            MediaAsset  @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  passageId             String?     @map("passage_id") @db.Uuid
+  mediaId               String?     @map("media_id") @db.Uuid
+  questionOrder         Int?        @map("question_order")
+  test                  Test?       @relation(fields: [testId], references: [id], onDelete: Cascade)
+  section               Section?    @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  passage               Passage?    @relation(fields: [passageId], references: [id], onDelete: Cascade)
+  mediaAsset            MediaAsset? @relation(fields: [mediaId], references: [id], onDelete: Cascade)
   userAnswers           UserAnswer[]
 
   @@map("questions")
