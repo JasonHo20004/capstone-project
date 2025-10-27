@@ -497,7 +497,7 @@ model Transaction {
   @@map("transactions")
 }
 
-model CartItem{
+model CartItem {
   id String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   courseId String @map("course_id") @db.Uuid
   addedAt DateTime    @default(now()) @map("created_at") @db.Timestamptz(6) 
@@ -505,9 +505,9 @@ model CartItem{
   cartId String @map("cart_id") @db.Uuid
   course Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
   cart Cart  @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  @@map("cart_item")
+  @@map("cart_items")
 }
-model Cart{
+model Cart {
   id String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId   String @map("user_id") @db.Uuid
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)

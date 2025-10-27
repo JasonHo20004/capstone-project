@@ -19,8 +19,7 @@ export const confirmPaymentDTO = z.object({
       error: (issue) =>
         issue.input === undefined
           ? "This field is required"
-          : "Invalid Money Amount",
-        message:"It must be uuid"
+          : "Invalid Money Amount"
     }),
   }),
 });
