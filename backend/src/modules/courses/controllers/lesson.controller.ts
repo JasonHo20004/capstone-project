@@ -17,18 +17,35 @@ export class LessonController {
     try {
       const { courseId } = req.params;
       const lessonData = req.body;
-      
-      // Access the uploaded file information from multer
       const file = (req as any).file;
-      
-      // Get video URL from S3 upload
       const videoUrl = file?.location || file?.key;
 
-      const newLesson = await this.lessonService.createLesson({
+      const createData: {
+        courseId: string;
+        title: string;
+        description?: string;
+        lessonOrder?: number;
+        durationInSeconds?: number;
+        videoUrl?: string;
+      } = {
         courseId,
-        ...lessonData,
-        videoUrl,
-      });
+        title: lessonData.title,
+      };
+
+      if (lessonData.description !== undefined) {
+        createData.description = lessonData.description;
+      }
+      if (lessonData.lessonOrder !== undefined) {
+        createData.lessonOrder = lessonData.lessonOrder;
+      }
+      if (lessonData.durationInSeconds !== undefined) {
+        createData.durationInSeconds = lessonData.durationInSeconds;
+      }
+      if (videoUrl !== undefined) {
+        createData.videoUrl = videoUrl;
+      }
+
+      const newLesson = await this.lessonService.createLesson(createData);
 
       res.status(201).json({
         success: true,
@@ -36,7 +53,6 @@ export class LessonController {
         data: newLesson,
       });
     } catch (error) {
-      // If error is about video upload, return specific error
       if (error instanceof Error && error.message.includes('upload video')) {
         res.status(400).json({
           success: false,
@@ -54,12 +70,31 @@ export class LessonController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const { courseId, lessonId } = req.params;
+      const { courseId: _courseId, lessonId } = req.params;
       const updateData = req.body;
+      const updatePayload: {
+        title?: string;
+        description?: string;
+        lessonOrder?: number;
+        durationInSeconds?: number;
+      } = {};
+
+      if (updateData.title !== undefined) {
+        updatePayload.title = updateData.title;
+      }
+      if (updateData.description !== undefined) {
+        updatePayload.description = updateData.description;
+      }
+      if (updateData.lessonOrder !== undefined) {
+        updatePayload.lessonOrder = updateData.lessonOrder;
+      }
+      if (updateData.durationInSeconds !== undefined) {
+        updatePayload.durationInSeconds = updateData.durationInSeconds;
+      }
 
       const updatedLesson = await this.lessonService.updateLesson(
         lessonId,
-        updateData
+        updatePayload
       );
 
       res.status(200).json({
@@ -78,7 +113,7 @@ export class LessonController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const { courseId, lessonId } = req.params;
+      const { courseId: _courseId, lessonId } = req.params;
 
       const lesson = await this.lessonService.getLessonById(lessonId);
 
