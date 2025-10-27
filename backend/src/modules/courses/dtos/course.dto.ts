@@ -9,7 +9,7 @@ export const createCourseDTO = z.object({
     shortDescription: z.string().max(255, 'Short description must be at most 255 characters').optional(),
     price: z.number().min(0, 'Price must be non-negative'),
     category: z.string().optional(),
-    courseLevel: z.nativeEnum(CourseLevel).optional(),
+    courseLevel: z.enum(CourseLevel).optional(),
   }),
 });
 
@@ -26,7 +26,7 @@ export const updateCourseDTO = z.object({
     shortDescription: z.string().max(255).optional(),
     price: z.number().min(0).optional(),
     category: z.string().optional(),
-    courseLevel: z.nativeEnum(CourseLevel).optional(),
+    courseLevel: z.enum(CourseLevel).optional(),
   }),
 });
 
@@ -56,7 +56,7 @@ export const getCoursesBySellerDTO = z.object({
     sellerId: z.uuid({ message: 'Seller ID must be a valid UUID' }),
   }),
   query: z.object({
-    status: z.nativeEnum(CourseStatus).optional(),
+    status: z.enum(CourseStatus).optional(),
     page: z.string().optional(),
     limit: z.string().optional(),
   }),

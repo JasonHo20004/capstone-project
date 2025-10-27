@@ -13,18 +13,19 @@ export class CourseRepository {
     courseLevel?: string;
     courseSellerId: string;
   }): Promise<Course> {
-    return this.prisma.course.create({
-      data: {
-        title: data.title,
-        description: data.description,
-        shortDescription: data.shortDescription,
-        price: data.price,
-        category: data.category,
-        courseLevel: data.courseLevel as CourseLevel | undefined,
-        courseSellerId: data.courseSellerId,
-        status: 'DRAFT' as CourseStatus,
-      },
-    });
+    const createData: any = {
+      title: data.title,
+      price: data.price,
+      courseSellerId: data.courseSellerId,
+      status: 'DRAFT' as CourseStatus,
+    };
+    
+    if (data.description !== undefined) createData.description = data.description;
+    if (data.shortDescription !== undefined) createData.shortDescription = data.shortDescription;
+    if (data.category !== undefined) createData.category = data.category;
+    if (data.courseLevel !== undefined) createData.courseLevel = data.courseLevel as CourseLevel;
+    
+    return this.prisma.course.create({ data: createData });
   }
 
   async findById(id: string): Promise<Course | null> {
@@ -60,7 +61,7 @@ export class CourseRepository {
         },
       },
       orderBy: {
-        created_at: 'desc',
+        createdAt: 'desc',
       },
     });
   }
@@ -98,17 +99,15 @@ export class CourseRepository {
   }
 
   async checkHasFinalTest(courseId: string): Promise<boolean> {
-    const tests = await this.prisma.test.findMany({
+    const courseTest = await this.prisma.courseTest.findFirst({
       where: {
-        courseTests: {
-          some: {
-            courseId,
-          },
+        courseId,
+        test: {
+          testType: 'FINAL',
         },
-        testType: 'FINAL',
       },
     });
-    return tests.length > 0;
+    return courseTest !== null;
   }
 }
 
