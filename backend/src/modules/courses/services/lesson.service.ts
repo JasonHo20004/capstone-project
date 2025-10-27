@@ -20,19 +20,28 @@ export class LessonService {
       throw new Error('Course not found');
     }
 
-    // Handle the case where req.file is missing (upload failed)
     if (data.videoUrl === undefined) {
       throw new Error('Could not upload video, please try again');
     }
 
-    return this.lessonRepository.create({
+    const createData: {
+      title: string;
+      description?: string;
+      videoUrl: string;
+      lessonOrder?: number;
+      durationInSeconds?: number;
+      courseId: string;
+    } = {
       title: data.title,
-      description: data.description,
       videoUrl: data.videoUrl,
-      lessonOrder: data.lessonOrder,
-      durationInSeconds: data.durationInSeconds,
       courseId: data.courseId,
-    });
+    };
+    
+    if (data.description !== undefined) createData.description = data.description;
+    if (data.lessonOrder !== undefined) createData.lessonOrder = data.lessonOrder;
+    if (data.durationInSeconds !== undefined) createData.durationInSeconds = data.durationInSeconds;
+    
+    return this.lessonRepository.create(createData);
   }
 
   async updateLesson(
@@ -44,7 +53,19 @@ export class LessonService {
       durationInSeconds?: number;
     }
   ): Promise<Lesson> {
-    return this.lessonRepository.update(lessonId, data);
+    const updateData: {
+      title?: string;
+      description?: string;
+      lessonOrder?: number;
+      durationInSeconds?: number;
+    } = {};
+    
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.lessonOrder !== undefined) updateData.lessonOrder = data.lessonOrder;
+    if (data.durationInSeconds !== undefined) updateData.durationInSeconds = data.durationInSeconds;
+    
+    return this.lessonRepository.update(lessonId, updateData);
   }
 
   async getLessonById(lessonId: string): Promise<Lesson | null> {

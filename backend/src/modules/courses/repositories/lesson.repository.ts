@@ -12,16 +12,17 @@ export class LessonRepository {
     durationInSeconds?: number;
     courseId: string;
   }): Promise<Lesson> {
-    return this.prisma.lesson.create({
-      data: {
-        title: data.title,
-        description: data.description,
-        videoUrl: data.videoUrl,
-        lessonOrder: data.lessonOrder,
-        durationInSeconds: data.durationInSeconds,
-        courseId: data.courseId,
-      },
-    });
+    const createData: any = {
+      title: data.title,
+      courseId: data.courseId,
+    };
+    
+    if (data.description !== undefined) createData.description = data.description;
+    if (data.videoUrl !== undefined) createData.videoUrl = data.videoUrl;
+    if (data.lessonOrder !== undefined) createData.lessonOrder = data.lessonOrder;
+    if (data.durationInSeconds !== undefined) createData.durationInSeconds = data.durationInSeconds;
+    
+    return this.prisma.lesson.create({ data: createData });
   }
 
   async findById(id: string): Promise<Lesson | null> {
@@ -52,9 +53,16 @@ export class LessonRepository {
       durationInSeconds?: number;
     }
   ): Promise<Lesson> {
+    const updateData: any = {};
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.videoUrl !== undefined) updateData.videoUrl = data.videoUrl;
+    if (data.lessonOrder !== undefined) updateData.lessonOrder = data.lessonOrder;
+    if (data.durationInSeconds !== undefined) updateData.durationInSeconds = data.durationInSeconds;
+    
     return this.prisma.lesson.update({
       where: { id },
-      data,
+      data: updateData,
     });
   }
 

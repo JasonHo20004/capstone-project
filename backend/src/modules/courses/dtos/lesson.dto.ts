@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-// Create Lesson DTO
 // Note: This DTO only validates the non-file fields.
 // The video file is handled by multer middleware and accessed via req.file
 export const createLessonDTO = z.object({

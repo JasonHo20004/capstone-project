@@ -1,12 +1,8 @@
 import { CourseRepository } from '@/modules/courses/repositories/course.repository';
-import { LessonRepository } from '@/modules/courses/repositories/lesson.repository';
-import { TestRepository } from '@/modules/tests/repositories/test.repository';
-import type { Course } from '@/../../generated/prisma';
+import type { Course, CourseLevel } from '@/../../generated/prisma';
 
 export class CourseService {
   private courseRepository = new CourseRepository();
-  private lessonRepository = new LessonRepository();
-  private testRepository = new TestRepository();
 
   async createCourse(data: {
     title: string;
@@ -49,7 +45,23 @@ export class CourseService {
       courseLevel?: string;
     }
   ): Promise<Course> {
-    return this.courseRepository.update(courseId, data);
+    const updateData: {
+      title?: string;
+      description?: string;
+      shortDescription?: string;
+      price?: number;
+      category?: string;
+      courseLevel?: CourseLevel;
+    } = {};
+    
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.shortDescription !== undefined) updateData.shortDescription = data.shortDescription;
+    if (data.price !== undefined) updateData.price = data.price;
+    if (data.category !== undefined) updateData.category = data.category;
+    if (data.courseLevel !== undefined) updateData.courseLevel = data.courseLevel as CourseLevel;
+    
+    return this.courseRepository.update(courseId, updateData);
   }
 
   async getCourseById(courseId: string): Promise<Course | null> {
