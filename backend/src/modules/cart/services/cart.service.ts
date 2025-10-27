@@ -1,10 +1,18 @@
 import { CartRepository } from "@/modules/cart/repositories/cart.repository";
-import type { CartItem } from "@/../generated/prisma";
+import type { CartItem, Order } from "@/../generated/prisma";
 import { CourseRepository } from "@/modules/courses/repositories/course.repository";
-
+import { WalletRepository } from "@/modules/wallets/repositories/wallet.repository";
+import { databaseService } from "@/services/database.service";
+import { TransactionRepository } from "@/modules/transactions/repositories/transaction.repository";
+import { OrderRepository } from "../repositories/order.repository";
+import {UserActivityRepository} from "@/modules/users/repositories/userActivity.repository"
 export class CartService {
   private cartRepository = new CartRepository();
   private courseRepository = new CourseRepository();
+  private walletRepository = new WalletRepository();
+  private orderRepository = new OrderRepository();
+  private transactionRepository = new TransactionRepository();
+  private userActivityRepository = new UserActivityRepository()
   public async addCourseToCart(
     userId: string,
     cartItemData: {
@@ -37,5 +45,58 @@ export class CartService {
       priceAtTime: priceAtTime,
     });
     return newCartItem;
+  }
+
+  public async checkout(userId: string): Promise<Order> {
+    const exitsingCart = await this.cartRepository.findCartWithItems(userId);
+    if (!exitsingCart) {
+      throw Error("Cart is not exist");
+    }
+    // Update create
+
+    const wallet = await this.walletRepository.findWalletById(userId);
+    const totalAmount = exitsingCart.cartItems.reduce(
+      (sum, item) => sum + item.priceAtTime,
+      0
+    );
+    if (!wallet || parseFloat(wallet.allowance.toString()) < totalAmount) {
+      throw Error("Your allowance is not enough.");
+    }
+    return databaseService.transaction(async (tx) => {
+      const order = await this.orderRepository.createOrder_InTx(
+        {
+          userId: userId,
+          cartId: exitsingCart.id,
+          totalAmount: totalAmount,
+        },
+        tx // <-- Truyền 'tx'
+      );
+
+      // 5b. Trừ tiền Wallet
+      await this.walletRepository.decrementBalance_InTx(
+        wallet.id,
+        totalAmount,
+        tx
+      );
+
+      const transaction = await this.transactionRepository.createPayment_InTx(
+        {
+          walletId: wallet.id,
+          amount: totalAmount,
+          orderId: order.id,
+        },
+        tx
+      );
+
+      const activitiesToCreate = exitsingCart.cartItems.map((item) => ({
+        userId: userId,
+        courseId: item.courseId,
+        transactionId: transaction.id,
+      }));
+
+      await this.userActivityRepository.createMany_InTx(activitiesToCreate, tx);
+
+      return order;
+    });
   }
 }

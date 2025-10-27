@@ -1,6 +1,9 @@
 import { databaseService } from "@/services/database.service";
-import type { Cart, CartItem } from "@/../generated/prisma";
+import type { Prisma,Cart, CartItem } from "@/../generated/prisma";
 
+type CartWithItems = Prisma.CartGetPayload<{
+  include: { cartItems: true };
+}>;
 export class CartRepository {
   private prisma = databaseService.getClient();
 
@@ -14,6 +17,12 @@ export class CartRepository {
       where: {
         userId,
       },
+    });
+  }
+  async findCartWithItems( userId: string):Promise<CartWithItems|null> {
+    return this.prisma.cart.findUnique({
+      where: { userId: userId },
+      include: { cartItems: true },
     });
   }
   async findCartItem(

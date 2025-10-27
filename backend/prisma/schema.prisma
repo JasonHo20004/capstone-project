@@ -509,7 +509,7 @@ model CartItem {
 }
 model Cart {
   id String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId   String @map("user_id") @db.Uuid
+  userId   String  @unique @map("user_id") @db.Uuid
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6) 
   order Order?
@@ -522,7 +522,7 @@ model Order {
   totalAmount Float @map("total_amount") 
   createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6) 
   cartId String @unique @map("cart_id") @db.Uuid
-  transactionId String @map("transaction_id") @db.Uuid
+  transactionId String? @map("transaction_id") @db.Uuid
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   cart     Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
   transaction Transaction?

@@ -8,5 +8,5 @@ const cartController = new CartController();
 
 router.post('/add-to-cart',authMiddleware,validate(addToCartDTO),cartController.addToCart);
 
-
+router.post('/checkout',authMiddleware,cartController.checkout);
 export default router;

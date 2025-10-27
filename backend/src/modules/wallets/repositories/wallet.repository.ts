@@ -1,6 +1,6 @@
 import { databaseService } from "@/services/database.service";
 import type { PrismaTx } from "@/services/database.service";
-import type { Wallet } from "@/../generated/prisma"
+import type { Wallet } from "@/../generated/prisma";
 export class WalletRepository {
   private prisma = databaseService.getClient();
 
@@ -19,6 +19,25 @@ export class WalletRepository {
       data: {
         allowance: {
           increment: amount,
+        },
+      },
+    });
+  }
+  public async findWalletById(userId: string): Promise<Wallet | null> {
+    return this.prisma.wallet.findFirst({
+      where: { userId },
+    });
+  }
+  public async decrementBalance_InTx(
+    walletId: string,
+    amount: number,
+    tx: PrismaTx
+  ):Promise<Wallet> {
+    return tx.wallet.update({
+      where: { id: walletId },
+      data: {
+        allowance: {
+          decrement: amount,
         },
       },
     });

@@ -21,4 +21,19 @@ export class TransactionRepository {
       },
     });
   }
+  public async createPayment_InTx(data: {
+    walletId: string;
+    amount: number;
+    orderId: string,
+  }, tx: PrismaTx): Promise<Transaction> {
+    return tx.transaction.create({
+      data: {
+        amount: data.amount,
+        walletId: data.walletId,
+        orderId:data.orderId,
+        status: 'SUCCESS',
+        transactionType: 'PAYMENT',
+      },
+    });
+  }
 }

@@ -32,6 +32,27 @@ export class CartController {
       });
     }
   };
+ public checkout = async (
+    req: AuthenticatedRequest ,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const userId = req.user!.userId;
+      
+      const order = await this.cartService.checkout(userId);
 
+      res.status(200).json({
+        success: true,
+        message: "Checkout this cart successfully",
+        data: order,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to checkout this cart ",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
   
 }
