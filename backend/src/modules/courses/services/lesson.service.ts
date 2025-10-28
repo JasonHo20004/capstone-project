@@ -1,6 +1,6 @@
 import { LessonRepository } from '@/modules/courses/repositories/lesson.repository';
 import { CourseRepository } from '@/modules/courses/repositories/course.repository';
-import type { Lesson } from '@/../../generated/prisma';
+import type { Lesson } from '@/../generated/prisma';
 
 export class LessonService {
   private lessonRepository = new LessonRepository();

@@ -6,7 +6,7 @@ import {
   updateLessonDTO,
   getLessonByIdDTO,
 } from '@/modules/courses/dtos/lesson.dto';
-import { UserRole } from '@/../../generated/prisma';
+import { UserRole } from '@/../generated/prisma';
 import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
 import { uploadVideo, handleUploadError } from '@/middlewares/upload';
 

@@ -1,5 +1,5 @@
 import { databaseService } from '@/services/database.service';
-import type { Lesson } from '@/../../generated/prisma';
+import type { Lesson } from '@/../generated/prisma';
 
 export class LessonRepository {
   private prisma = databaseService.getClient();

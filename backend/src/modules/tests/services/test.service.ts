@@ -1,6 +1,6 @@
 import { TestRepository } from '@/modules/tests/repositories/test.repository';
 import { CourseRepository } from '@/modules/courses/repositories/course.repository';
-import type { Test, Question } from '@/../../generated/prisma';
+import type { Test, Question } from '@/../generated/prisma';
 
 export class TestService {
   private testRepository = new TestRepository();

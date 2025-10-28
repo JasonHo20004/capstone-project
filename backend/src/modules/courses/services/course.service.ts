@@ -1,5 +1,5 @@
 import { CourseRepository } from '@/modules/courses/repositories/course.repository';
-import type { Course, CourseLevel } from '@/../../generated/prisma';
+import type { Course, CourseLevel } from '@/../generated/prisma';
 
 export class CourseService {
   private courseRepository = new CourseRepository();

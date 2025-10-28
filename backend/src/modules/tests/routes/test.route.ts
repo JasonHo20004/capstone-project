@@ -6,7 +6,7 @@ import {
   addQuestionDTO,
   getTestByIdDTO,
 } from '@/modules/tests/dtos/test.dto';
-import { UserRole } from '@/../../generated/prisma';
+import { UserRole } from '@/../generated/prisma';
 import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
 
 const router = Router();

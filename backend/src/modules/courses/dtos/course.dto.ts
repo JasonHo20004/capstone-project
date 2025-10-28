@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CourseLevel, CourseStatus } from '@/../../generated/prisma';
+import { CourseLevel, CourseStatus } from '@/../generated/prisma';
 
 // Create Course DTO
 export const createCourseDTO = z.object({
