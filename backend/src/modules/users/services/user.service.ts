@@ -8,7 +8,7 @@ import type {
 } from "@/modules/users/dtos/user.dto";
 import { CartRepository } from "@/modules/cart/repositories/cart.repository";
 import type { CourseSellerApplication } from "@/../generated/prisma"
-import {WalletRepository} from '@/modules/wallets/repositories/wallet.repository'
+import {WalletRepository} from '@/modules/users/repositories/wallet.repository'
 export class UserService {
   private userRepository = new UserRepository(); 
   private walletRepository = new WalletRepository()

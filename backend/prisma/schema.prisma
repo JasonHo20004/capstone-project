@@ -141,7 +141,7 @@ model User {
   courseSellerApplication CourseSellerApplication?
   userFlashcardProgress UserFlashcardProgress[]
   order Order[] 
-  cart Cart[]
+  cart Cart?
   @@map("users")
 }
 
@@ -512,7 +512,7 @@ model Cart {
   userId   String  @unique @map("user_id") @db.Uuid
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6) 
-  order Order?
+  order Order[]
   cartItems CartItem[]
   @@map("carts")
 }
@@ -521,7 +521,7 @@ model Order {
   userId   String @map("user_id") @db.Uuid
   totalAmount Float @map("total_amount") 
   createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6) 
-  cartId String @unique @map("cart_id") @db.Uuid
+  cartId String  @map("cart_id") @db.Uuid
   transactionId String? @map("transaction_id") @db.Uuid
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   cart     Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)

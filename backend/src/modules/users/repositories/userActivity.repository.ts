@@ -18,4 +18,16 @@ export class UserActivityRepository {
       data: data,
     });
   }
+  public async create_InTx(
+    data: {
+      userId: string;
+      courseId: string;
+      transactionId: string;
+    },
+    tx: PrismaTx
+  ): Promise<UserActivity> {
+    return tx.userActivity.create({
+      data: data,
+    });
+  }
 }

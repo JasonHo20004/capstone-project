@@ -1,7 +1,7 @@
 import { UserRepository } from "@/modules/users/repositories/user.repository";
 
 import { databaseService } from "@/services/database.service";
-import { WalletRepository } from "@/modules/wallets/repositories/wallet.repository";
+import { WalletRepository } from "@/modules/users/repositories/wallet.repository";
 import type { TopupOrder, Wallet } from "@/../generated/prisma";
 import { TopupOrderRepository } from "@/modules/topupOrders/repositories/topupOrder.repository";
 import { TransactionRepository } from "@/modules/transactions/repositories/transaction.repository";

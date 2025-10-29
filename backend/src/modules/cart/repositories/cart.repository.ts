@@ -1,5 +1,6 @@
 import { databaseService } from "@/services/database.service";
-import type { Prisma,Cart, CartItem } from "@/../generated/prisma";
+import type { Prisma, Cart, CartItem } from "@/../generated/prisma";
+import type { PrismaTx } from "@/services/database.service";
 
 type CartWithItems = Prisma.CartGetPayload<{
   include: { cartItems: true };
@@ -12,6 +13,14 @@ export class CartRepository {
       data: { userId },
     });
   }
+  public async createTempCart_InTx(
+    userId: string,
+    tx: PrismaTx
+  ): Promise<Cart> {
+    return tx.cart.create({
+      data: { userId },
+    });
+  }
   async findCartByUserId(userId: string): Promise<Cart | null> {
     return this.prisma.cart.findFirst({
       where: {
@@ -19,7 +28,7 @@ export class CartRepository {
       },
     });
   }
-  async findCartWithItems( userId: string):Promise<CartWithItems|null> {
+  async findCartWithItems(userId: string): Promise<CartWithItems | null> {
     return this.prisma.cart.findUnique({
       where: { userId: userId },
       include: { cartItems: true },
@@ -36,13 +45,11 @@ export class CartRepository {
       },
     });
   }
-  async createCartItem(
-   data: {
-      cartId: string;
-      courseId: string;
-      priceAtTime: number;
-    },
-  ): Promise<CartItem> {
+  async createCartItem(data: {
+    cartId: string;
+    courseId: string;
+    priceAtTime: number;
+  }): Promise<CartItem> {
     return this.prisma.cartItem.create({
       data: data,
     });

@@ -1,7 +1,8 @@
 import type { Response } from "express";
 import { CartService } from "@/modules/cart/services/cart.service";
 import type {
-  AddToCartInput
+  AddToCartInput,
+  DirectBuyInput
 } from "@/modules/cart/dtos/cart.dto";
 import type { AuthenticatedRequest } from "@/middlewares/auth.middleware";
 
@@ -32,14 +33,36 @@ export class CartController {
       });
     }
   };
- public checkout = async (
+ public checkoutCart = async (
     req: AuthenticatedRequest ,
     res: Response
   ): Promise<void> => {
     try {
       const userId = req.user!.userId;
       
-      const order = await this.cartService.checkout(userId);
+      const order = await this.cartService.checkoutCart(userId);
+
+      res.status(200).json({
+        success: true,
+        message: "Checkout this cart successfully",
+        data: order,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to checkout this cart ",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+  public checkoutDirectBuy = async (
+    req: AuthenticatedRequest &{body:DirectBuyInput['body']} ,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const userId = req.user!.userId;
+      const {courseId} = req.body
+      const order = await this.cartService.directBuyCourse(userId,courseId);
 
       res.status(200).json({
         success: true,
