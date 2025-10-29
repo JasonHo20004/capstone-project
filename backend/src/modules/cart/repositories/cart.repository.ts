@@ -13,12 +13,9 @@ export class CartRepository {
       data: { userId },
     });
   }
-  public async createTempCart_InTx(
-    userId: string,
-    tx: PrismaTx
-  ): Promise<Cart> {
+  public async createTempCart_InTx(tx: PrismaTx): Promise<Cart> {
     return tx.cart.create({
-      data: { userId },
+      data: {},
     });
   }
   async findCartByUserId(userId: string): Promise<Cart | null> {

@@ -128,7 +128,6 @@ export class CartService {
       return databaseService.transaction(async (tx) => {
         // Create  temp cart
         const tempCart = await this.cartRepository.createTempCart_InTx(
-          userId,
           tx
         );
 
