@@ -10,6 +10,12 @@ export const directBuyDTO = z.object({
     courseId:z.uuid("Invalid Course ID format")
   }),
 });
+export const partialCheckoutDTO = z.object({
+  body: z.object({
+    cartItemIds:z.uuid("Invalid Course ID format").array()
+  }),
+});
 
 export type AddToCartInput = z.infer<typeof addToCartDTO>;
 export type DirectBuyInput = z.infer<typeof directBuyDTO>
+export type PartialCheckoutInput = z.infer<typeof partialCheckoutDTO>

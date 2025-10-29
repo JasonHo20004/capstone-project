@@ -70,10 +70,10 @@ export class CartService {
             cartId: exitsingCart.id,
             totalAmount: totalAmount,
           },
-          tx // <-- Truyền 'tx'
+          tx
         );
 
-        // 5b. Trừ tiền Wallet
+        // Decrease Balance
         await this.walletRepository.decrementBalance_InTx(
           wallet.id,
           totalAmount,
@@ -119,7 +119,7 @@ export class CartService {
       throw Error("Your allowance is not enough");
     }
 
-    const coursePrice =parseFloat(existingCourse.price.toString())
+    const coursePrice = parseFloat(existingCourse.price.toString());
     const exitsingCart = await this.cartRepository.findCartByUserId(userId);
     if (!exitsingCart) {
       throw Error("Cart is not exist");
@@ -127,9 +127,7 @@ export class CartService {
     try {
       return databaseService.transaction(async (tx) => {
         // Create  temp cart
-        const tempCart = await this.cartRepository.createTempCart_InTx(
-          tx
-        );
+        const tempCart = await this.cartRepository.createTempCart_InTx(tx);
 
         // Create temp order
         const newOrder = await this.orderRepository.createOrder_InTx(
@@ -149,7 +147,7 @@ export class CartService {
         );
 
         // Transaction
-         const transaction = await this.transactionRepository.createPayment_InTx(
+        const transaction = await this.transactionRepository.createPayment_InTx(
           {
             walletId: wallet.id,
             amount: coursePrice,
@@ -168,11 +166,93 @@ export class CartService {
           tx
         );
 
-     
         return newOrder;
       });
     } catch (error: any) {
       throw Error("Fail to Check out ", error);
+    }
+  }
+
+  public async checkoutPartial(
+    userId: string,
+    cartItemIds: string[]
+  ): Promise<Order> {
+    const cart = await this.cartRepository.findCartByUserId(userId);
+    if (!cart) {
+      throw Error('Can not find cart')
+    }
+
+    // Find item in cart (use cartItem id)
+    const itemsToCheckout = await this.cartRepository.findItemsByIds_InCart(
+      cart.id,
+      cartItemIds
+    );
+
+    // Validate length 
+    
+    if (itemsToCheckout.length !== cartItemIds.length) {
+      throw Error("Having some item is not available in cart")
+    }
+
+    // Total
+    const totalAmount = itemsToCheckout.reduce(
+      (sum, item) => sum + item.priceAtTime,
+      0
+    );
+    const totalAmountFloat =parseFloat(totalAmount.toString());
+
+    // Check wallet
+    const wallet = await this.walletRepository.findWalletById(userId);
+    if (!wallet || parseFloat(wallet.allowance.toString())<totalAmountFloat) {
+      throw Error("Your allowance is not enough");
+    }
+    try {
+      return databaseService.transaction(async (tx) => {
+        
+        const order = await this.orderRepository.createOrder_InTx(
+          {
+            userId: userId,
+            cartId: cart.id, 
+            totalAmount: totalAmountFloat, 
+          },
+          tx
+        );
+
+        // Decrease wallet
+        await this.walletRepository.decrementBalance_InTx(
+          wallet.id,
+          totalAmountFloat,
+          tx
+        );
+
+        // Create transaction
+        const transaction = await this.transactionRepository.createPayment_InTx(
+          {
+            walletId: wallet.id,
+            amount: totalAmountFloat,
+            orderId: order.id
+          },
+          tx
+        );
+
+      
+        const activitiesToCreate = itemsToCheckout.map((item) => ({
+          userId: userId,
+          courseId: item.courseId,
+          transactionId: transaction.id,
+        }));
+        await this.userActivityRepository.createMany_InTx(
+          activitiesToCreate,
+          tx
+        );
+
+       // Delete item from cart
+        await this.cartRepository.deleteItemsByIds_InTx(cartItemIds, tx);
+
+        return order;
+      });
+    } catch (error: any) {
+      throw new Error(`Checkout fail: ${error.message}`);
     }
   }
 }
