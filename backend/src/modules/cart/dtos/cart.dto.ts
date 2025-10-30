@@ -16,6 +16,8 @@ export const partialCheckoutDTO = z.object({
   }),
 });
 
+
 export type AddToCartInput = z.infer<typeof addToCartDTO>;
 export type DirectBuyInput = z.infer<typeof directBuyDTO>
 export type PartialCheckoutInput = z.infer<typeof partialCheckoutDTO>
+

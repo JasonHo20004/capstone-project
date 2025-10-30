@@ -1,6 +1,6 @@
 import { databaseService } from "@/services/database.service";
 import type { Prisma, Cart, CartItem } from "@/../generated/prisma";
-import type { PrismaTx , BatchPayload} from "@/services/database.service";
+import type { PrismaTx, BatchPayload } from "@/services/database.service";
 
 type CartWithItems = Prisma.CartGetPayload<{
   include: { cartItems: true };
@@ -25,10 +25,31 @@ export class CartRepository {
       },
     });
   }
-  public async findCartWithItems(userId: string): Promise<CartWithItems | null> {
+  public async findCartWithItems(
+    userId: string
+  ): Promise<CartWithItems | null> {
     return this.prisma.cart.findUnique({
       where: { userId: userId },
       include: { cartItems: true },
+    });
+  }
+  public async findCartWithCourse(userId: string) {
+    return this.prisma.cart.findUnique({
+      where: { userId: userId },
+      include: {
+        cartItems: {
+          orderBy: { addedAt: "desc" }, 
+          include: {
+            course: {
+              select: {
+                id: true,
+                title: true,
+                price: true,
+              },
+            },
+          },
+        },
+      },
     });
   }
   public async findCartItem(
@@ -53,18 +74,18 @@ export class CartRepository {
   }
   public async findItemsByIds_InCart(
     cartId: string,
-    itemIds: string[],
+    itemIds: string[]
   ): Promise<CartItem[]> {
     return this.prisma.cartItem.findMany({
       where: {
         cartId: cartId,
-        id: { in: itemIds }, 
+        id: { in: itemIds },
       },
     });
   }
   public async deleteItemsByIds_InTx(
     itemIds: string[],
-    tx: PrismaTx,
+    tx: PrismaTx
   ): Promise<BatchPayload> {
     return tx.cartItem.deleteMany({
       where: {
@@ -72,5 +93,4 @@ export class CartRepository {
       },
     });
   }
-  
 }

@@ -101,4 +101,27 @@ export class CartController {
       });
     }
   };
+
+    public getUserCart = async (
+    req: AuthenticatedRequest  ,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const userId = req.user!.userId;
+  
+      const order = await this.cartService.getUserCart(userId);
+
+      res.status(200).json({
+        success: true,
+        message: "Get User Cart successfully",
+        data: order,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to Get User Cart",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
 }

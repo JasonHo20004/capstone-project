@@ -280,4 +280,26 @@ export class CartService {
       throw new Error(`Checkout fail: ${error.message}`);
     }
   }
+  public async getUserCart(userId:string){
+    let cart = await this.cartRepository.findCartWithCourse(userId);
+
+    if (!cart) {
+     throw Error("Cart is not exist")
+    }
+
+   const totalAmount = (cart.cartItems || []).reduce(
+    (sum, item) => sum + item.priceAtTime,
+    0
+  );
+
+  
+    return {
+      id: cart.id,
+      userId: cart.userId,
+      createdAt: cart.createdAt,
+      totalAmount: totalAmount, 
+      cartItems:cart.cartItems, 
+    };
+  
+  }
 }
