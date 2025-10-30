@@ -294,7 +294,6 @@ model Test {
   courses             Course[]
   courseTests         CourseTest[]
   sections            Section[]
-  testSkills          TestSkill[]
   practiceSessions    PracticeSession[]
   questions           Question[]
   createdAt           DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -408,14 +407,7 @@ model Section {
   @@map("sections")
 }
 
-model TestSkill {
-  testId String    @map("test_id") @db.Uuid
-  skill  SkillType
-  test   Test      @relation(fields: [testId], references: [id], onDelete: Cascade)
 
-  @@id([testId, skill])
-  @@map("test_skills")
-}
 
 model Flashcard {
   id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
