@@ -19,17 +19,24 @@ export class CartService {
       courseId: string;
     }
   ): Promise<CartItem> {
-    const existingCourse = await this.courseRepository.findById(
+    const existingCourse = await this.courseRepository.findCourseAvailableById(
       cartItemData.courseId
     );
     if (!existingCourse) {
-      throw Error("Course is not exitst");
+      throw Error("Course is not exist or is Pending");
+    }
+    const existingActivity = await this.userActivityRepository.findActivity(
+      userId,
+      cartItemData.courseId
+    );
+    if (existingActivity) {
+      throw new Error(`You have already possessed course ${existingCourse.title}.`);
     }
     const priceAtTime = parseFloat(existingCourse.price.toString());
 
-    const exitsingCart = await this.cartRepository.findCartByUserId(userId);
-    if (!exitsingCart) {
-      throw Error("Cart is not exist");
+    let exitsingCart = await this.cartRepository.findCartByUserId(userId);
+    if (!exitsingCart) { // creaate cart
+      exitsingCart = await this.cartRepository.createCart(userId);
     }
 
     const existingItem = await this.cartRepository.findCartItem(
@@ -39,6 +46,7 @@ export class CartService {
     if (existingItem) {
       throw Error("Course have already been in Cart");
     }
+    
     const newCartItem = await this.cartRepository.createCartItem({
       cartId: exitsingCart.id,
       courseId: existingCourse.id,
@@ -52,6 +60,9 @@ export class CartService {
     if (!exitsingCart) {
       throw Error("Cart is not exist");
     }
+    if ( exitsingCart.cartItems.length === 0) {//create cart
+      throw new Error("Your cart is empty");
+    }
     // Update create
 
     const wallet = await this.walletRepository.findWalletById(userId);
@@ -62,6 +73,7 @@ export class CartService {
     if (!wallet || parseFloat(wallet.allowance.toString()) < totalAmount) {
       throw Error("Your allowance is not enough.");
     }
+
     try {
       return databaseService.transaction(async (tx) => {
         const order = await this.orderRepository.createOrder_InTx(
@@ -89,6 +101,8 @@ export class CartService {
           tx
         );
 
+        order.transactionId=transaction.id
+
         const activitiesToCreate = exitsingCart.cartItems.map((item) => ({
           userId: userId,
           courseId: item.courseId,
@@ -100,7 +114,7 @@ export class CartService {
           tx
         );
 
-        const cartItemIds =exitsingCart.cartItems.map((item)=>(item.id))
+        const cartItemIds = exitsingCart.cartItems.map((item) => item.id);
         // Delete item from cart
         await this.cartRepository.deleteItemsByIds_InTx(cartItemIds, tx);
         return order;
@@ -113,9 +127,19 @@ export class CartService {
     userId: string,
     courseId: string
   ): Promise<Order> {
-    const existingCourse = await this.courseRepository.findById(courseId);
+    const existingCourse = await this.courseRepository.findCourseAvailableById(
+      courseId
+    );
     if (!existingCourse) {
-      throw Error("Course is not exitst");
+      throw Error("Course is not exist");
+    }
+    
+    const existingActivity = await this.userActivityRepository.findActivity(
+      userId,
+     courseId
+    );
+    if (existingActivity) {
+      throw new Error(`You have already possessed course ${existingCourse.title}.`);
     }
     const wallet = await this.walletRepository.findWalletById(userId);
     if (!wallet || wallet.allowance < existingCourse.price) {
@@ -180,21 +204,21 @@ export class CartService {
     userId: string,
     cartItemIds: string[]
   ): Promise<Order> {
-    const cart = await this.cartRepository.findCartByUserId(userId);
+    let cart = await this.cartRepository.findCartByUserId(userId);
     if (!cart) {
-      throw Error('Can not find cart')
+       cart = await this.cartRepository.createCart(userId);
     }
-
     // Find item in cart (use cartItem id)
     const itemsToCheckout = await this.cartRepository.findItemsByIds_InCart(
       cart.id,
       cartItemIds
     );
 
-    // Validate length 
-    
+    // Validate length
+
+   
     if (itemsToCheckout.length !== cartItemIds.length) {
-      throw Error("Having some item is not available in cart")
+      throw Error("Having some item is not available in cart");
     }
 
     // Total
@@ -202,21 +226,20 @@ export class CartService {
       (sum, item) => sum + item.priceAtTime,
       0
     );
-    const totalAmountFloat =parseFloat(totalAmount.toString());
+    const totalAmountFloat = parseFloat(totalAmount.toString());
 
     // Check wallet
     const wallet = await this.walletRepository.findWalletById(userId);
-    if (!wallet || parseFloat(wallet.allowance.toString())<totalAmountFloat) {
+    if (!wallet || parseFloat(wallet.allowance.toString()) < totalAmountFloat) {
       throw Error("Your allowance is not enough");
     }
     try {
       return databaseService.transaction(async (tx) => {
-        
-        const order = await this.orderRepository.createOrder_InTx(
+        let order = await this.orderRepository.createOrder_InTx(
           {
             userId: userId,
-            cartId: cart.id, 
-            totalAmount: totalAmountFloat, 
+            cartId: cart.id,
+            totalAmount: totalAmountFloat,
           },
           tx
         );
@@ -233,12 +256,11 @@ export class CartService {
           {
             walletId: wallet.id,
             amount: totalAmountFloat,
-            orderId: order.id
+            orderId: order.id,
           },
           tx
         );
-
-      
+        order.transactionId= transaction.id
         const activitiesToCreate = itemsToCheckout.map((item) => ({
           userId: userId,
           courseId: item.courseId,
@@ -249,7 +271,7 @@ export class CartService {
           tx
         );
 
-       // Delete item from cart
+        // Delete item from cart
         await this.cartRepository.deleteItemsByIds_InTx(cartItemIds, tx);
 
         return order;

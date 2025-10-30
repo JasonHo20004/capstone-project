@@ -1,10 +1,10 @@
-// import { databaseService } from "@/services/database.service";
+import { databaseService } from "@/services/database.service";
 import type { UserActivity } from "@/../generated/prisma";
 import type { PrismaTx, BatchPayload } from "@/services/database.service";
 
 
 export class UserActivityRepository {
-  //private prisma = databaseService.getClient();
+  private prisma = databaseService.getClient();
 
   public async createMany_InTx(
     data: {
@@ -28,6 +28,17 @@ export class UserActivityRepository {
   ): Promise<UserActivity> {
     return tx.userActivity.create({
       data: data,
+    });
+  }
+  public async findActivity(
+    userId: string,
+    courseId: string
+  ): Promise<UserActivity | null> {
+    return this.prisma.userActivity.findFirst({
+      where: {
+        userId: userId,
+        courseId: courseId,
+      },
     });
   }
 }

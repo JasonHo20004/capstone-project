@@ -1,5 +1,9 @@
-import { databaseService } from '@/services/database.service';
-import type { Course, CourseStatus, CourseLevel } from '@/../../generated/prisma';
+import { databaseService } from "@/services/database.service";
+import type {
+  Course,
+  CourseStatus,
+  CourseLevel,
+} from "@/../../generated/prisma";
 
 export class CourseRepository {
   private prisma = databaseService.getClient();
@@ -17,14 +21,17 @@ export class CourseRepository {
       title: data.title,
       price: data.price,
       courseSellerId: data.courseSellerId,
-      status: 'DRAFT' as CourseStatus,
+      status: "DRAFT" as CourseStatus,
     };
-    
-    if (data.description !== undefined) createData.description = data.description;
-    if (data.shortDescription !== undefined) createData.shortDescription = data.shortDescription;
+
+    if (data.description !== undefined)
+      createData.description = data.description;
+    if (data.shortDescription !== undefined)
+      createData.shortDescription = data.shortDescription;
     if (data.category !== undefined) createData.category = data.category;
-    if (data.courseLevel !== undefined) createData.courseLevel = data.courseLevel as CourseLevel;
-    
+    if (data.courseLevel !== undefined)
+      createData.courseLevel = data.courseLevel as CourseLevel;
+
     return this.prisma.course.create({ data: createData });
   }
 
@@ -38,5 +45,9 @@ export class CourseRepository {
       },
     });
   }
-  
+  async findCourseAvailableById(id: string): Promise<Course | null> {
+    return this.prisma.course.findUnique({
+      where: { id, status: "ACTIVE" },
+    });
+  }
 }

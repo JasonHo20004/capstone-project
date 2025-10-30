@@ -12,7 +12,7 @@ export const directBuyDTO = z.object({
 });
 export const partialCheckoutDTO = z.object({
   body: z.object({
-    cartItemIds:z.uuid("Invalid Course ID format").array()
+    cartItemIds: z.array(z.uuid("Invalid cart Item ID format")).nonempty({ message: "You must select at least cart Item Id " }),
   }),
 });
 
