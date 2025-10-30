@@ -100,6 +100,9 @@ export class CartService {
           tx
         );
 
+        const cartItemIds =exitsingCart.cartItems.map((item)=>(item.id))
+        // Delete item from cart
+        await this.cartRepository.deleteItemsByIds_InTx(cartItemIds, tx);
         return order;
       });
     } catch (error: any) {
