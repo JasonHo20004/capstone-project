@@ -102,7 +102,7 @@ export class CartController {
     }
   };
 
-    public getUserCart = async (
+    public getUserCarts = async (
     req: AuthenticatedRequest  ,
     res: Response
   ): Promise<void> => {

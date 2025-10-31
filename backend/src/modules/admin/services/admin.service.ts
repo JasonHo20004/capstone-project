@@ -11,10 +11,6 @@ import { UserRepository } from "@/modules/users/repositories/user.repository";
 import { databaseService } from "@/services/database.service";
 
 import { NotificationService, NOTIFICATION_TYPES } from "@/modules/notifications/services/notification.service";
-<
-import type { RevenueOverviewResponse} from "../dtos/revenue.dto";
-
-
 
 export class AdminService {
   private adminRepository = new AdminRepository();
