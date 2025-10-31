@@ -1,4 +1,4 @@
-import { PrismaClient } from "../../generated/prisma";
+import { PrismaClient,Prisma } from "../../generated/prisma";
 
 // =============================================================================
 // Database Service Singleton
@@ -100,7 +100,13 @@ class DatabaseService {
     };
   }
 }
+// Export transaction
+export type PrismaTx = Omit<
+  PrismaClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
 
+export type BatchPayload = Prisma.BatchPayload;
 // Export singleton instance
 export const databaseService = DatabaseService.getInstance();
 export default databaseService;
