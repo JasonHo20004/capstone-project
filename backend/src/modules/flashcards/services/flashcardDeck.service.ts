@@ -1,15 +1,22 @@
 import { FlashcardDeckRepository } from "@/modules/flashcards/repositories/flashcardDeck.repository";
 import type { CreateFlashcardDeckInput } from "@/modules/flashcards/dtos/flashcardDeck.dto";
 import type { FlashcardDeck } from "@/../generated/prisma";
+import {TagRepository} from '@/modules/flashcards/repositories/tag.repository'
 export class FlashcardDeckService {
   private flashcardDeckRepository = new FlashcardDeckRepository();
-
+  private tagRepository = new TagRepository()
   public async createFlashcardDeck(
     userId: string,
     flashcardDeckData: CreateFlashcardDeckInput["body"]
   ): Promise<FlashcardDeck> {
     const { tagIds, ...deckData } = flashcardDeckData;
 
+     tagIds.map(async (tagId)=>{
+      const existingTag = await this.tagRepository.findTagById(tagId)
+      if(existingTag){
+        throw Error("Tag is not existence")
+      }
+    })
     const newFlashcardDeck = await this.flashcardDeckRepository.createDeck(
       userId,
       deckData,
@@ -40,6 +47,12 @@ export class FlashcardDeckService {
       updatePayload.tagIds = updateData.tagIds
     
     }
+    updatePayload.tagIds.map(async (tagId:string)=>{
+      const existingTag = await this.tagRepository.findTagById(tagId)
+      if(existingTag){
+        throw Error("Tag is not existence")
+      }
+    })
     
     updatePayload.description =  updateData.description
     
