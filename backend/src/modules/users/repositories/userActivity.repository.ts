@@ -33,12 +33,27 @@ export class UserActivityRepository {
   public async findActivity(
     userId: string,
     courseId: string
-  ): Promise<UserActivity | null> {
+  ): Promise<any | null> {
     return this.prisma.userActivity.findFirst({
       where: {
         userId: userId,
         courseId: courseId,
       },
+      include:{
+        user:{
+          select:{
+            id:true,
+            fullName:true,
+            email:true
+          }
+        },
+       course:{
+        select:{
+          id:true,
+          title:true
+        }
+       } 
+      }
     });
   }
 }
