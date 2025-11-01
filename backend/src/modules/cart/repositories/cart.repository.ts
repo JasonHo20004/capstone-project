@@ -1,7 +1,7 @@
 import { databaseService } from "@/services/database.service";
 import type { Prisma, Cart, CartItem } from "@/../generated/prisma";
 import type { PrismaTx, BatchPayload } from "@/services/database.service";
-
+import type { CreateCartItemResponseDTO } from "@/modules/cart/dtos/cart.dto";
 type CartWithItems = Prisma.CartGetPayload<{
   include: { cartItems: true };
 }>;
@@ -16,6 +16,14 @@ export class CartRepository {
   public async createTempCart_InTx(tx: PrismaTx): Promise<Cart> {
     return tx.cart.create({
       data: {},
+    });
+  }
+  public async addToTempCart_InTx(
+    dataTemp: { cartId: string; courseId: string; priceAtTime: number },
+    tx: PrismaTx
+  ): Promise<CartItem> {
+    return tx.cartItem.create({
+      data: dataTemp,
     });
   }
   public async findCartByUserId(userId: string): Promise<Cart | null> {
@@ -38,7 +46,7 @@ export class CartRepository {
       where: { userId: userId },
       include: {
         cartItems: {
-          orderBy: { addedAt: "desc" }, 
+          orderBy: { addedAt: "desc" },
           include: {
             course: {
               select: {
@@ -67,9 +75,27 @@ export class CartRepository {
     cartId: string;
     courseId: string;
     priceAtTime: number;
-  }): Promise<CartItem> {
+  }): Promise<CreateCartItemResponseDTO> {
     return this.prisma.cartItem.create({
       data: data,
+      include: {
+        course: {
+          select: {
+            title: true,
+          },
+        },
+        cart: {
+          select: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
     });
   }
   public async findItemsByIds_InCart(

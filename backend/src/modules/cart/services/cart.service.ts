@@ -30,12 +30,15 @@ export class CartService {
       cartItemData.courseId
     );
     if (existingActivity) {
-      throw new Error(`You have already possessed course ${existingCourse.title}.`);
+      throw new Error(
+        `You have already possessed course ${existingCourse.title}.`
+      );
     }
     const priceAtTime = parseFloat(existingCourse.price.toString());
 
     let exitsingCart = await this.cartRepository.findCartByUserId(userId);
-    if (!exitsingCart) { // creaate cart
+    if (!exitsingCart) {
+      // creaate cart
       exitsingCart = await this.cartRepository.createCart(userId);
     }
 
@@ -46,7 +49,7 @@ export class CartService {
     if (existingItem) {
       throw Error("Course have already been in Cart");
     }
-    
+
     const newCartItem = await this.cartRepository.createCartItem({
       cartId: exitsingCart.id,
       courseId: existingCourse.id,
@@ -60,7 +63,8 @@ export class CartService {
     if (!exitsingCart) {
       throw Error("Cart is not exist");
     }
-    if ( exitsingCart.cartItems.length === 0) {//create cart
+    if (exitsingCart.cartItems.length === 0) {
+      //create cart
       throw new Error("Your cart is empty");
     }
     // Update create
@@ -101,7 +105,7 @@ export class CartService {
           tx
         );
 
-        order.transactionId=transaction.id
+        order.transactionId = transaction.id;
 
         const activitiesToCreate = exitsingCart.cartItems.map((item) => ({
           userId: userId,
@@ -133,13 +137,15 @@ export class CartService {
     if (!existingCourse) {
       throw Error("Course is not exist");
     }
-    
+
     const existingActivity = await this.userActivityRepository.findActivity(
       userId,
-     courseId
+      courseId
     );
     if (existingActivity) {
-      throw new Error(`You have already possessed course ${existingCourse.title}.`);
+      throw new Error(
+        `You have already possessed course ${existingCourse.title}.`
+      );
     }
     const wallet = await this.walletRepository.findWalletById(userId);
     if (!wallet || wallet.allowance < existingCourse.price) {
@@ -155,6 +161,14 @@ export class CartService {
       return databaseService.transaction(async (tx) => {
         // Create  temp cart
         const tempCart = await this.cartRepository.createTempCart_InTx(tx);
+
+        // add cart item to cart
+        await this.cartRepository.addToTempCart_InTx({
+          cartId: tempCart.id,
+          courseId: existingCourse.id,
+          priceAtTime: coursePrice,
+        },
+      tx);
 
         // Create temp order
         const newOrder = await this.orderRepository.createOrder_InTx(
@@ -206,7 +220,7 @@ export class CartService {
   ): Promise<Order> {
     let cart = await this.cartRepository.findCartByUserId(userId);
     if (!cart) {
-       cart = await this.cartRepository.createCart(userId);
+      cart = await this.cartRepository.createCart(userId);
     }
     // Find item in cart (use cartItem id)
     const itemsToCheckout = await this.cartRepository.findItemsByIds_InCart(
@@ -216,7 +230,6 @@ export class CartService {
 
     // Validate length
 
-   
     if (itemsToCheckout.length !== cartItemIds.length) {
       throw Error("Having some item is not available in cart");
     }
@@ -260,7 +273,7 @@ export class CartService {
           },
           tx
         );
-        order.transactionId= transaction.id
+        order.transactionId = transaction.id;
         const activitiesToCreate = itemsToCheckout.map((item) => ({
           userId: userId,
           courseId: item.courseId,
@@ -280,26 +293,24 @@ export class CartService {
       throw new Error(`Checkout fail: ${error.message}`);
     }
   }
-  public async getUserCart(userId:string){
+  public async getUserCart(userId: string) {
     let cart = await this.cartRepository.findCartWithCourse(userId);
 
     if (!cart) {
-     throw Error("Cart is not exist")
+      throw Error("Cart is not exist");
     }
 
-   const totalAmount = (cart.cartItems || []).reduce(
-    (sum, item) => sum + item.priceAtTime,
-    0
-  );
+    const totalAmount = (cart.cartItems || []).reduce(
+      (sum, item) => sum + item.priceAtTime,
+      0
+    );
 
-  
     return {
       id: cart.id,
       userId: cart.userId,
       createdAt: cart.createdAt,
-      totalAmount: totalAmount, 
-      cartItems:cart.cartItems, 
+      totalAmount: totalAmount,
+      cartItems: cart.cartItems,
     };
-  
   }
 }
