@@ -1,6 +1,6 @@
 import { databaseService } from "@/services/database.service";
 import type { Report, EReasonType} from "@/../../generated/prisma";
-import type {CreateReportResponse} from "@/modules/reports/dtos/report.dto"
+import type {CreateReportResponse, GetReportResponse} from "@/modules/reports/dtos/report.dto"
 export class ReportRepository {
   private prisma = databaseService.getClient();
   // check User reported the course
@@ -40,5 +40,22 @@ export class ReportRepository {
 
       }
     });
+  }
+  public getAllReports():Promise<GetReportResponse[]>{
+    return this.prisma.report.findMany({
+      include:{
+        user:{
+          select:{id: true,
+            fullName:true,
+            email:true,
+          }
+        },
+        course:{
+          select:{id: true,
+            title:true
+          }
+        }
+      }
+    })
   }
 }

@@ -3,7 +3,7 @@ import { UserRepository } from "@/modules/users/repositories/user.repository";
 import { CourseRepository } from "@/modules/courses/repositories/course.repository";
 import { UserActivityRepository } from "@/modules/users/repositories/userActivity.repository";
 import type { EReasonType } from "@/../generated/prisma";
-import type { CreateReportResponse } from "@/modules/reports/dtos/report.dto";
+import type { CreateReportResponse ,GetReportResponse} from "@/modules/reports/dtos/report.dto";
 
 export class ReportService {
   private reportRepository = new ReportRepository();
@@ -52,5 +52,9 @@ export class ReportService {
       ...dataReport,
     });
     return newReport;
+  }
+
+  public async getAllReports():Promise<GetReportResponse[]>{
+    return  this.reportRepository.getAllReports()
   }
 }

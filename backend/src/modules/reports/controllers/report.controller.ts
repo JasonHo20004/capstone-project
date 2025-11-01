@@ -1,4 +1,4 @@
-import type { Response } from "express";
+import type {Request, Response } from "express";
 import { ReportService } from "@/modules/reports/services/report.service";
 import type { CreateReportCourseInput } from "@/modules/reports/dtos/report.dto";
 import type { AuthenticatedRequest } from "@/middlewares/auth.middleware";
@@ -36,4 +36,26 @@ export class ReportController {
       });
     }
   };
+ public getAllReports = async (
+    _req:Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      
+      const reports = await this.reportService.getAllReports();
+
+      res.status(200).json({
+        success: true,
+        message: "Get All Report successfully",
+        data: reports,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to get all report",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
 }

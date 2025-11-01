@@ -41,4 +41,15 @@ export const CreateReportResponseDTO = z.object({
   course: ReportCourseResponseDTO,
   user: ReportUserResponseDTO, 
 });
+export const GetReportResponseDTO = z.object({
+ 
+  id: z.uuid(),
+  content: z.string(),
+  reasonType: z.enum(EReasonType),
+  createdAt: z.date(), 
+  course: ReportCourseResponseDTO,
+  user: ReportUserResponseDTO, 
+});
+
 export type CreateReportResponse = z.infer<typeof CreateReportResponseDTO>;
+export type GetReportResponse = z.infer<typeof GetReportResponseDTO>;
