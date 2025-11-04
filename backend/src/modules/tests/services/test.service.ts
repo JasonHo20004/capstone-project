@@ -11,7 +11,6 @@ export class TestService {
     title: string;
     durationInMinutes?: number;
     maxAttempts?: number;
-    testType?: string;
     englishTestTypeId: string;
   }): Promise<Test> {
     // Check if course exists
@@ -20,17 +19,22 @@ export class TestService {
       throw new Error('Course not found');
     }
 
+    // Ensure the course does not already have a final test
+    if (course.finalTestId) {
+      throw new Error('Course already has a final test');
+    }
+
     // Create the test
     const test = await this.testRepository.create({
       title: data.title,
       durationInMinutes: data.durationInMinutes,
       maxAttempts: data.maxAttempts,
-      testType: data.testType,
       englishTestTypeId: data.englishTestTypeId,
     });
 
-    // Link test to course
+    // Link test to course and set as the course's final test
     await this.testRepository.linkToCourse(data.courseId, test.id);
+    await this.courseRepository.setFinalTestId(data.courseId, test.id);
 
     return test;
   }
@@ -69,8 +73,8 @@ export class TestService {
     return this.testRepository.findById(testId);
   }
 
-  async getTestsByCourse(courseId: string, testType?: string): Promise<Test[]> {
-    return this.testRepository.findByCourseId(courseId, testType);
+  async getTestsByCourse(courseId: string): Promise<Test[]> {
+    return this.testRepository.findByCourseId(courseId);
   }
 }
 
