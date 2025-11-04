@@ -41,8 +41,26 @@ export class ReportRepository {
       }
     });
   }
-  public getAllReports():Promise<GetReportResponse[]>{
+  public async getAllReports():Promise<GetReportResponse[]>{
     return this.prisma.report.findMany({
+      include:{
+        user:{
+          select:{id: true,
+            fullName:true,
+            email:true,
+          }
+        },
+        course:{
+          select:{id: true,
+            title:true
+          }
+        }
+      }
+    })
+  }
+  public async getReportById(reportId:string):Promise<GetReportResponse|null>{
+    return this.prisma.report.findFirst({
+      where:{id:reportId},
       include:{
         user:{
           select:{id: true,

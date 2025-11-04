@@ -57,4 +57,12 @@ export class ReportService {
   public async getAllReports():Promise<GetReportResponse[]>{
     return  this.reportRepository.getAllReports()
   }
+
+  public async getDetailReport(reportId:string):Promise<GetReportResponse>{
+    const report= await this.reportRepository.getReportById(reportId)
+    if(!report){
+      throw Error ("Report is not existence")
+    }
+    return report
+  }
 }

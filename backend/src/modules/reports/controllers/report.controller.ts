@@ -1,6 +1,6 @@
 import type {Request, Response } from "express";
 import { ReportService } from "@/modules/reports/services/report.service";
-import type { CreateReportCourseInput } from "@/modules/reports/dtos/report.dto";
+import type { CreateReportCourseInput, GetDetailReportInput } from "@/modules/reports/dtos/report.dto";
 import type { AuthenticatedRequest } from "@/middlewares/auth.middleware";
 
 export class ReportController {
@@ -57,5 +57,25 @@ export class ReportController {
       });
     }
   };
+ public getDetailReport = async (
+    req:Request<GetDetailReportInput['params']>,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const {reportId} = req.params
+      const reports = await this.reportService.getDetailReport(reportId);
 
+      res.status(200).json({
+        success: true,
+        message: "Get Detail Report successfully",
+        data: reports,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to Detail all report",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
 }

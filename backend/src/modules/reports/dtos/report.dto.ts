@@ -16,12 +16,20 @@ export const createReportCourseDTO = z.object({
   }),
   params: z.object({
     courseId: z.uuid({
-      message: "Flashcard ID must be a valid UUID",
+      message: "Course ID must be a valid UUID",
     }),
   }),
 });
 
+export const getDetailReportDTO = z.object({
+  params: z.object({
+    reportId: z.uuid({
+      message: "Report ID must be a valid UUID",
+    }),
+  }),
+})
 export type CreateReportCourseInput = z.infer<typeof createReportCourseDTO>;
+export type GetDetailReportInput = z.infer<typeof getDetailReportDTO>
 // response
 const ReportCourseResponseDTO = z.object({
   id: z.uuid(),
