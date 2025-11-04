@@ -1,10 +1,9 @@
+import 'dotenv/config';
 import app from './app'; 
-import dotenv from 'dotenv';
 import { databaseService } from './services/database.service';
 import { seedNotificationTypes } from './seed/notificationTypes.seed';
 
-// Load environment variables from .env file
-dotenv.config();
+// Load environment variables from .env file (already loaded via side-effect import above)
 
 const PORT = process.env.PORT || 3000;
 

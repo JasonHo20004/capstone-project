@@ -5,11 +5,12 @@ import { ZodObject, ZodError } from 'zod'; // Dùng AnyZodObject linh hoạt hơ
 export const validate = (schema: ZodObject) => {
   return (req: Request, res: Response, next: NextFunction): void => { // <-- Thêm : void ở đây
     try {
-      schema.parse({
+      const parsed = schema.parse({
         body: req.body,
         query: req.query,
         params: req.params,
       });
+      req.body = parsed.body as any;
       next();
     } catch (error) {
       if (error instanceof ZodError) {
