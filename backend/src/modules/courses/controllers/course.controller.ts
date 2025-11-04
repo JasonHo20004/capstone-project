@@ -18,8 +18,7 @@ export class CourseController {
   ): Promise<void> => {
     try {
       const courseData = req.body;
-      // Get course seller ID from authenticated user (assume it's in req.user after auth middleware)
-      const courseSellerId = (req as any).user?.id;
+      const courseSellerId = (req as any).user?.userId;
       
       if (!courseSellerId) {
         res.status(401).json({
@@ -29,10 +28,17 @@ export class CourseController {
         return;
       }
 
-      const newCourse = await this.courseService.createCourse({
-        ...courseData,
+      const payload = {
+        title: courseData.title,
+        price: courseData.price,
         courseSellerId,
-      });
+        ...(courseData.description !== undefined && { description: courseData.description }),
+        ...(courseData.shortDescription !== undefined && { shortDescription: courseData.shortDescription }),
+        ...(courseData.category !== undefined && { category: courseData.category }),
+        ...(courseData.courseLevel !== undefined && { courseLevel: courseData.courseLevel }),
+      };
+
+      const newCourse = await this.courseService.createCourse(payload);
 
       res.status(201).json({
         success: true,
@@ -53,9 +59,18 @@ export class CourseController {
       const { courseId } = req.params;
       const updateData = req.body;
 
+      const updatePayload = {
+        ...(updateData.title !== undefined && { title: updateData.title }),
+        ...(updateData.description !== undefined && { description: updateData.description }),
+        ...(updateData.shortDescription !== undefined && { shortDescription: updateData.shortDescription }),
+        ...(updateData.price !== undefined && { price: updateData.price }),
+        ...(updateData.category !== undefined && { category: updateData.category }),
+        ...(updateData.courseLevel !== undefined && { courseLevel: updateData.courseLevel }),
+      };
+
       const updatedCourse = await this.courseService.updateCourse(
         courseId,
-        updateData
+        updatePayload
       );
 
       res.status(200).json({

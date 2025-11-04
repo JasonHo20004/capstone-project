@@ -99,15 +99,18 @@ export class CourseRepository {
   }
 
   async checkHasFinalTest(courseId: string): Promise<boolean> {
-    const courseTest = await this.prisma.courseTest.findFirst({
-      where: {
-        courseId,
-        test: {
-          testType: 'FINAL',
-        },
-      },
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { finalTestId: true },
     });
-    return courseTest !== null;
+    return !!course?.finalTestId;
+  }
+
+  async setFinalTestId(courseId: string, testId: string): Promise<Course> {
+    return this.prisma.course.update({
+      where: { id: courseId },
+      data: { finalTestId: testId },
+    });
   }
 }
 
