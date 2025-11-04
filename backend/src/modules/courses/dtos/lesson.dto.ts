@@ -9,8 +9,8 @@ export const createLessonDTO = z.object({
   body: z.object({
     title: z.string().min(1, 'Lesson title is required'),
     description: z.string().optional(),
-    lessonOrder: z.number().int().optional(),
-    durationInSeconds: z.number().optional(),
+    lessonOrder: z.coerce.number().int().optional(),
+    durationInSeconds: z.coerce.number().optional(),
   }),
 });
 
@@ -25,8 +25,8 @@ export const updateLessonDTO = z.object({
   body: z.object({
     title: z.string().optional(),
     description: z.string().optional(),
-    lessonOrder: z.number().int().optional(),
-    durationInSeconds: z.number().optional(),
+    lessonOrder: z.coerce.number().int().optional(),
+    durationInSeconds: z.coerce.number().optional(),
   }),
 });
 
