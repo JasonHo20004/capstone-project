@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { QuestionType, TestType } from '@/../generated/prisma';
+import { QuestionType } from '@/../generated/prisma';
 
 // Create Test DTO
 export const createTestDTO = z.object({
@@ -10,7 +10,6 @@ export const createTestDTO = z.object({
     title: z.string().min(1, 'Test title is required'),
     durationInMinutes: z.number().optional(),
     maxAttempts: z.number().optional(),
-    testType: z.nativeEnum(TestType).optional(),
     englishTestTypeId: z.uuid({ message: 'English Test Type ID must be a valid UUID' }),
   }),
 });

@@ -112,15 +112,13 @@ export class TestController {
   };
 
   public getTestsByCourse = async (
-    req: Request<{ courseId: string }, {}, {}, { testType?: string }>,
+    req: Request<{ courseId: string }>,
     res: Response,
     next: NextFunction
   ): Promise<void> => {
     try {
       const { courseId } = req.params;
-      const { testType } = req.query;
-
-      const tests = await this.testService.getTestsByCourse(courseId, testType);
+      const tests = await this.testService.getTestsByCourse(courseId);
 
       res.status(200).json({
         success: true,

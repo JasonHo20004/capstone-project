@@ -8,17 +8,19 @@ export class TestRepository {
     title: string;
     durationInMinutes?: number;
     maxAttempts?: number;
-    testType?: string;
     englishTestTypeId: string;
     questions?: Question[];
   }): Promise<Test> {
+    const createData: any = {
+      title: data.title,
+      englishTestTypeId: data.englishTestTypeId,
+    };
+    if (data.durationInMinutes !== undefined) createData.durationInMinutes = data.durationInMinutes;
+    if (data.maxAttempts !== undefined) createData.maxAttempts = data.maxAttempts;
+
     return this.prisma.test.create({
       data: {
-        title: data.title,
-        durationInMinutes: data.durationInMinutes,
-        maxAttempts: data.maxAttempts,
-        testType: data.testType as any,
-        englishTestTypeId: data.englishTestTypeId,
+        ...createData,
         questions: data.questions
           ? {
               create: data.questions,
@@ -45,7 +47,7 @@ export class TestRepository {
     });
   }
 
-  async findByCourseId(courseId: string, testType?: string): Promise<Test[]> {
+  async findByCourseId(courseId: string): Promise<Test[]> {
     const where: any = {
       courseTests: {
         some: {
@@ -53,9 +55,6 @@ export class TestRepository {
         },
       },
     };
-    if (testType) {
-      where.testType = testType;
-    }
 
     return this.prisma.test.findMany({
       where,
@@ -99,16 +98,18 @@ export class TestRepository {
       questionOrder?: number;
     }
   ): Promise<Question> {
+    const createData: any = {
+      testId,
+      questionText: questionData.questionText,
+      questionType: questionData.questionType as any,
+      options: questionData.options ?? [],
+    };
+    if (questionData.correctAnswerIndex !== undefined) createData.correctAnswerIndex = questionData.correctAnswerIndex;
+    if (questionData.correctAnswer !== undefined) createData.correctAnswer = questionData.correctAnswer;
+    if (questionData.questionOrder !== undefined) createData.questionOrder = questionData.questionOrder;
+
     return this.prisma.question.create({
-      data: {
-        testId,
-        questionText: questionData.questionText,
-        questionType: questionData.questionType as any,
-        options: questionData.options || [],
-        correctAnswerIndex: questionData.correctAnswerIndex,
-        correctAnswer: questionData.correctAnswer,
-        questionOrder: questionData.questionOrder,
-      },
+      data: createData,
     });
   }
 }
