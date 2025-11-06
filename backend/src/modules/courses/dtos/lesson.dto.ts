@@ -11,6 +11,7 @@ export const createLessonDTO = z.object({
     description: z.string().optional(),
     lessonOrder: z.coerce.number().int().optional(),
     durationInSeconds: z.coerce.number().optional(),
+    videoDescription: z.string().optional(),
   }),
 });
 

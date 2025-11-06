@@ -27,6 +27,7 @@ export class LessonController {
         lessonOrder?: number;
         durationInSeconds?: number;
         videoUrl?: string;
+        videoDescription?: string;
       } = {
         courseId,
         title: lessonData.title,
@@ -43,6 +44,10 @@ export class LessonController {
       }
       if (videoUrl !== undefined) {
         createData.videoUrl = videoUrl;
+      }
+      // videoDescription can be passed in the body if needed
+      if (lessonData.videoDescription !== undefined) {
+        createData.videoDescription = lessonData.videoDescription;
       }
 
       const newLesson = await this.lessonService.createLesson(createData);

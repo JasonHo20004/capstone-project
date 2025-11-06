@@ -1,9 +1,11 @@
 import { LessonRepository } from '@/modules/courses/repositories/lesson.repository';
+import { MediaAssetRepository } from '@/modules/courses/repositories/media-asset.repository';
 import { CourseRepository } from '@/modules/courses/repositories/course.repository';
-import type { Lesson } from '@/../generated/prisma';
+import type { Lesson, MediaType } from '@/../generated/prisma';
 
 export class LessonService {
   private lessonRepository = new LessonRepository();
+  private mediaAssetRepository = new MediaAssetRepository();
   private courseRepository = new CourseRepository();
 
   async createLesson(data: {
@@ -13,6 +15,7 @@ export class LessonService {
     lessonOrder?: number;
     durationInSeconds?: number;
     videoUrl?: string;
+    videoDescription?: string;
   }): Promise<Lesson> {
     // Check if course exists
     const course = await this.courseRepository.findById(data.courseId);
@@ -24,16 +27,15 @@ export class LessonService {
       throw new Error('Could not upload video, please try again');
     }
 
+    // Create lesson without videoUrl
     const createData: {
       title: string;
       description?: string;
-      videoUrl: string;
       lessonOrder?: number;
       durationInSeconds?: number;
       courseId: string;
     } = {
       title: data.title,
-      videoUrl: data.videoUrl,
       courseId: data.courseId,
     };
     
@@ -41,7 +43,28 @@ export class LessonService {
     if (data.lessonOrder !== undefined) createData.lessonOrder = data.lessonOrder;
     if (data.durationInSeconds !== undefined) createData.durationInSeconds = data.durationInSeconds;
     
-    return this.lessonRepository.create(createData);
+    const lesson = await this.lessonRepository.create(createData);
+
+    // Create media asset for the video
+    const mediaAssetData: {
+      assetType: MediaType;
+      assetUrl: string;
+      lessonId: string;
+      description?: string;
+    } = {
+      assetType: 'VIDEO' as MediaType,
+      assetUrl: data.videoUrl,
+      lessonId: lesson.id,
+    };
+
+    if (data.videoDescription !== undefined) {
+      mediaAssetData.description = data.videoDescription;
+    }
+
+    await this.mediaAssetRepository.create(mediaAssetData);
+
+    // Return lesson with media assets
+    return this.lessonRepository.findById(lesson.id) as Promise<Lesson>;
   }
 
   async updateLesson(

@@ -7,7 +7,6 @@ export class LessonRepository {
   async create(data: {
     title: string;
     description?: string;
-    videoUrl?: string;
     lessonOrder?: number;
     durationInSeconds?: number;
     courseId: string;
@@ -18,7 +17,6 @@ export class LessonRepository {
     };
     
     if (data.description !== undefined) createData.description = data.description;
-    if (data.videoUrl !== undefined) createData.videoUrl = data.videoUrl;
     if (data.lessonOrder !== undefined) createData.lessonOrder = data.lessonOrder;
     if (data.durationInSeconds !== undefined) createData.durationInSeconds = data.durationInSeconds;
     
@@ -30,6 +28,7 @@ export class LessonRepository {
       where: { id },
       include: {
         course: true,
+        mediaAssets: true,
       },
     });
   }
@@ -37,6 +36,9 @@ export class LessonRepository {
   async findByCourseId(courseId: string): Promise<Lesson[]> {
     return this.prisma.lesson.findMany({
       where: { courseId },
+      include: {
+        mediaAssets: true,
+      },
       orderBy: {
         lessonOrder: 'asc',
       },
@@ -48,7 +50,6 @@ export class LessonRepository {
     data: {
       title?: string;
       description?: string;
-      videoUrl?: string;
       lessonOrder?: number;
       durationInSeconds?: number;
     }
@@ -56,13 +57,15 @@ export class LessonRepository {
     const updateData: any = {};
     if (data.title !== undefined) updateData.title = data.title;
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.videoUrl !== undefined) updateData.videoUrl = data.videoUrl;
     if (data.lessonOrder !== undefined) updateData.lessonOrder = data.lessonOrder;
     if (data.durationInSeconds !== undefined) updateData.durationInSeconds = data.durationInSeconds;
     
     return this.prisma.lesson.update({
       where: { id },
       data: updateData,
+      include: {
+        mediaAssets: true,
+      },
     });
   }
 

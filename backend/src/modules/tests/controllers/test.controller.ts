@@ -18,10 +18,26 @@ export class TestController {
       const { courseId } = req.params;
       const testData = req.body;
 
-      const newTest = await this.testService.createTest({
+      const createTestData: {
+        courseId: string;
+        title: string;
+        englishTestTypeId: string;
+        durationInMinutes?: number;
+        maxAttempts?: number;
+      } = {
         courseId,
-        ...testData,
-      });
+        title: testData.title,
+        englishTestTypeId: testData.englishTestTypeId,
+      };
+
+      if (testData.durationInMinutes !== undefined) {
+        createTestData.durationInMinutes = testData.durationInMinutes;
+      }
+      if (testData.maxAttempts !== undefined) {
+        createTestData.maxAttempts = testData.maxAttempts;
+      }
+
+      const newTest = await this.testService.createTest(createTestData);
 
       res.status(201).json({
         success: true,
@@ -61,10 +77,34 @@ export class TestController {
         }
       }
 
-      const newQuestion = await this.testService.addQuestion({
+      const addQuestionData: {
+        testId: string;
+        questionText: string;
+        questionType: string;
+        options?: string[];
+        correctAnswerIndex?: number;
+        correctAnswer?: string;
+        questionOrder?: number;
+      } = {
         testId,
-        ...questionData,
-      });
+        questionText: questionData.questionText,
+        questionType: questionData.questionType,
+      };
+
+      if (questionData.options !== undefined) {
+        addQuestionData.options = questionData.options;
+      }
+      if (questionData.correctAnswerIndex !== undefined) {
+        addQuestionData.correctAnswerIndex = questionData.correctAnswerIndex;
+      }
+      if (questionData.correctAnswer !== undefined) {
+        addQuestionData.correctAnswer = questionData.correctAnswer;
+      }
+      if (questionData.questionOrder !== undefined) {
+        addQuestionData.questionOrder = questionData.questionOrder;
+      }
+
+      const newQuestion = await this.testService.addQuestion(addQuestionData);
 
       res.status(201).json({
         success: true,

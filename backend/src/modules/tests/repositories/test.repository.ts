@@ -9,6 +9,7 @@ export class TestRepository {
     durationInMinutes?: number;
     maxAttempts?: number;
     englishTestTypeId: string;
+    testType?: string;
     questions?: Question[];
   }): Promise<Test> {
     const createData: any = {
@@ -17,6 +18,7 @@ export class TestRepository {
     };
     if (data.durationInMinutes !== undefined) createData.durationInMinutes = data.durationInMinutes;
     if (data.maxAttempts !== undefined) createData.maxAttempts = data.maxAttempts;
+    if (data.testType !== undefined) createData.testType = data.testType;
 
     return this.prisma.test.create({
       data: {

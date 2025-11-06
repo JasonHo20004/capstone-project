@@ -24,13 +24,27 @@ export class TestService {
       throw new Error('Course already has a final test');
     }
 
-    // Create the test
-    const test = await this.testRepository.create({
+    // Create the test with testType = FINAL
+    const createData: {
+      title: string;
+      englishTestTypeId: string;
+      testType: string;
+      durationInMinutes?: number;
+      maxAttempts?: number;
+    } = {
       title: data.title,
-      durationInMinutes: data.durationInMinutes,
-      maxAttempts: data.maxAttempts,
       englishTestTypeId: data.englishTestTypeId,
-    });
+      testType: 'FINAL',
+    };
+
+    if (data.durationInMinutes !== undefined) {
+      createData.durationInMinutes = data.durationInMinutes;
+    }
+    if (data.maxAttempts !== undefined) {
+      createData.maxAttempts = data.maxAttempts;
+    }
+
+    const test = await this.testRepository.create(createData);
 
     // Link test to course and set as the course's final test
     await this.testRepository.linkToCourse(data.courseId, test.id);
