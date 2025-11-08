@@ -12,6 +12,7 @@ import flashcardRouter from './modules/flashcards/routes/flashcard.route'
 import flashcardReviewRouter from './modules/flashcards/routes/flashcardReview.route'
 import cartRouter from './modules/cart/routes/cart.route'
 import topupOrderRouter from './modules/topupOrders/routes/topupOrder.route'
+import reportRouter from './modules/reports/routes/report.route'
 import cookieParser from 'cookie-parser'; // Import cookie-parser
 
 // Create Express app instance
@@ -38,4 +39,5 @@ app.use('/api/flashcards', flashcardRouter)
 app.use('/api/flashcard-review',flashcardReviewRouter)
 app.use('/api/topup-orders',topupOrderRouter)
 app.use('/api/carts',cartRouter)
+app.use('/api/reports',reportRouter)
 export default app;
