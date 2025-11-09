@@ -40,16 +40,13 @@ model User {
   userLessons             UserLesson[]
   userNotifications       UserNotification[]
   wallet                  Wallet?
-  policy                  Policy?
-  courseSellerApplication CourseSellerApplication?
-  userFlashcardProgress UserFlashcardProgress[]
-  order Order[] 
-  cart Cart?
+  order                   Order[]
+  cart                    Cart?
   @@map("users")
 }
 
 model RefreshToken {
-  id          String   @id @default(dbgenerated("gen_random_uuid()"))
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   hashedToken String   @unique @map("hashed_token")
   userId      String   @map("user_id") @db.Uuid
   revoked     Boolean  @default(false)
@@ -253,22 +250,25 @@ model UserNotification {
 }
 
 model Course {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title         String   @db.VarChar(100)
-  description   String?
-  price         Decimal  @db.Decimal(10, 2)
-  courseLevel   CourseLevel? @map("course_level")
-  courseSellerId String  @map("course_seller_id") @db.Uuid
-  finalTestId   String?  @map("final_test_id") @db.Uuid
-  ratingCount   Int?     @map("rating_count")
-  status        CourseStatus @default(PENDING)
-  user          User     @relation(fields: [courseSellerId], references: [id], onDelete: Cascade)
-  test          Test?    @relation(fields: [finalTestId], references: [id], onDelete: SetNull)
-  ratings       Rating[]
-  lessons       Lesson[]
-  reports       Report[]
-  cartItems CartItem[]
-  userActivities UserActivity[]
+  id              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title           String        @db.VarChar(100)
+  description     String?
+  price           Decimal       @db.Decimal(10, 2)
+  category        String?       @db.VarChar(100)
+  courseLevel     CourseLevel?  @map("course_level")
+  courseSellerId  String        @map("course_seller_id") @db.Uuid
+  finalTestId     String?       @map("final_test_id") @db.Uuid
+  ratingCount     Int?          @map("rating_count")
+  status          CourseStatus  @default(PENDING)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  user            User          @relation(fields: [courseSellerId], references: [id], onDelete: Cascade)
+  test            Test?         @relation(fields: [finalTestId], references: [id], onDelete: SetNull)
+  courseTests     CourseTest[]
+  ratings         Rating[]
+  lessons         Lesson[]
+  reports         Report[]
+  cartItems       CartItem[]
+  userActivities  UserActivity[]
   @@map("courses")
 }
 
@@ -509,13 +509,12 @@ model Passage {
 }
 
 model MediaAsset {
-  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  assetType   MediaType  @map("asset_type")
-  assetUrl    String     @unique @map("asset_url")
-  lessonId    String     @map("lesson_id") @db.Uuid
-  description String?
-  lesson      Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  questions   Question[]
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assetType       MediaType  @map("asset_type")
+  assetUrl        String     @unique @map("asset_url")
+  lessonId        String     @map("lesson_id") @db.Uuid
+  lesson          Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions       Question[]
 
   @@map("media_assets")
 }
