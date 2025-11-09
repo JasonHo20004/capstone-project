@@ -8,17 +8,12 @@ export class MediaAssetRepository {
     assetType: MediaType;
     assetUrl: string;
     lessonId: string;
-    description?: string;
   }): Promise<MediaAsset> {
     const createData: any = {
       assetType: data.assetType,
       assetUrl: data.assetUrl,
       lessonId: data.lessonId,
     };
-    
-    if (data.description !== undefined) {
-      createData.description = data.description;
-    }
 
     return this.prisma.mediaAsset.create({
       data: createData,
@@ -56,12 +51,10 @@ export class MediaAssetRepository {
     id: string,
     data: {
       assetUrl?: string;
-      description?: string;
     }
   ): Promise<MediaAsset> {
     const updateData: any = {};
     if (data.assetUrl !== undefined) updateData.assetUrl = data.assetUrl;
-    if (data.description !== undefined) updateData.description = data.description;
 
     return this.prisma.mediaAsset.update({
       where: { id },

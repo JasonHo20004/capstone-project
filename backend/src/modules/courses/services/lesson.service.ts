@@ -15,7 +15,6 @@ export class LessonService {
     lessonOrder?: number;
     durationInSeconds?: number;
     videoUrl?: string;
-    videoDescription?: string;
   }): Promise<Lesson> {
     // Check if course exists
     const course = await this.courseRepository.findById(data.courseId);
@@ -50,16 +49,11 @@ export class LessonService {
       assetType: MediaType;
       assetUrl: string;
       lessonId: string;
-      description?: string;
     } = {
       assetType: 'VIDEO' as MediaType,
       assetUrl: data.videoUrl,
       lessonId: lesson.id,
     };
-
-    if (data.videoDescription !== undefined) {
-      mediaAssetData.description = data.videoDescription;
-    }
 
     await this.mediaAssetRepository.create(mediaAssetData);
 

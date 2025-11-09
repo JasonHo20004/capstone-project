@@ -1,11 +1,5 @@
 import { databaseService } from '@/services/database.service';
 import type { Course, CourseStatus, CourseLevel } from '@/../generated/prisma';
-import { databaseService } from "@/services/database.service";
-import type {
-  Course,
-  CourseStatus,
-  CourseLevel,
-} from "@/../../generated/prisma";
 
 export class CourseRepository {
   private prisma = databaseService.getClient();
@@ -13,7 +7,6 @@ export class CourseRepository {
   async create(data: {
     title: string;
     description?: string;
-    shortDescription?: string;
     price: number;
     category?: string;
     courseLevel?: string;
@@ -27,20 +20,8 @@ export class CourseRepository {
     };
     
     if (data.description !== undefined) createData.description = data.description;
-    if (data.shortDescription !== undefined) createData.shortDescription = data.shortDescription;
     if (data.category !== undefined) createData.category = data.category;
     if (data.courseLevel !== undefined) createData.courseLevel = data.courseLevel as CourseLevel;
-    
-      status: "DRAFT" as CourseStatus,
-    };
-
-    if (data.description !== undefined)
-      createData.description = data.description;
-    if (data.shortDescription !== undefined)
-      createData.shortDescription = data.shortDescription;
-    if (data.category !== undefined) createData.category = data.category;
-    if (data.courseLevel !== undefined)
-      createData.courseLevel = data.courseLevel as CourseLevel;
 
     return this.prisma.course.create({ data: createData });
   }
@@ -88,7 +69,6 @@ export class CourseRepository {
     data: {
       title?: string;
       description?: string;
-      shortDescription?: string;
       price?: number;
       category?: string;
       courseLevel?: CourseLevel;
@@ -97,7 +77,6 @@ export class CourseRepository {
     const updateData: any = {};
     if (data.title !== undefined) updateData.title = data.title;
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.shortDescription !== undefined) updateData.shortDescription = data.shortDescription;
     if (data.price !== undefined) updateData.price = data.price;
     if (data.category !== undefined) updateData.category = data.category;
     if (data.courseLevel !== undefined) updateData.courseLevel = data.courseLevel;
@@ -129,7 +108,6 @@ export class CourseRepository {
       data: { finalTestId: testId },
     });
   }
-}
 
   async findCourseAvailableById(id: string): Promise<Course | null> {
     return this.prisma.course.findUnique({

@@ -7,7 +7,6 @@ export class CourseService {
   async createCourse(data: {
     title: string;
     description?: string;
-    shortDescription?: string;
     price: number;
     category?: string;
     courseLevel?: string;
@@ -39,7 +38,6 @@ export class CourseService {
     data: {
       title?: string;
       description?: string;
-      shortDescription?: string;
       price?: number;
       category?: string;
       courseLevel?: string;
@@ -48,7 +46,6 @@ export class CourseService {
     const updateData: {
       title?: string;
       description?: string;
-      shortDescription?: string;
       price?: number;
       category?: string;
       courseLevel?: CourseLevel;
@@ -56,7 +53,6 @@ export class CourseService {
     
     if (data.title !== undefined) updateData.title = data.title;
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.shortDescription !== undefined) updateData.shortDescription = data.shortDescription;
     if (data.price !== undefined) updateData.price = data.price;
     if (data.category !== undefined) updateData.category = data.category;
     if (data.courseLevel !== undefined) updateData.courseLevel = data.courseLevel as CourseLevel;

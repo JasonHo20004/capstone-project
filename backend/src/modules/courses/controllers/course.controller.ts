@@ -33,7 +33,6 @@ export class CourseController {
         price: courseData.price,
         courseSellerId,
         ...(courseData.description !== undefined && { description: courseData.description }),
-        ...(courseData.shortDescription !== undefined && { shortDescription: courseData.shortDescription }),
         ...(courseData.category !== undefined && { category: courseData.category }),
         ...(courseData.courseLevel !== undefined && { courseLevel: courseData.courseLevel }),
       };
@@ -62,7 +61,6 @@ export class CourseController {
       const updatePayload = {
         ...(updateData.title !== undefined && { title: updateData.title }),
         ...(updateData.description !== undefined && { description: updateData.description }),
-        ...(updateData.shortDescription !== undefined && { shortDescription: updateData.shortDescription }),
         ...(updateData.price !== undefined && { price: updateData.price }),
         ...(updateData.category !== undefined && { category: updateData.category }),
         ...(updateData.courseLevel !== undefined && { courseLevel: updateData.courseLevel }),
