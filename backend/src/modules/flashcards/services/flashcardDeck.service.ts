@@ -13,7 +13,7 @@ export class FlashcardDeckService {
 
      tagIds.map(async (tagId)=>{
       const existingTag = await this.tagRepository.findTagById(tagId)
-      if(existingTag){
+      if(!existingTag){
         throw Error("Tag is not existence")
       }
     })
