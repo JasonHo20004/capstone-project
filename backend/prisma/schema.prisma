@@ -178,7 +178,7 @@ model Test {
   createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   maxAttempts       Int?              @map("max_attempts")
   testType          TestType?         @map("test_type")
-  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt         DateTime?          @updatedAt @map("updated_at") @db.Timestamptz(6)
   courseTests       CourseTest[]
   courses           Course[]
   practiceSessions  PracticeSession[]
@@ -348,7 +348,7 @@ model SubscriptionContract {
   subscriptionPlanId String           @map("subscription_plan_id") @db.Uuid
   createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   expiresAt          DateTime         @map("expires_at") @db.Timestamptz(6)
-  updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt          DateTime?       @updatedAt @map("updated_at") @db.Timestamptz(6)
   renewalCount       Int              @default(0) @map("renewal_count")
   lastRenewalAt      DateTime?        @map("last_renewal_at") @db.Timestamptz(6)
   notes              String?
