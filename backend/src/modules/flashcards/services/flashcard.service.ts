@@ -5,7 +5,7 @@ import axios from "axios";
 import * as fs from "fs";
 import * as path from "path";
 
-import { createRequire } from 'module'; 
+import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 let englishWords: Set<string> | null = null;
 try {
@@ -22,13 +22,14 @@ try {
   englishWords = new Set(
     dictionaryContent.split("\n").map((word) => word.toLowerCase().trim())
   );
-  console.log(`Successfully loaded dictionary with ${englishWords.size} words.`);
+  console.log(
+    `Successfully loaded dictionary with ${englishWords.size} words.`
+  );
 } catch (err) {
   console.error("Failed to load dictionary:", err);
   // englishWords remains null if loading fails
 }
 const TTS_API_ENDPOINT = process.env.TTS_API_ENDPOINT;
-const TTS_FILE_BASE_URL = process.env.TTS_FILE_BASE_URL;
 export class FlashcardService {
   private flashcardRepository = new FlashcardRepository();
 
@@ -43,8 +44,8 @@ export class FlashcardService {
         text: text,
         lang: lang,
       });
-      const relativePath: string = response.data.url;
-      return TTS_FILE_BASE_URL + relativePath;
+      const absoluteUrl: string = response.data.url;
+      return absoluteUrl;
     } catch (error: any) {
       if (error.response) {
         console.error("TTS Service Error:", error.response.data);
