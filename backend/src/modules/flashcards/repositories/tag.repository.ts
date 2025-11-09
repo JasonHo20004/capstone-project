@@ -28,4 +28,9 @@ export class TagRepository {
       },
     });
   }
+  public async findTagById(id: string): Promise<Tag | null> {
+    return this.prisma.tag.findFirst({
+      where: { id },
+    });
+  }
 }

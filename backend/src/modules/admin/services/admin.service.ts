@@ -12,7 +12,6 @@ import { databaseService } from "@/services/database.service";
 
 import { NotificationService, NOTIFICATION_TYPES } from "@/modules/notifications/services/notification.service";
 
-
 export class AdminService {
   private adminRepository = new AdminRepository();
   private userRepository = new UserRepository();

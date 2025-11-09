@@ -9,6 +9,9 @@ import type {
   CreateUserInput,
   CreateCourseSellerApplicationInput,
 } from "@/modules/users/dtos/user.dto";
+
+import type { PrismaTx } from "@/services/database.service";
+
 export class UserRepository {
   private prisma = databaseService.getClient();
 
@@ -63,7 +66,14 @@ export class UserRepository {
   public async findUserById(id: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { id } });
   }
-
+  // Transation
+  public async findUserById_InTx(
+    id: string,
+    tx: PrismaTx 
+  ): Promise<User | null> {
+    return tx.user.findUnique({ where: { id } }); 
+    
+  }
   public async updateUser(userId: string, data: any): Promise<SafeUser> {
     return this.prisma.user.update({
       where: {
