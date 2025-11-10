@@ -1,5 +1,5 @@
 import { databaseService } from '@/services/database.service';
-import type { Test, Question } from '@/../generated/prisma';
+import type { Test, Question, TestType } from '@/../generated/prisma';
 
 export class TestRepository {
   private prisma = databaseService.getClient();
@@ -9,7 +9,7 @@ export class TestRepository {
     durationInMinutes?: number;
     maxAttempts?: number;
     englishTestTypeId: string;
-    testType?: string;
+    testType?: TestType;
     questions?: Question[];
   }): Promise<Test> {
     const createData: any = {
@@ -89,30 +89,9 @@ export class TestRepository {
     });
   }
 
-  async addQuestion(
-    testId: string,
-    questionData: {
-      questionText: string;
-      questionType: string;
-      options?: string[];
-      correctAnswerIndex?: number;
-      correctAnswer?: string;
-      questionOrder?: number;
-    }
-  ): Promise<Question> {
-    const createData: any = {
-      testId,
-      questionText: questionData.questionText,
-      questionType: questionData.questionType as any,
-      options: questionData.options ?? [],
-    };
-    if (questionData.correctAnswerIndex !== undefined) createData.correctAnswerIndex = questionData.correctAnswerIndex;
-    if (questionData.correctAnswer !== undefined) createData.correctAnswer = questionData.correctAnswer;
-    if (questionData.questionOrder !== undefined) createData.questionOrder = questionData.questionOrder;
-
-    return this.prisma.question.create({
-      data: createData,
+  async delete(id: string): Promise<void> {
+    await this.prisma.test.delete({
+      where: { id },
     });
   }
 }
-

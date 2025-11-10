@@ -14,7 +14,6 @@ import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
 const router = Router();
 const courseController = new CourseController();
 
-// Apply auth middleware to all routes
 router.use(authMiddleware);
 router.use(checkRole([UserRole.COURSESELLER, UserRole.ADMINISTRATOR]));
 

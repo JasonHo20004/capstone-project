@@ -42,9 +42,9 @@ app.use('/api/flashcards', flashcardRouter)
 app.use('/api/flashcard-review',flashcardReviewRouter)
 
 // Course Management Routes
-app.use('/api/v1/courses', courseRouter);
-app.use('/api/v1', lessonRouter);
-app.use('/api/v1', testRouter);
+app.use('/api/courses', courseRouter);
+app.use('/api/courses', lessonRouter);
+app.use('/api/tests', testRouter);
 
 app.use('/api/topup-orders',topupOrderRouter)
 app.use('/api/carts',cartRouter)
