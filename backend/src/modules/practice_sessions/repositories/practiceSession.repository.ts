@@ -31,4 +31,10 @@ export class PracticeSessionRepository {
       where:{...data, status: "ONGOING"}
     });
   }
+  public async findSessionById(data:{userId:string, sessionId:string}):Promise<PracticeSession|null>{
+
+    return this.prisma.practiceSession.findFirst({
+      where:{userId:data.userId, id:data.sessionId}
+    })
+  }
 }
