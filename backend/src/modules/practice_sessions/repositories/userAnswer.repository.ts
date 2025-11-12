@@ -1,6 +1,8 @@
 import { databaseService } from "@/services/database.service";
-import type { AnswerQuestionResponse } from "@/modules/practice_sessions/dtos/practiceSession.dto";
+import type { AnswerQuestionResponse,UserAnswerSubmitResponse } from "@/modules/practice_sessions/dtos/userAnswer.dto";
+import type { PrismaTx } from "@/services/database.service";
 
+import type { UserAnswer } from "@/../generated/prisma";
 export class UserAnswerRepository {
   private prisma = databaseService.getClient();
 
@@ -36,10 +38,54 @@ export class UserAnswerRepository {
         user: {
           select: { fullName: true, email: true },
         },
-        question:{
-          select:{questionText:true, questionType:true }
-        }
+        question: {
+          select: { questionText: true, questionType: true },
+        },
       },
+    });
+  }
+  public async findUserAnswers(data: {
+    userId: string;
+    sessionId: string;
+  }): Promise<UserAnswer[]> {
+    return this.prisma.userAnswer.findMany({
+      where: { ...data },
+    });
+  }
+  public async findUserAnswers_InTx(data: {
+    userId: string;
+    sessionId: string;
+  },tx:PrismaTx): Promise<UserAnswerSubmitResponse[]> {
+    return tx.userAnswer.findMany({
+      where: { ...data },
+      include: { 
+        user:{
+          select:{
+            fullName:true,
+            email:true
+          }
+        },
+          question: {
+            select: {
+              id: true,
+              questionText: true,
+              questionType:true,
+              questionOrder:true,
+              options: true,
+              correctAnswer: true,
+              correctAnswerIndex: true
+            }
+          } 
+        },
+    });
+  }
+  public async markForUserAnswer_InTx(
+    data: { userAnswerId: string; isCorrect: boolean |null},
+    tx: PrismaTx
+  ): Promise<UserAnswer> {
+    return tx.userAnswer.update({
+      where: { id: data.userAnswerId},
+      data: { isCorrect: data.isCorrect },
     });
   }
 }

@@ -2,15 +2,32 @@ import { PracticeSessionRepository } from "@/modules/practice_sessions/repositor
 import { UserRepository } from "@/modules/users/repositories/user.repository";
 import { TestRepository } from "@/modules/tests/repositories/test.repository";
 import { SectionRepository } from "@/modules/tests/repositories/section.repository";
-import type { CreateSessionResponse,AnswerQuestionResponse } from "@/modules/practice_sessions/dtos/practiceSession.dto";
-import { UserAnswerRepository } from "@/modules/practice_sessions/repositories/userAnswer.repository"
+// import { QuestionRepository } from "@/modules/tests/repositories/question.repository";
+import type { CreateSessionResponse } from "@/modules/practice_sessions/dtos/practiceSession.dto";
+import type { AnswerQuestionResponse,UserAnswerSubmitResponse } from "@/modules/practice_sessions/dtos/userAnswer.dto";
+import { UserAnswerRepository } from "@/modules/practice_sessions/repositories/userAnswer.repository";
+import { ScoreConversionRepository } from "@/modules/practice_sessions/repositories/scoreConversion.repository";
+import { databaseService } from "@/services/database.service";
+import type { SkillType } from "@/../generated/prisma";
+
+function roundIELTSScore(score: number): number {
+  const decimal = score - Math.floor(score);
+  if (decimal < 0.25) {
+    return Math.floor(score); // .1 -> .0
+  } else if (decimal < 0.75) {
+    return Math.floor(score) + 0.5; // .25, .6 -> .5
+  } else {
+    return Math.ceil(score); // .75 -> 1.0
+  }
+}
 export class PracticeSessionService {
   private practiceSessionRepository = new PracticeSessionRepository();
   private userRepository = new UserRepository();
   private testRepository = new TestRepository();
   private sectionRepository = new SectionRepository();
-  private userAnswerRepository = new UserAnswerRepository()
-
+  private userAnswerRepository = new UserAnswerRepository();
+  // private questionRepository = new QuestionRepository();
+  private scoreConversionRepository = new ScoreConversionRepository();
   public async startSession(
     userId: string,
     testId: string,
@@ -29,7 +46,7 @@ export class PracticeSessionService {
       throw Error("Course is not exist ");
     }
     const existingSession =
-      await this.practiceSessionRepository.findOnGoingSession({
+      await this.practiceSessionRepository.findOnGoingSessionByTest({
         userId,
         testId,
       });
@@ -79,12 +96,12 @@ export class PracticeSessionService {
       throw Error("User is not exist");
     }
     const existingSession =
-      await this.practiceSessionRepository.findSessionById({
+      await this.practiceSessionRepository.findOnGoingSessionById({
         userId,
         sessionId,
       });
 
-    if (!existingSession || existingSession.status !== "ONGOING") {
+    if (!existingSession) {
       throw Error("This session is not existence or ongoing!");
     }
     const saveAnswer = await this.userAnswerRepository.upsertAnswer({
@@ -94,6 +111,123 @@ export class PracticeSessionService {
       answerText,
       sessionId,
     });
-    return saveAnswer
+    return saveAnswer;
+  }
+
+  public async submit(userId: string, sessionId: string): Promise<UserAnswerSubmitResponse[]> {
+    const session = await this.practiceSessionRepository.findOnGoingSessionById(
+      {
+        userId,
+        sessionId,
+      }
+    );
+    if (!session) {
+      throw Error("Session is not exist or not ONGOING");
+    }
+    const userAnswers = await this.userAnswerRepository.findUserAnswers({
+      userId,
+      sessionId,
+    });
+    if (!userAnswers) {
+      throw Error("User does not answer any question");
+    }
+    const sectionsInSession =
+      await this.sectionRepository.findSectionsInSession(
+        session.selectedSections
+      );
+
+    const correctAnswersMap = new Map<string, any>(); // Map<questionId, question>
+    const questionToSkillMap = new Map<string, SkillType>();
+
+    try {
+      return databaseService.transaction(async (tx) => {
+        for (const section of sectionsInSession) {
+          for (const q of section.questions) {
+            correctAnswersMap.set(q.id, q);
+            questionToSkillMap.set(q.id, section.skill);
+          }
+        }
+        const rawScoresBySkill: { [key in SkillType]?: number } = {};
+        const updatePromises = [];
+
+        for (const userAnswer of userAnswers) {
+          const question = correctAnswersMap.get(userAnswer.questionId);
+          const skill = questionToSkillMap.get(userAnswer.questionId);
+          if (!question || !skill) continue;
+
+          let isCorrect: boolean | null = false;
+
+          switch (question.questionType) {
+            case "MULTIPLE_CHOICE":
+              isCorrect =
+                userAnswer.selectedOptionIndex === question.correctAnswerIndex;
+              break;
+            case "FILL_IN_THE_BLANK":
+              isCorrect =
+                userAnswer.answerText?.trim().toLowerCase() ===
+                question.correctAnswer?.trim().toLowerCase();
+              break;
+            case "ESSAY":
+              isCorrect = null; // use AI to mark
+              break;
+          }
+
+          if (isCorrect === true) {
+            rawScoresBySkill[skill] = (rawScoresBySkill[skill] || 0) + 1;
+          }
+          updatePromises.push(
+            this.userAnswerRepository.markForUserAnswer_InTx(
+              {
+                userAnswerId: userAnswer.id,
+                isCorrect,
+              },
+              tx
+            )
+          );
+        }
+        await Promise.all(updatePromises);
+        const conversionRules =
+          await this.scoreConversionRepository.findScoreConversion(
+            session.test.englishTestType.id
+          );
+          const conversionMap = new Map<SkillType, Map<number, number>>();
+      for (const rule of conversionRules) {
+        if (!conversionMap.has(rule.skill)) {
+          conversionMap.set(rule.skill, new Map());
+        }
+        conversionMap.get(rule.skill)!.set(rule.rawScore, rule.scaledScore);
+      }
+      const scaledScoresBySkill: { [key: string]: number } = {};
+      let totalScaledScore = 0;
+      let skillsCount = 0;
+      for (const skill of Object.keys(rawScoresBySkill)) {
+        const rawScore = rawScoresBySkill[skill as SkillType]!;
+        const skillMap = conversionMap.get(skill as SkillType);
+        const scaledScore = skillMap?.get(rawScore) ?? 0; // Nếu ko có rule thì = 0
+        
+        scaledScoresBySkill[skill] = scaledScore;
+        totalScaledScore += scaledScore;
+        skillsCount++;
+      }
+      let overallScaledScore = 0;
+      const testTypeName = session.test.englishTestType.name
+      if (testTypeName === "TOEIC") {
+        // TOEIC: Plus score
+        overallScaledScore = totalScaledScore;
+      } else if (testTypeName === "IELTS") {
+        // IELTS: Divide to averagge and round
+        const avgScore = (skillsCount > 0) ? (totalScaledScore / skillsCount) : 0;
+        overallScaledScore = roundIELTSScore(avgScore);
+      } else {
+        // Default: Divide average
+        overallScaledScore = (skillsCount > 0) ? (totalScaledScore / skillsCount) : 0;
+      }
+        await this.practiceSessionRepository.submitSession_InTx({sessionId,rawScoresBySkill,scaledScoresBySkill,overallScaledScore},tx)
+       return this.userAnswerRepository.findUserAnswers_InTx({userId,sessionId},tx)
+      });
+      
+    } catch (error: any) {
+      throw Error("Fail to submit", error);
+    }
   }
 }

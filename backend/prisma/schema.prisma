@@ -335,6 +335,9 @@ model PracticeSession {
   createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   completedAt      DateTime?     @map("completed_at") @db.Timestamptz(6)
   test             Test          @relation(fields: [testId], references: [id], onDelete: Cascade)
+  overallScaledScore Float? @map("overall_scaled_score")
+  scoresBySkill      Json?    @map("scores_by_skill")
+  rawScoresBySkill   Json?    @map("raw_scores_by_skill")
   user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   userAnswers      UserAnswer[]
 

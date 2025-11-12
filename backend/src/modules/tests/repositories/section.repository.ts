@@ -150,4 +150,22 @@ export class SectionRepository {
       },
     });
   }
+
+
+    public async findSectionsInSession(selectedSections: string[]): Promise<any> {
+    return this.prisma.section.findMany({
+      where: { id: { in:selectedSections } },
+        select: {
+          skill: true,
+          questions: { 
+            select: {
+              id: true,
+              questionType: true,
+              correctAnswer: true,
+              correctAnswerIndex: true
+            }
+          }
+        }
+    });
+  }
 }
