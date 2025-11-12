@@ -19,13 +19,19 @@ export class PracticeSessionRepository {
         user: {
           select: { fullName: true, email: true },
         },
-        test: {
-          include: {
+       test: {
+          select: {
+            title: true,
+            durationInMinutes: true,
+            totalScore: true,
+
             englishTestType: {
-              select: { name: true, id: true },
+              select: {
+                name: true,
+                id: true,
+              },
             },
           },
-          select: { title: true, durationInMinutes: true, totalScore: true },
         },
       },
     });
@@ -42,12 +48,18 @@ export class PracticeSessionRepository {
           select: { fullName: true, email: true },
         },
         test: {
-          include: {
+          select: {
+            title: true,
+            durationInMinutes: true,
+            totalScore: true,
+
             englishTestType: {
-              select: { name: true, id: true },
+              select: {
+                name: true,
+                id: true,
+              },
             },
           },
-          select: { title: true, durationInMinutes: true, totalScore: true },
         },
       },
     });
@@ -63,12 +75,17 @@ export class PracticeSessionRepository {
           select: { fullName: true, email: true },
         },
         test: {
-          include: {
+          select: {
+            title: true,
+            durationInMinutes: true,
+            totalScore: true,
             englishTestType: {
-              select: { name: true, id: true },
+              select: {
+                name: true,
+                id: true,
+              },
             },
           },
-          select: { title: true, durationInMinutes: true, totalScore: true },
         },
       },
     });

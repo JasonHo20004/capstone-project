@@ -4,7 +4,10 @@ import { TestRepository } from "@/modules/tests/repositories/test.repository";
 import { SectionRepository } from "@/modules/tests/repositories/section.repository";
 // import { QuestionRepository } from "@/modules/tests/repositories/question.repository";
 import type { CreateSessionResponse } from "@/modules/practice_sessions/dtos/practiceSession.dto";
-import type { AnswerQuestionResponse,UserAnswerSubmitResponse } from "@/modules/practice_sessions/dtos/userAnswer.dto";
+import type {
+  AnswerQuestionResponse,
+  UserAnswerSubmitResponse,
+} from "@/modules/practice_sessions/dtos/userAnswer.dto";
 import { UserAnswerRepository } from "@/modules/practice_sessions/repositories/userAnswer.repository";
 import { ScoreConversionRepository } from "@/modules/practice_sessions/repositories/scoreConversion.repository";
 import { databaseService } from "@/services/database.service";
@@ -45,12 +48,12 @@ export class PracticeSessionService {
     if (!existingTest) {
       throw Error("Course is not exist ");
     }
+
     const existingSession =
       await this.practiceSessionRepository.findOnGoingSessionByTest({
         userId,
         testId,
       });
-
     if (existingSession) {
       throw Error("This session is ongoing!");
     }
@@ -114,7 +117,10 @@ export class PracticeSessionService {
     return saveAnswer;
   }
 
-  public async submit(userId: string, sessionId: string): Promise<UserAnswerSubmitResponse[]> {
+  public async submit(
+    userId: string,
+    sessionId: string
+  ): Promise<UserAnswerSubmitResponse[]> {
     const session = await this.practiceSessionRepository.findOnGoingSessionById(
       {
         userId,
@@ -190,42 +196,53 @@ export class PracticeSessionService {
           await this.scoreConversionRepository.findScoreConversion(
             session.test.englishTestType.id
           );
-          const conversionMap = new Map<SkillType, Map<number, number>>();
-      for (const rule of conversionRules) {
-        if (!conversionMap.has(rule.skill)) {
-          conversionMap.set(rule.skill, new Map());
+        const conversionMap = new Map<SkillType, Map<number, number>>();
+        for (const rule of conversionRules) {
+          if (!conversionMap.has(rule.skill)) {
+            conversionMap.set(rule.skill, new Map());
+          }
+          conversionMap.get(rule.skill)!.set(rule.rawScore, rule.scaledScore);
         }
-        conversionMap.get(rule.skill)!.set(rule.rawScore, rule.scaledScore);
-      }
-      const scaledScoresBySkill: { [key: string]: number } = {};
-      let totalScaledScore = 0;
-      let skillsCount = 0;
-      for (const skill of Object.keys(rawScoresBySkill)) {
-        const rawScore = rawScoresBySkill[skill as SkillType]!;
-        const skillMap = conversionMap.get(skill as SkillType);
-        const scaledScore = skillMap?.get(rawScore) ?? 0; // Nếu ko có rule thì = 0
-        
-        scaledScoresBySkill[skill] = scaledScore;
-        totalScaledScore += scaledScore;
-        skillsCount++;
-      }
-      let overallScaledScore = 0;
-      const testTypeName = session.test.englishTestType.name
-      if (testTypeName === "TOEIC") {
-        // TOEIC: Plus score
-        overallScaledScore = totalScaledScore;
-      } else if (testTypeName === "IELTS") {
-        // IELTS: Divide to averagge and round
-        const avgScore = (skillsCount > 0) ? (totalScaledScore / skillsCount) : 0;
-        overallScaledScore = roundIELTSScore(avgScore);
-      } else {
-        // Default: Divide average
-        overallScaledScore = (skillsCount > 0) ? (totalScaledScore / skillsCount) : 0;
-      }
-        await this.practiceSessionRepository.submitSession_InTx({sessionId,rawScoresBySkill,scaledScoresBySkill,overallScaledScore},tx)
-       return this.userAnswerRepository.findUserAnswers_InTx({userId,sessionId},tx)
+        const scaledScoresBySkill: { [key: string]: number } = {};
+        let totalScaledScore = 0;
+        let skillsCount = 0;
+        for (const skill of Object.keys(rawScoresBySkill)) {
+          const rawScore = rawScoresBySkill[skill as SkillType]!;
+          const skillMap = conversionMap.get(skill as SkillType);
+          const scaledScore = skillMap?.get(rawScore) ?? 0; // Nếu ko có rule thì = 0
+
+          scaledScoresBySkill[skill] = scaledScore;
+          totalScaledScore += scaledScore;
+          skillsCount++;
+        }
+        let overallScaledScore = 0;
+        const testTypeName = session.test.englishTestType.name;
+        if (testTypeName === "TOEIC") {
+          // TOEIC: Plus score
+          overallScaledScore = totalScaledScore;
+        } else if (testTypeName === "IELTS") {
+          // IELTS: Divide to averagge and round
+          const avgScore = skillsCount > 0 ? totalScaledScore / skillsCount : 0;
+          overallScaledScore = roundIELTSScore(avgScore);
+        } else {
+          // Default: Divide average
+          overallScaledScore =
+            skillsCount > 0 ? totalScaledScore / skillsCount : 0;
+        }
+        await this.practiceSessionRepository.submitSession_InTx(
+          {
+            sessionId,
+            rawScoresBySkill,
+            scaledScoresBySkill,
+            overallScaledScore,
+          },
+          tx
+        );
+        return this.userAnswerRepository.findUserAnswers_InTx(
+          { userId, sessionId },
+          tx
+        );
       });
-      
     } catch (error: any) {
       throw Error("Fail to submit", error);
     }

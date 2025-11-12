@@ -49,7 +49,8 @@ export class UserAnswerRepository {
     sessionId: string;
   }): Promise<UserAnswer[]> {
     return this.prisma.userAnswer.findMany({
-      where: { ...data },
+      where: { userId: data.userId,
+      practiceSessionId: data.sessionId,  },
     });
   }
   public async findUserAnswers_InTx(data: {
@@ -57,7 +58,8 @@ export class UserAnswerRepository {
     sessionId: string;
   },tx:PrismaTx): Promise<UserAnswerSubmitResponse[]> {
     return tx.userAnswer.findMany({
-      where: { ...data },
+      where: {userId: data.userId,
+      practiceSessionId: data.sessionId, },
       include: { 
         user:{
           select:{
