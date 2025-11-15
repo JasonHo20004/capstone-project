@@ -31,7 +31,6 @@ This project includes Docker configuration for development environment.
 
 ## Services
 
-- **Frontend**: React/Vite app running on http://localhost:5173
 - **Backend**: Node.js/Express API running on http://localhost:3000
 - **Database**: PostgreSQL running on localhost:5432
 
@@ -42,9 +41,6 @@ Copy the example environment files and customize as needed:
 ```bash
 # Backend
 cp backend/env.example backend/.env
-
-# Frontend
-cp frontend/env.example frontend/.env
 ```
 
 ## Database Setup
@@ -65,7 +61,7 @@ npx prisma generate
 ## Development Workflow
 
 - Code changes are automatically reflected due to volume mounts
-- Hot reload is enabled for both frontend and backend
+- Hot reload is enabled for backend
 - Database data persists between container restarts
 
 ## Useful Commands
@@ -79,7 +75,6 @@ docker-compose logs -f backend
 
 # Execute commands in running container
 docker-compose exec backend npm run prisma:studio
-docker-compose exec frontend npm run build
 
 # Remove all containers and volumes
 docker-compose down -v
