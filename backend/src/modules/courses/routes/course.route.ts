@@ -23,7 +23,6 @@ const analyticsController = new AnalyticsController();
 const notificationController = new NotificationController();
 const ratingController = new RatingController();
 
-// Apply auth middleware to all routes
 router.use(authMiddleware);
 router.use(checkRole([UserRole.COURSESELLER, UserRole.ADMINISTRATOR]));
 

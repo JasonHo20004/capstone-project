@@ -17,6 +17,8 @@ import testRouter from './modules/tests/routes/test.route'
 import cartRouter from './modules/cart/routes/cart.route'
 import topupOrderRouter from './modules/topupOrders/routes/topupOrder.route'
 import reportRouter from './modules/reports/routes/report.route'
+import practiceSessionRouter from './modules/practice_sessions/routes/practiceSession.route'
+
 import cookieParser from 'cookie-parser'; // Import cookie-parser
 
 // Create Express app instance
@@ -43,12 +45,15 @@ app.use('/api/flashcards', flashcardRouter)
 app.use('/api/flashcard-review',flashcardReviewRouter)
 
 // Course Management Routes
-app.use('/api/v1/courses', courseRouter);
-app.use('/api/v1', lessonRouter);
-app.use('/api/v1', testRouter);
 app.use('/api/ratings', ratingRouter);
+app.use('/api/courses', courseRouter);
+app.use('/api/courses', lessonRouter);
+app.use('/api/tests', testRouter);
 
 app.use('/api/topup-orders',topupOrderRouter)
 app.use('/api/carts',cartRouter)
 app.use('/api/reports',reportRouter)
+
+// Practice session Routes
+app.use('/api/practice-sessions',practiceSessionRouter)
 export default app;
