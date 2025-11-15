@@ -18,7 +18,8 @@ export const NOTIFICATION_TYPES = {
   EXPIRATION_WARNING: 'EXPIRATION_WARNING',
   FINAL_NOTICE: 'FINAL_NOTICE',
   SELLER_ACCOUNT_LOCKED: 'SELLER_ACCOUNT_LOCKED',
-  COURSE_SELLER_DISABLED: 'COURSE_SELLER_DISABLED'
+  COURSE_SELLER_DISABLED: 'COURSE_SELLER_DISABLED',
+  COURSE_UPDATE: 'COURSE_UPDATE'
 } as const;
 
 export interface NotificationResult {
@@ -169,7 +170,8 @@ export class NotificationService {
   /**
    * Generate email template (placeholder)
    */
-  private generateEmailTemplate(notification: NotificationData): string {
+  // @ts-ignore - Placeholder for future email functionality
+  private _generateEmailTemplate(notification: NotificationData): string {
     return `
       <html>
         <body>
@@ -796,5 +798,127 @@ export class NotificationService {
    */
   public async getNotificationStats() {
     return await this.notificationRepository.getStats();
+  }
+
+  public async sendCourseUpdateNotifications(
+    courseId: string,
+    title: string,
+    content: string
+  ): Promise<NotificationResult> {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { id: true, title: true },
+    });
+
+    if (!course) {
+      throw new Error('Course not found');
+    }
+
+    const enrolledStudents = await this.prisma.userActivity.findMany({
+      where: {
+        courseId,
+        expiresAt: {
+          gt: new Date(), // Only active enrollments
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+          },
+        },
+      },
+    });
+
+    if (enrolledStudents.length === 0) {
+      throw new Error('No students enrolled');
+    }
+
+    const result: NotificationResult = {
+      sentCount: 0,
+      failedCount: 0,
+      details: [],
+    };
+
+    try {
+      let notificationType = await this.notificationTypeRepository.findByName(
+        NOTIFICATION_TYPES.COURSE_UPDATE
+      );
+
+      if (!notificationType) {
+        notificationType = await this.notificationTypeRepository.create({
+          name: NOTIFICATION_TYPES.COURSE_UPDATE,
+          isLocked: true,
+        });
+      }
+
+      const createdNotification = await this.notificationRepository.create({
+        title,
+        content,
+        notificationTypeId: notificationType.id,
+        seen: false,
+      });
+
+      const userIds = enrolledStudents.map((activity) => activity.user.id);
+      const userNotifications = userIds.map((userId) => ({
+        notificationId: createdNotification.id,
+        userId,
+      }));
+
+      const inAppNotifications = enrolledStudents.map((activity) => ({
+        userId: activity.user.id,
+        title,
+        content,
+        type: NOTIFICATION_TYPES.COURSE_UPDATE,
+        courseId,
+        contractId: null,
+        metadata: { courseId },
+        isRead: false,
+        isArchived: false,
+      }));
+
+      // Bulk create user notifications and in-app notifications
+      await Promise.all([
+        this.prisma.userNotification.createMany({
+          data: userNotifications,
+          skipDuplicates: true,
+        }),
+        this.prisma.inAppNotification.createMany({
+          data: inAppNotifications,
+        }),
+      ]);
+
+      result.sentCount = enrolledStudents.length;
+      result.details = enrolledStudents.map((activity) => ({
+        recipientId: activity.user.id,
+        success: true,
+      }));
+
+      // TODO: Email notification implementation
+      // await this.sendEmailNotifications(enrolledStudents, title, content);
+    } catch (error) {
+      result.failedCount = enrolledStudents.length;
+      result.details = enrolledStudents.map((activity) => ({
+        recipientId: activity.user.id,
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      }));
+
+      console.error(
+        `Failed to send course update notifications for course ${courseId}:`,
+        error
+      );
+    }
+
+    if (result.failedCount > 0) {
+      console.warn(
+        `Course update notification delivery was incomplete for course ${courseId}. ` +
+          `Sent: ${result.sentCount}, Failed: ${result.failedCount}`
+      );
+    }
+
+    return result;
   }
 }

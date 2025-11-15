@@ -1,4 +1,4 @@
-import type { Request, Response } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { NotificationService } from '@/modules/notifications/services/notification.service';
 
 export class NotificationController {
@@ -647,6 +647,73 @@ export class NotificationController {
         message: 'Failed to cleanup old notifications',
         error: error instanceof Error ? error.message : String(error)
       });
+    }
+  };
+
+  // Course Update Notification
+  public sendCourseUpdateNotification = async (
+    req: Request<{ courseId: string }, {}, { title: string; content: string }>,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const { courseId } = req.params;
+      const { title, content } = req.body;
+
+      // Validate input
+      if (!title || !content || title.trim() === '' || content.trim() === '') {
+        res.status(400).json({
+          success: false,
+          message: 'Please fill in all notification information',
+        });
+        return;
+      }
+
+      const result = await this.notificationService.sendCourseUpdateNotifications(
+        courseId,
+        title.trim(),
+        content.trim()
+      );
+
+      if (result.failedCount > 0 && result.sentCount > 0) {
+        res.status(207).json({
+          success: true,
+          message: 'Notification delivery was incomplete, please check the logs',
+          data: {
+            sentCount: result.sentCount,
+            failedCount: result.failedCount,
+            details: result.details,
+          },
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Notification has been sent successfully',
+        data: {
+          sentCount: result.sentCount,
+          failedCount: result.failedCount,
+        },
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message === 'Course not found') {
+          res.status(404).json({
+            success: false,
+            message: 'Course not found',
+          });
+          return;
+        }
+        if (error.message === 'No students enrolled') {
+          res.status(404).json({
+            success: false,
+            message: 'No students to send notification to',
+          });
+          return;
+        }
+      }
+      next(error);
     }
   };
 }
