@@ -114,4 +114,11 @@ export class CourseRepository {
       where: { id, status: "ACTIVE" },
     });
   }
+
+  async hasLessons(courseId: string): Promise<boolean> {
+    const lessonCount = await this.prisma.lesson.count({
+      where: { courseId },
+    });
+    return lessonCount > 0;
+  }
 }
