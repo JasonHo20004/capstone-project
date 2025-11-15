@@ -1,9 +1,13 @@
 import { TestRepository } from '@/modules/tests/repositories/test.repository';
+import { SectionRepository } from '@/modules/tests/repositories/section.repository';
+import { QuestionRepository } from '@/modules/tests/repositories/question.repository';
 import { CourseRepository } from '@/modules/courses/repositories/course.repository';
 import type { Test, Question } from '@/../generated/prisma';
 
 export class TestService {
   private testRepository = new TestRepository();
+  private sectionRepository = new SectionRepository();
+  private questionRepository = new QuestionRepository();
   private courseRepository = new CourseRepository();
 
   async createTest(data: {
@@ -19,22 +23,20 @@ export class TestService {
       throw new Error('Course not found');
     }
 
-    // Ensure the course does not already have a final test
     if (course.finalTestId) {
       throw new Error('Course already has a final test');
     }
 
-    // Create the test with testType = FINAL
     const createData: {
       title: string;
       englishTestTypeId: string;
-      testType: string;
+      testType: 'FINAL';
       durationInMinutes?: number;
       maxAttempts?: number;
     } = {
       title: data.title,
       englishTestTypeId: data.englishTestTypeId,
-      testType: 'FINAL',
+      testType: 'FINAL' as const,
     };
 
     if (data.durationInMinutes !== undefined) {
@@ -53,32 +55,25 @@ export class TestService {
     return test;
   }
 
-  async addQuestion(data: {
-    testId: string;
+  async addQuestionToSection(data: {
+    sectionId: string;
+    passageId: string;
+    mediaId: string;
     questionText: string;
     questionType: string;
     options?: string[];
     correctAnswerIndex?: number;
     correctAnswer?: string;
+    wordLimit?: number;
+    imageUrl?: string;
     questionOrder?: number;
   }): Promise<Question> {
-    // Validate answer format based on question type
-    if (data.questionType === 'MULTIPLE_CHOICE') {
-      if (!data.options || data.options.length === 0) {
-        throw new Error('Invalid answer format, please re-enter');
-      }
-      if (data.correctAnswerIndex === undefined) {
-        throw new Error('Invalid answer format, please re-enter');
-      }
-    } else if (data.questionType === 'ESSAY') {
-      if (!data.correctAnswer) {
-        throw new Error('Invalid answer format, please re-enter');
-      }
-    }
-
     try {
-      return await this.testRepository.addQuestion(data.testId, data);
+      return await this.questionRepository.create(data);
     } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
       throw new Error('Could not save question, please try again');
     }
   }
@@ -89,6 +84,64 @@ export class TestService {
 
   async getTestsByCourse(courseId: string): Promise<Test[]> {
     return this.testRepository.findByCourseId(courseId);
+  }
+
+  // Section management
+  async createSection(data: {
+    testId: string;
+    title: string;
+    skill: string;
+    durationInSeconds?: number;
+    totalQuestions?: number;
+    totalScore?: number;
+  }) {
+    // Verify test exists
+    const test = await this.testRepository.findById(data.testId);
+    if (!test) {
+      throw new Error('Test not found');
+    }
+
+    return this.sectionRepository.create(data);
+  }
+
+  async getSectionsByTestId(testId: string) {
+    return this.sectionRepository.findByTestId(testId);
+  }
+
+  async getSectionById(sectionId: string) {
+    return this.sectionRepository.findById(sectionId);
+  }
+
+  // Passage management
+  async addPassageToSection(data: {
+    sectionId: string;
+    content: string;
+    passageOrder?: number;
+  }) {
+    // Verify section exists
+    const section = await this.sectionRepository.findById(data.sectionId);
+    if (!section) {
+      throw new Error('Section not found');
+    }
+
+    return this.sectionRepository.addPassage(data.sectionId, data);
+  }
+
+  async getPassagesBySectionId(sectionId: string) {
+    return this.sectionRepository.getPassagesBySectionId(sectionId);
+  }
+
+  // Question management
+  async getQuestionsBySectionId(sectionId: string) {
+    return this.questionRepository.findBySectionId(sectionId);
+  }
+
+  async getQuestionsByPassageId(passageId: string) {
+    return this.questionRepository.findByPassageId(passageId);
+  }
+
+  async getQuestionById(questionId: string) {
+    return this.questionRepository.findById(questionId);
   }
 }
 
