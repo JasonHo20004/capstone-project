@@ -6,6 +6,7 @@ const prisma = new PrismaClient();
 import { createHash } from "crypto";
 import { AuthRepository } from "../repositories/auth.repository";
 import { UserRepository } from "@/modules/users/repositories/user.repository";
+import type { LoginResponse } from "@/modules/auth/dtos/auth.dto";
 export interface ITokens {
   accessToken: string;
   refreshToken: string;
@@ -44,7 +45,7 @@ export class AuthService {
     return newRefreshToken;
   }
 
-  public async login(email: string, password: string): Promise<ITokens> {
+  public async login(email: string, password: string): Promise<LoginResponse> {
     const user = await this.userRepository.findUserByEmail(email);
     if (!user) {
       throw new Error("Invalid email or password");
@@ -63,7 +64,11 @@ export class AuthService {
 
     return {
       accessToken,
-      refreshToken
+      refreshToken,
+      userId:user.id,
+      email:user.email,
+      fullname:user.fullName,
+      role:user.role
     };
   }
 
