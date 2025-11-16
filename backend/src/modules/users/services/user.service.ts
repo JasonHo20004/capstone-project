@@ -5,6 +5,7 @@ import type {
   CreateUserInput,
   UpdateUserInput,
   CreateCourseSellerApplicationInput,
+  UserProfileResponse
 } from "@/modules/users/dtos/user.dto";
 import { CartRepository } from "@/modules/cart/repositories/cart.repository";
 import type { CourseSellerApplication } from "@/../generated/prisma"
@@ -13,17 +14,16 @@ export class UserService {
   private userRepository = new UserRepository(); 
   private walletRepository = new WalletRepository()
   private cartRepository = new CartRepository()
-  public async getUserInformation(userId:string): Promise<SafeUser> {
-    const existingUser = await this.userRepository.findUserById(
+  public async getUserInformation(userId:string): Promise<UserProfileResponse> {
+    const userProfile = await this.userRepository.findUserProfileById(
       userId
     );
-    if (!existingUser) {
-      throw new Error("Email is already in use");
+    if (!userProfile) {
+      throw new Error("User Profile is not existece");
     }
-    const { password, ...userWithoutPassword } =existingUser;
+    return userProfile
 
-     
-    return userWithoutPassword;
+
   }
   public async createUser(userData: CreateUserInput['body']): Promise<SafeUser> {
     const existingUser = await this.userRepository.findUserByEmail(

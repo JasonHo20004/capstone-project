@@ -8,6 +8,7 @@ import type {
   SafeUser,
   CreateUserInput,
   CreateCourseSellerApplicationInput,
+  UserProfileResponse
 } from "@/modules/users/dtos/user.dto";
 
 import type { PrismaTx } from "@/services/database.service";
@@ -21,6 +22,59 @@ export class UserRepository {
     });
   }
 
+  public async findUserProfileById(userId:string):Promise<UserProfileResponse|null>{
+const userProfile = await this.prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        phoneNumber: true,
+        profilePicture: true,
+        dateOfBirth: true,
+        createdAt: true,
+        englishLevel: true,
+        learningGoals: true,
+        role: true,
+        // Lấy thông tin ví
+        wallet: {
+          select: {
+            allowance: true,
+          },
+        },
+        // Lấy thông tin profile giảng viên (nếu có)
+        courseSellerProfile: {
+          select: {
+            certification: true,
+            expertise: true,
+          },
+        },
+        // Lấy đơn đăng ký giảng viên (nếu có)
+        courseSellerApplication: {
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+            message: true,
+            rejectionReason: true,
+            certification: true,
+            expertise: true,
+          },
+        },
+      },
+    });
+
+    // Ép kiểu 'allowance' từ Decimal sang number cho an toàn
+    if (userProfile?.wallet?.allowance) {
+      // @ts-ignore
+      userProfile.wallet.allowance = Number(userProfile.wallet.allowance);
+    }
+    
+    return userProfile as UserProfileResponse | null;
+  
+  }
   public async findCourseSellerById(id: string): Promise<SafeUser | null> {
     return this.prisma.user.findUnique({
       where: { id: id, role: "COURSESELLER" },

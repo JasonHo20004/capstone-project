@@ -21,7 +21,7 @@ export class UserController {
       const userData = await this.userService.getUserInformation(userId);
        res.status(200).json({
         success: true,
-        message: "Register user successfully",
+        message: "Get user Information successfully",
         data: userData,
       });
     } catch (error) {
