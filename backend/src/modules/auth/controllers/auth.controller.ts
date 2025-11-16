@@ -20,7 +20,7 @@ export class AuthController {
 
       res.json({accessToken});
     } catch (error: any) {
-      res.status(401).json({ message: error.message });
+      res.status(400).json({ message: error.message });
     }
   };
 
@@ -31,10 +31,10 @@ export class AuthController {
     try {
       const { refreshToken } = req.cookies;
       if (!refreshToken) {
-         res.status(400).json({ message: "Refresh token is required" });
+         res.status(401).json({ message: "Refresh token is required" });
          return
       }
-      
+
       const tokens = await this.authService.refreshUserToken(refreshToken);
       res.cookie('refreshToken', tokens.refreshToken, {
         httpOnly: true,
@@ -53,9 +53,9 @@ export class AuthController {
     res: Response
   ): Promise<void> => {
     try {
-      const { refreshToken } = req.body;
+      const { refreshToken } = req.cookies;
       if (!refreshToken) {
-       res.status(400).json({ message: "Refresh token is required" });
+       res.status(401).json({ message: "Refresh token is required" });
        return
       }
       await this.authService.logout(refreshToken);
