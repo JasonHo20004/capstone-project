@@ -59,6 +59,11 @@ export class AuthController {
        return
       }
       await this.authService.logout(refreshToken);
+      res.clearCookie('refreshToken', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+      });
       res.status(200).json({ message: "Logged out successfully" });
     } catch (error: any) {
       res.status(500).json({ message: "An error occurred" });
