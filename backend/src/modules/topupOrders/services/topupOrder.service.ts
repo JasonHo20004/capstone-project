@@ -53,7 +53,7 @@ export class TopupOrderService {
       );
 
       // (2) Increase money
-      const amountNumber = order.realAmount.toNumber();
+      const amountNumber = order.realAmount?.toNumber() ?? 0;
 
       const wallet = await this.walletRepository.incrementAllowance_InTx(
         order.userId,

@@ -25,6 +25,13 @@ export class CartService {
     if (!existingCourse) {
       throw Error("Course is not exist or is Pending");
     }
+    
+    // Check if course has lessons
+    const hasLessons = await this.courseRepository.hasLessons(cartItemData.courseId);
+    if (!hasLessons) {
+      throw new Error("Cannot enroll in a course with no lessons");
+    }
+    
     const existingActivity = await this.userActivityRepository.findActivity(
       userId,
       cartItemData.courseId
@@ -67,7 +74,15 @@ export class CartService {
       //create cart
       throw new Error("Your cart is empty");
     }
-    // Update create
+    
+    for (const item of exitsingCart.cartItems) {
+      const hasLessons = await this.courseRepository.hasLessons(item.courseId);
+      if (!hasLessons) {
+        const course = await this.courseRepository.findById(item.courseId);
+        const courseTitle = course?.title || item.courseId;
+        throw new Error(`Cannot enroll in course "${courseTitle}" - course has no lessons`);
+      }
+    }
 
     const wallet = await this.walletRepository.findWalletById(userId);
     const totalAmount = exitsingCart.cartItems.reduce(
@@ -136,6 +151,12 @@ export class CartService {
     );
     if (!existingCourse) {
       throw Error("Course is not exist");
+    }
+
+    // Check if course has lessons
+    const hasLessons = await this.courseRepository.hasLessons(courseId);
+    if (!hasLessons) {
+      throw new Error("Cannot enroll in a course with no lessons");
     }
 
     const existingActivity = await this.userActivityRepository.findActivity(
@@ -232,6 +253,15 @@ export class CartService {
 
     if (itemsToCheckout.length !== cartItemIds.length) {
       throw Error("Having some item is not available in cart");
+    }
+
+    for (const item of itemsToCheckout) {
+      const hasLessons = await this.courseRepository.hasLessons(item.courseId);
+      if (!hasLessons) {
+        const course = await this.courseRepository.findById(item.courseId);
+        const courseTitle = course?.title || item.courseId;
+        throw new Error(`Cannot enroll in course "${courseTitle}" - course has no lessons`);
+      }
     }
 
     // Total

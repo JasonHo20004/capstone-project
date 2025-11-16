@@ -12,6 +12,7 @@ import flashcardRouter from './modules/flashcards/routes/flashcard.route'
 import flashcardReviewRouter from './modules/flashcards/routes/flashcardReview.route'
 import courseRouter from './modules/courses/routes/course.route'
 import lessonRouter from './modules/courses/routes/lesson.route'
+import ratingRouter from './modules/courses/routes/rating.route'
 import testRouter from './modules/tests/routes/test.route'
 import cartRouter from './modules/cart/routes/cart.route'
 import topupOrderRouter from './modules/topupOrders/routes/topupOrder.route'
@@ -44,6 +45,7 @@ app.use('/api/flashcards', flashcardRouter)
 app.use('/api/flashcard-review',flashcardReviewRouter)
 
 // Course Management Routes
+app.use('/api/ratings', ratingRouter);
 app.use('/api/courses', courseRouter);
 app.use('/api/courses', lessonRouter);
 app.use('/api/tests', testRouter);
