@@ -21,39 +21,47 @@ import practiceSessionRouter from './modules/practice_sessions/routes/practiceSe
 
 import cookieParser from 'cookie-parser'; // Import cookie-parser
 
+
 // Create Express app instance
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: ["http://localhost:8080"],
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(cookieParser()); // ✅ Use the middleware
 
 // Routes
-app.get('/', (_req, res) => {
-  res.json({ message: 'Backend server is running!' });
+app.get("/", (_req, res) => {
+  res.json({ message: "Backend server is running!" });
 });
 // Modular Routes
-app.use('/api/users', userRouter);
-app.use('/api/admin', adminRouter);
-app.use('/api/notifications', notificationRouter);
-app.use('/api/auth', authRouter)
+app.use("/api/users", userRouter);
+app.use("/api/admin", adminRouter);
+app.use("/api/notifications", notificationRouter);
+app.use("/api/auth", authRouter);
 
-app.use('/api/flashcardDecks',flashcardDeckRouter)
-app.use('/api/tags',tagRouter)
-app.use('/api/flashcards', flashcardRouter)
-app.use('/api/flashcard-review',flashcardReviewRouter)
+app.use("/api/flashcardDecks", flashcardDeckRouter);
+app.use("/api/tags", tagRouter);
+app.use("/api/flashcards", flashcardRouter);
+app.use("/api/flashcard-review", flashcardReviewRouter);
 
 // Course Management Routes
+
 app.use('/api/ratings', ratingRouter);
 app.use('/api/courses', courseRouter);
 app.use('/api/courses', lessonRouter);
 app.use('/api/tests', testRouter);
 
-app.use('/api/topup-orders',topupOrderRouter)
-app.use('/api/carts',cartRouter)
-app.use('/api/reports',reportRouter)
+
+app.use("/api/topup-orders", topupOrderRouter);
+app.use("/api/carts", cartRouter);
+app.use("/api/reports", reportRouter);
 
 // Practice session Routes
-app.use('/api/practice-sessions',practiceSessionRouter)
+app.use("/api/practice-sessions", practiceSessionRouter);
 export default app;
