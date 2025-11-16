@@ -10,7 +10,7 @@ export class AuthController {
   ): Promise<void> => {
     try {
       const { email, password } = req.body;
-      const {accessToken,refreshToken} = await this.authService.login(email, password);
+      const {accessToken,refreshToken,userId,fullname,role} = await this.authService.login(email, password);
      res.cookie('refreshToken', refreshToken, {
         httpOnly: true, 
         secure: false,
@@ -18,7 +18,7 @@ export class AuthController {
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
-      res.json({accessToken});
+      res.json({accessToken,user:{userId,email,fullname,role}});
     } catch (error: any) {
       res.status(400).json({ message: error.message });
     }
