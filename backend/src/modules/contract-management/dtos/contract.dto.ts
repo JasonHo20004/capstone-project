@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-// Create Contract DTO
 export const createContractDTO = z.object({
   body: z.object({
     courseSellerId: z.uuid({ message: 'Course Seller ID must be a valid UUID' }),
@@ -52,7 +51,6 @@ export const getContractHistoryDTO = z.object({
 
 export type GetContractHistoryInput = z.infer<typeof getContractHistoryDTO>;
 
-// Lock Seller DTO
 export const lockSellerDTO = z.object({
   params: z.object({
     contractId: z.uuid({ message: 'Contract ID must be a valid UUID' })
