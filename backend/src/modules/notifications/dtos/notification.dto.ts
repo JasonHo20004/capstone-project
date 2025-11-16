@@ -48,3 +48,16 @@ export const notificationWithUsersSchema = notificationResponseSchema.extend({
     .optional()
 });
 export type NotificationWithUsersDto = z.infer<typeof notificationWithUsersSchema>;
+
+// Send Course Update Notification DTO
+export const sendCourseUpdateNotificationDTO = z.object({
+  params: z.object({
+    courseId: z.uuid({ message: 'Course ID must be a valid UUID' }),
+  }),
+  body: z.object({
+    title: z.string().min(1, 'Title is required'),
+    content: z.string().min(1, 'Content is required'),
+  }),
+});
+
+export type SendCourseUpdateNotificationInput = z.infer<typeof sendCourseUpdateNotificationDTO>;

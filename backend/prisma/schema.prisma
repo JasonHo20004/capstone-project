@@ -364,14 +364,17 @@ model SubscriptionContract {
 }
 
 model Rating {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  score     Float
-  userId    String   @map("user_id") @db.Uuid
-  courseId  String   @map("course_id") @db.Uuid
-  content   String?
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  score       Float
+  userId      String    @map("user_id") @db.Uuid
+  courseId    String    @map("course_id") @db.Uuid
+  content     String?
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  replyContent String?  @map("reply_content")
+  repliedAt   DateTime? @map("replied_at") @db.Timestamptz(6)
+  isReported  Boolean   @default(false) @map("is_reported")
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, courseId])
   @@map("ratings")

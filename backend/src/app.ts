@@ -1,23 +1,26 @@
-import express from "express";
-import cors from "cors";
 
-import userRouter from "./modules/users/routes/user.route";
-import adminRouter from "./modules/admin/routes/admin.route";
-import notificationRouter from "./modules/notifications/routes/notification.route";
-import authRouter from "./modules/auth/routes/auth.route";
-import flashcardDeckRouter from "./modules/flashcards/routes/flashcardDeck.route";
-import tagRouter from "./modules/flashcards/routes/tag.route";
-import flashcardRouter from "./modules/flashcards/routes/flashcard.route";
-import flashcardReviewRouter from "./modules/flashcards/routes/flashcardReview.route";
-import courseRouter from "./modules/courses/routes/course.route";
-import lessonRouter from "./modules/courses/routes/lesson.route";
-import testRouter from "./modules/tests/routes/test.route";
-import cartRouter from "./modules/cart/routes/cart.route";
-import topupOrderRouter from "./modules/topupOrders/routes/topupOrder.route";
-import reportRouter from "./modules/reports/routes/report.route";
-import practiceSessionRouter from "./modules/practice_sessions/routes/practiceSession.route";
+import express from 'express';
+import cors from 'cors';
 
-import cookieParser from "cookie-parser"; // Import cookie-parser
+import userRouter from './modules/users/routes/user.route';
+import adminRouter from './modules/admin/routes/admin.route';
+import notificationRouter from './modules/notifications/routes/notification.route';
+import authRouter from './modules/auth/routes/auth.route'
+import flashcardDeckRouter from './modules/flashcards/routes/flashcardDeck.route'
+import tagRouter from './modules/flashcards/routes/tag.route'
+import flashcardRouter from './modules/flashcards/routes/flashcard.route'
+import flashcardReviewRouter from './modules/flashcards/routes/flashcardReview.route'
+import courseRouter from './modules/courses/routes/course.route'
+import lessonRouter from './modules/courses/routes/lesson.route'
+import ratingRouter from './modules/courses/routes/rating.route'
+import testRouter from './modules/tests/routes/test.route'
+import cartRouter from './modules/cart/routes/cart.route'
+import topupOrderRouter from './modules/topupOrders/routes/topupOrder.route'
+import reportRouter from './modules/reports/routes/report.route'
+import practiceSessionRouter from './modules/practice_sessions/routes/practiceSession.route'
+
+import cookieParser from 'cookie-parser'; // Import cookie-parser
+
 
 // Create Express app instance
 const app = express();
@@ -48,9 +51,12 @@ app.use("/api/flashcards", flashcardRouter);
 app.use("/api/flashcard-review", flashcardReviewRouter);
 
 // Course Management Routes
-app.use("/api/courses", courseRouter);
-app.use("/api/courses", lessonRouter);
-app.use("/api/tests", testRouter);
+
+app.use('/api/ratings', ratingRouter);
+app.use('/api/courses', courseRouter);
+app.use('/api/courses', lessonRouter);
+app.use('/api/tests', testRouter);
+
 
 app.use("/api/topup-orders", topupOrderRouter);
 app.use("/api/carts", cartRouter);
