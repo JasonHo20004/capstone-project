@@ -42,7 +42,7 @@ export const  loginResponseDTO = z.object({
   refreshToken: z.string(),
   userId:z.uuid(),
   email:z.email(),
-  fullname:z.string(),
+  fullName:z.string(),
   role:z.enum(UserRole).nullable()
 })
 export type LoginResponse =z.infer<typeof loginResponseDTO>

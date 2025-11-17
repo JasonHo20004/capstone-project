@@ -67,7 +67,7 @@ export class AuthService {
       refreshToken,
       userId:user.id,
       email:user.email,
-      fullname:user.fullName,
+      fullName:user.fullName,
       role:user.role
     };
   }
