@@ -1,7 +1,6 @@
 import { AdminRepository } from "@/modules/admin/repositories/admin.repository";
 import { ApplicationStatus } from "@/../generated/prisma";
 import type { CourseSellerApplication, CourseSellerProfile } from "@/../generated/prisma";
-import type { SafeUser } from "@/modules/users/dtos/user.dto";
 import { UserRepository } from "@/modules/users/repositories/user.repository";
 import { databaseService } from "@/services/database.service";
 
@@ -10,17 +9,6 @@ export class AdminService {
   private userRepository = new UserRepository();
   private prisma = databaseService.getClient();
   
-
-  public async getAllUsers(): Promise<SafeUser[]> {
-    try {
-      const users = await this.adminRepository.findAll();
-
-      return users;
-    } catch (error) {
-      console.error("Error in userService.getAllUsers:", error);
-      throw new Error("Failed to retrieve users");
-    }
-  }
 
   public async upgradeToCourseSeller(
     applicationId: string,

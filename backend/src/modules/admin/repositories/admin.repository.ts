@@ -4,23 +4,6 @@ import type { CourseSellerApplication, ApplicationStatus } from "@/../generated/
 export class AdminRepository {
   private prisma = databaseService.getClient();
 
-  public async findAll() {
-    return this.prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        phoneNumber: true,
-        profilePicture: true,
-        dateOfBirth: true,
-        englishLevel: true,
-        learningGoals: true,
-        role: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
-  }
 
   public async updateApplicationStatus(
     applicationId: string,
