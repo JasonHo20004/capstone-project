@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { UserRole } from "@/../generated/prisma";
+
 import type { User } from "@/../generated/prisma";
 
 export const loginDTO = z.object({
@@ -28,9 +30,19 @@ export const createRefreshTokenDTO = z.object({
   userId: z.uuid(),
   hashedToken: z.string(),
 });
-export const refreshTokenDTO = z.boolean()
+
 
 export type LoginInput = z.infer<typeof loginDTO>["body"];
 export type CreateRefreshTokenInput = z.infer<typeof createRefreshTokenDTO>
 
 export type SafeUser = Omit<User, "password">;
+// response
+export const  loginResponseDTO = z.object({
+  accessToken:z.string(),
+  refreshToken: z.string(),
+  userId:z.uuid(),
+  email:z.email(),
+  fullName:z.string(),
+  role:z.enum(UserRole).nullable()
+})
+export type LoginResponse =z.infer<typeof loginResponseDTO>

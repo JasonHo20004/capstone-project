@@ -45,7 +45,7 @@ app.use("/api/admin", adminRouter);
 app.use("/api/notifications", notificationRouter);
 app.use("/api/auth", authRouter);
 
-app.use("/api/flashcardDecks", flashcardDeckRouter);
+app.use("/api/flashcard-decks", flashcardDeckRouter);
 app.use("/api/tags", tagRouter);
 app.use("/api/flashcards", flashcardRouter);
 app.use("/api/flashcard-review", flashcardReviewRouter);
