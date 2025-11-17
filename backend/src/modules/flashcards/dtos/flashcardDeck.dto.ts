@@ -35,3 +35,26 @@ export const deleteFlashcardDeckDTO = z.object({
 export type CreateFlashcardDeckInput = z.infer<typeof createFlashcardDeckDTO>;
 export type UpdateFlashcardDeckInput = z.infer<typeof updateFlashcardDeckDTO>
 export type DeleteFlashcardDeckInput = z.infer<typeof deleteFlashcardDeckDTO>
+// response
+export const includedUserDTO = z.object({
+  fullName:z.string(),
+  email:z.email(),
+})
+export const includedTagDTO=z.object({
+  id:z.uuid(),
+  name:z.string()
+})
+export const includedDeckTagDTO=z.object({
+  tag:includedTagDTO
+})
+export const getAllFlashcardDeckResponseDTO = z.object({
+  id:z.uuid(),
+  title:z.string(),
+  createdAt:z.coerce.date(),
+  description:z.string().nullable(),
+  isPublic:z.boolean(),
+  userId:z.string(),
+  user:includedUserDTO,
+  deckTags:z.array(includedDeckTagDTO)
+})
+export type GetAllFlashcardDeckResponse = z.infer<typeof getAllFlashcardDeckResponseDTO >

@@ -1,6 +1,6 @@
 import { databaseService } from "@/services/database.service";
 import type { FlashcardDeck } from "@/../generated/prisma";
-// import type { CreateFlashcardDeckInput } from "@/modules/flashcards/dtos/flashcardDeck.dto";
+import type { GetAllFlashcardDeckResponse } from "@/modules/flashcards/dtos/flashcardDeck.dto";
 export class FlashcardDeckRepository {
   private prisma = databaseService.getClient();
 
@@ -81,5 +81,27 @@ export class FlashcardDeckRepository {
       where: { id: id },
     });
   }
- 
+  public async findFlashcardDeckByUserId(userId: string): Promise<GetAllFlashcardDeckResponse[]> {
+    return this.prisma.flashcardDeck.findMany({
+      where: {userId },
+      include:{
+        deckTags:{
+          select:{
+            tag:{
+              select:{
+                id:true,
+                name:true
+              }
+            }
+          }
+        },
+        user:{
+          select:{
+            fullName:true,
+            email:true
+          }
+        }
+      }
+    });
+  }
 }
