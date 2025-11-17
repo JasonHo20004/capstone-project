@@ -5,6 +5,11 @@ import type { Tag } from "@/../generated/prisma";
 export class TagService {
   private tagRepository = new TagRepository();
 
+  public async getAllTags(): Promise<Tag[]> {
+    const tags = await this.tagRepository.getAllTags();
+
+    return tags;
+  }
   public async createTag(tagData: CreateTagInput["body"]): Promise<Tag> {
     const newTag = await this.tagRepository.createTag(tagData);
 
