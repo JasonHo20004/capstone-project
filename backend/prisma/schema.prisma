@@ -52,6 +52,8 @@ model RefreshToken {
   revoked     Boolean  @default(false)
   createdAt   DateTime @default(now()) @map("created_at")
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
 }
 
 model NotificationType {

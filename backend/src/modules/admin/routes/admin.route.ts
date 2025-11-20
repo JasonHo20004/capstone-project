@@ -7,6 +7,8 @@ import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
 import revenueRoute from '../../revenue/routes/revenue.route';
 import contractsManagementRoute from '../../contract-management/routes/contract-management.route';
 import usersManagementRoute from '../../user-management/routes/user-management.route';
+import coursesManagementRoute from '../../course-management/routes/course-management.route';
+import dashboardRoute from './dashboard.route';
 
 const router = Router();
 const adminController = new AdminController();
@@ -14,13 +16,16 @@ const adminController = new AdminController();
 router.use(authMiddleware)
 router.use(checkRole([UserRole.ADMINISTRATOR]))
 
+router.use('/dashboard', dashboardRoute);
+
 router.use('/users', usersManagementRoute);
 
 router.post('/upgrade-to-course-seller/:applicationId/:status',validate(approveCourseSellerApplicationDTO),adminController.upgradeToCourseSeller);
 
 router.use('/contracts', contractsManagementRoute);
 
-
 router.use('/revenue', revenueRoute);
+
+router.use('/courses', coursesManagementRoute);
 
 export default router;

@@ -14,12 +14,27 @@ export class UserManagementService {
   }
   
   public async createUser(data: any) {
-    const { walletAllowance, ...rest } = data;
+    const { walletAllowance, courseSellerProfile, ...rest } = data;
     const hashedPassword = await bcrypt.hash(data.password, 10);
-    const newUser = await this.userRepository.createUser({
+
+    // Prepare user data
+    const userData: any = {
       ...rest,
       password: hashedPassword,
-    });
+    };
+
+    // If creating a course seller, wrap the profile in a create object
+    if (courseSellerProfile && data.role === 'COURSESELLER') {
+      userData.courseSellerProfile = {
+        create: {
+          certification: courseSellerProfile.certification || [],
+          expertise: courseSellerProfile.expertise || [],
+          isActive: courseSellerProfile.isActive ?? false,
+        },
+      };
+    }
+
+    const newUser = await this.userRepository.createUser(userData);
     await this.userRepository.createWalletWithAllowance(newUser.id, {
       allowance: walletAllowance,
     });
