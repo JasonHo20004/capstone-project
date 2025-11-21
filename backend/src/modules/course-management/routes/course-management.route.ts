@@ -31,4 +31,7 @@ router.get('/:id', courseManagementController.getCourseById);
 // Update course by ID
 router.put('/:id', courseManagementController.updateCourse);
 
+// Delete course by ID
+router.delete('/:id', courseManagementController.deleteCourse);
+
 export default router;

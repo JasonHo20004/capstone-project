@@ -311,4 +311,35 @@ export class CourseManagementController {
       });
     }
   };
+
+  public deleteCourse = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        res.status(400).json({
+          success: false,
+          message: 'Course ID is required'
+        });
+        return;
+      }
+      await this.service.deleteCourse(id);
+      res.status(200).json({
+        success: true,
+        message: 'Course deleted successfully'
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Course not found') {
+        res.status(404).json({
+          success: false,
+          message: 'Course not found'
+        });
+        return;
+      }
+      res.status(500).json({
+        success: false,
+        message: 'Failed to delete course',
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  };
 }

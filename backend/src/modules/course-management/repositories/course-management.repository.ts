@@ -219,4 +219,10 @@ export class CourseManagementRepository {
       data,
     });
   }
+
+  public async deleteCourse(id: string) {
+    return this.prisma.course.delete({
+      where: { id },
+    });
+  }
 }
