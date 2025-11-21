@@ -8,6 +8,7 @@ import revenueRoute from '../../revenue/routes/revenue.route';
 import contractsManagementRoute from '../../contract-management/routes/contract-management.route';
 import usersManagementRoute from '../../user-management/routes/user-management.route';
 import coursesManagementRoute from '../../course-management/routes/course-management.route';
+import transactionManagementRoute from '../../transaction-management/routes/transaction-management.route';
 import dashboardRoute from './dashboard.route';
 
 const router = Router();
@@ -27,5 +28,7 @@ router.use('/contracts', contractsManagementRoute);
 router.use('/revenue', revenueRoute);
 
 router.use('/courses', coursesManagementRoute);
+
+router.use('/transactions', transactionManagementRoute);
 
 export default router;
