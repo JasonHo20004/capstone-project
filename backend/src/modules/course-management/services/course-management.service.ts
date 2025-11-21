@@ -191,4 +191,15 @@ export class CourseManagementService {
       price: Number(updatedCourse.price),
     };
   }
+
+  public async deleteCourse(id: string) {
+    // Check if course exists
+    const existingCourse = await this.courseRepository.findCourseById(id);
+    if (!existingCourse) {
+      throw new Error('Course not found');
+    }
+
+    // Delete the course (cascade deletes will handle related data)
+    await this.courseRepository.deleteCourse(id);
+  }
 }
