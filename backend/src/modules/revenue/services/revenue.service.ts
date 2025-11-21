@@ -1,9 +1,10 @@
 import { databaseService } from "@/services/database.service";
-
+import { RevenueRepository } from "../repositories/revenue.repository";
 import type { RevenueOverviewResponse } from "../dtos/revenue.dto";
 
 export class RevenueService {
   private prisma = databaseService.getClient();
+  private revenueRepository = new RevenueRepository();
 
 
   public async getRevenueOverview(
@@ -136,5 +137,153 @@ export class RevenueService {
         totalPages: Math.ceil(totalTransactionsCount / limit),
       },
     };
+  }
+
+  // Get complete revenue data (stats + chart + transactions)
+  public async getRevenueData(filters: {
+    startDate?: string;
+    endDate?: string;
+    period?: string;
+    transactionType?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const whereClause = this.revenueRepository.buildWhereClause(filters);
+    const page = filters.page || 1;
+    const limit = filters.limit || 50;
+
+    const [totalRevenue, totalTransactions, transactions, revenueByDay, revenueByType] = await Promise.all([
+      this.revenueRepository.getTotalRevenue(whereClause),
+      this.revenueRepository.getTransactionCount(whereClause),
+      this.revenueRepository.getTransactions(whereClause, page, limit),
+      this.revenueRepository.getRevenueByDay(whereClause, filters.period || "year"),
+      this.revenueRepository.getRevenueByType(whereClause)
+    ]);
+
+    return {
+      stats: {
+        totalRevenue: Number(totalRevenue),
+        totalTransactions,
+        averageTransaction: totalTransactions > 0 ? Number(totalRevenue) / totalTransactions : 0
+      },
+      chartData: revenueByDay.map(d => ({
+        date: d.date,
+        revenue: Number(d.revenue)
+      })),
+      revenueByType,
+      transactions: transactions.map(t => ({
+        id: t.id,
+        amount: Number(t.amount),
+        status: t.status,
+        transactionType: t.transactionType,
+        createdAt: t.createdAt,
+        description: t.description,
+        user: t.wallet?.user ? {
+          fullName: t.wallet.user.fullName,
+          email: t.wallet.user.email
+        } : null,
+        order: t.order ? {
+          id: t.order.id,
+          totalAmount: Number(t.order.totalAmount)
+        } : null
+      })),
+      pagination: {
+        total: totalTransactions,
+        page,
+        limit,
+        totalPages: Math.ceil(totalTransactions / limit)
+      }
+    };
+  }
+
+  // Get revenue stats only
+  public async getRevenueStats(filters: {
+    startDate?: string;
+    endDate?: string;
+    period?: string;
+    transactionType?: string;
+  }) {
+    const whereClause = this.revenueRepository.buildWhereClause(filters);
+
+    const [totalRevenue, totalTransactions, revenueByType] = await Promise.all([
+      this.revenueRepository.getTotalRevenue(whereClause),
+      this.revenueRepository.getTransactionCount(whereClause),
+      this.revenueRepository.getRevenueByType(whereClause)
+    ]);
+
+    return {
+      totalRevenue: Number(totalRevenue),
+      totalTransactions,
+      averageTransaction: totalTransactions > 0 ? Number(totalRevenue) / totalTransactions : 0,
+      revenueByType
+    };
+  }
+
+  // Get transactions list only
+  public async getTransactionsList(filters: {
+    startDate?: string;
+    endDate?: string;
+    period?: string;
+    transactionType?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const whereClause = this.revenueRepository.buildWhereClause(filters);
+    const page = filters.page || 1;
+    const limit = filters.limit || 50;
+
+    const [totalTransactions, transactions] = await Promise.all([
+      this.revenueRepository.getTransactionCount(whereClause),
+      this.revenueRepository.getTransactions(whereClause, page, limit)
+    ]);
+
+    return {
+      transactions: transactions.map(t => ({
+        id: t.id,
+        amount: Number(t.amount),
+        status: t.status,
+        transactionType: t.transactionType,
+        createdAt: t.createdAt,
+        description: t.description,
+        user: t.wallet?.user ? {
+          fullName: t.wallet.user.fullName,
+          email: t.wallet.user.email
+        } : null,
+        order: t.order ? {
+          id: t.order.id,
+          totalAmount: Number(t.order.totalAmount)
+        } : null
+      })),
+      pagination: {
+        total: totalTransactions,
+        page,
+        limit,
+        totalPages: Math.ceil(totalTransactions / limit)
+      }
+    };
+  }
+
+  // Get all transactions for export
+  public async getTransactionsForExport(filters: {
+    startDate?: string;
+    endDate?: string;
+    period?: string;
+    transactionType?: string;
+  }) {
+    const whereClause = this.revenueRepository.buildWhereClause(filters);
+    const transactions = await this.revenueRepository.getAllTransactions(whereClause);
+
+    return transactions.map(t => ({
+      'Transaction ID': t.id,
+      'Amount': Number(t.amount),
+      'Status': t.status,
+      'Type': t.transactionType,
+      'Date': t.createdAt.toISOString(),
+      'Description': t.description || '',
+      'User Name': t.wallet?.user?.fullName || '',
+      'User Email': t.wallet?.user?.email || '',
+      'Order ID': t.order?.id || '',
+      'Order Amount': t.order ? Number(t.order.totalAmount) : ''
+    }));
   }
 }

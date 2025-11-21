@@ -11,7 +11,13 @@ const revenueController = new RevenueController();
 router.use(authMiddleware)
 router.use(checkRole([UserRole.ADMINISTRATOR]))
 
-router.get('/overview', validate(getRevenueOverviewDTO), revenueController.getRevenueOverview);   
+// Legacy endpoint
+// router.get('/overview', validate(getRevenueOverviewDTO), revenueController.getRevenueOverview);
 
+// New endpoints
+router.get('/stats', revenueController.getRevenueStatsOnly);
+router.get('/transactions', revenueController.getTransactionsList);
+router.get('/export', revenueController.exportRevenue);
+router.get('/', revenueController.getRevenueData);
 
 export default router;
