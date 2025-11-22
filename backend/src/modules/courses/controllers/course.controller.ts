@@ -6,6 +6,7 @@ import type {
   PublishCourseInput,
   GetCourseByIdInput,
   GetCoursesBySellerInput,
+  GetCoursesInput,
 } from '../dtos/course.dto';
 
 export class CourseController {
@@ -129,6 +130,79 @@ export class CourseController {
     }
   };
 
+  public getCourses = async (
+    req: Request<{}, {}, {}, GetCoursesInput['query']>,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const {
+        page,
+        limit,
+        search,
+        category,
+        minPrice,
+        maxPrice,
+        courseLevel,
+        status,
+        sortBy,
+        sortOrder,
+      } = req.query;
+
+      const params: {
+        page?: number;
+        limit?: number;
+        search?: string;
+        category?: string;
+        minPrice?: number;
+        maxPrice?: number;
+        courseLevel?: any;
+        status?: any;
+        sortBy?: string;
+        sortOrder?: 'asc' | 'desc';
+      } = {};
+
+      if (page) params.page = parseInt(page, 10);
+      if (limit) params.limit = parseInt(limit, 10);
+      if (search) params.search = search;
+      if (category) params.category = category;
+      if (minPrice) params.minPrice = parseFloat(minPrice);
+      if (maxPrice) params.maxPrice = parseFloat(maxPrice);
+      if (courseLevel) params.courseLevel = courseLevel;
+      if (status) params.status = status;
+      if (sortBy) params.sortBy = sortBy;
+      if (sortOrder) params.sortOrder = sortOrder as 'asc' | 'desc';
+
+      const { courses, total } = await this.courseService.getCourses(params);
+
+      // Chỉ trả về pagination nếu có page và limit
+      if (params.page && params.limit) {
+        const totalPages = Math.ceil(total / params.limit);
+        res.status(200).json({
+          success: true,
+          message: 'Courses retrieved successfully',
+          data: courses,
+          pagination: {
+            page: params.page,
+            limit: params.limit,
+            total,
+            totalPages,
+          },
+        });
+      } else {
+        // Không có pagination - trả về tất cả
+        res.status(200).json({
+          success: true,
+          message: 'Courses retrieved successfully',
+          data: courses,
+          count: total,
+        });
+      }
+    } catch (error) {
+      next(error);
+    }
+  };
+
   public getCoursesBySeller = async (
     req: Request<GetCoursesBySellerInput['params'], {}, {}, GetCoursesBySellerInput['query']>,
     res: Response,
@@ -139,6 +213,40 @@ export class CourseController {
       const { status } = req.query;
 
       const courses = await this.courseService.getCoursesBySeller(sellerId);
+
+      const filteredCourses = status
+        ? courses.filter((c) => c.status === status)
+        : courses;
+
+      res.status(200).json({
+        success: true,
+        message: 'Courses retrieved successfully',
+        data: filteredCourses,
+        count: filteredCourses.length,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public getMyCourses = async (
+    req: Request<{}, {}, {}, GetCoursesBySellerInput['query']>,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const userId = (req as any).user?.userId;
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
+      }
+
+      const { status } = req.query;
+
+      const courses = await this.courseService.getCoursesBySeller(userId);
 
       const filteredCourses = status
         ? courses.filter((c) => c.status === status)

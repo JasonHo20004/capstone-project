@@ -1,5 +1,5 @@
 import { CourseRepository } from '@/modules/courses/repositories/course.repository';
-import type { Course, CourseLevel } from '@/../generated/prisma';
+import type { Course, CourseLevel, CourseStatus } from '@/../generated/prisma';
 
 export class CourseService {
   private courseRepository = new CourseRepository();
@@ -66,6 +66,21 @@ export class CourseService {
 
   async getCoursesBySeller(sellerId: string): Promise<Course[]> {
     return this.courseRepository.findByCourseSellerId(sellerId);
+  }
+
+  async getCourses(params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    category?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    courseLevel?: CourseLevel;
+    status?: CourseStatus;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }): Promise<{ courses: Course[]; total: number }> {
+    return this.courseRepository.findAllWithPagination(params);
   }
 }
 

@@ -62,3 +62,21 @@ export const getCoursesBySellerDTO = z.object({
 
 export type GetCoursesBySellerInput = z.infer<typeof getCoursesBySellerDTO>;
 
+// Get All Courses DTO
+export const getCoursesDTO = z.object({
+  query: z.object({
+    page: z.string().optional(),
+    limit: z.string().optional(),
+    search: z.string().optional(),
+    category: z.string().optional(),
+    minPrice: z.string().optional(),
+    maxPrice: z.string().optional(),
+    courseLevel: z.enum(CourseLevel).optional(),
+    status: z.enum(CourseStatus).optional(),
+    sortBy: z.string().optional(),
+    sortOrder: z.enum(['asc', 'desc']).optional(),
+  }),
+});
+
+export type GetCoursesInput = z.infer<typeof getCoursesDTO>;
+
