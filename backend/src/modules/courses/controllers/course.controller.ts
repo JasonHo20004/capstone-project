@@ -175,27 +175,36 @@ export class CourseController {
 
       const { courses, total } = await this.courseService.getCourses(params);
 
-      // Chỉ trả về pagination nếu có page và limit
+      // Luôn trả về pagination nếu có page và limit, nếu không thì vẫn trả về pagination với giá trị mặc định
       if (params.page && params.limit) {
         const totalPages = Math.ceil(total / params.limit);
         res.status(200).json({
           success: true,
           message: 'Courses retrieved successfully',
-          data: courses,
-          pagination: {
-            page: params.page,
-            limit: params.limit,
-            total,
-            totalPages,
+          data: {
+            data: courses,
+            pagination: {
+              page: params.page,
+              limit: params.limit,
+              total,
+              totalPages,
+            },
           },
         });
       } else {
-        // Không có pagination - trả về tất cả
+        // Không có pagination - trả về tất cả nhưng vẫn có pagination object để frontend không lỗi
         res.status(200).json({
           success: true,
           message: 'Courses retrieved successfully',
-          data: courses,
-          count: total,
+          data: {
+            data: courses,
+            pagination: {
+              page: 1,
+              limit: total,
+              total,
+              totalPages: 1,
+            },
+          },
         });
       }
     } catch (error) {
