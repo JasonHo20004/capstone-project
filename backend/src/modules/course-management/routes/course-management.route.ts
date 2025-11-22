@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { CourseManagementController } from '@/modules/course-management/controllers/course-management.controller';
+import { uploadVideo } from '@/middlewares/upload';
 
 const router = Router();
 const courseManagementController = new CourseManagementController();
@@ -12,6 +13,9 @@ router.get('/:id/lessons', courseManagementController.getCourseLessons);
 
 // Get a specific lesson in a course
 router.get('/:courseId/lessons/:lessonId', courseManagementController.getSpecificLesson);
+
+// Upload video for a lesson
+router.post('/:courseId/lessons/:lessonId/upload-video', uploadVideo, courseManagementController.uploadLessonVideo);
 
 // Update a specific lesson in a course
 router.put('/:courseId/lessons/:lessonId', courseManagementController.updateLesson);
