@@ -23,13 +23,13 @@ export class RevenueController {
 
       res.status(200).json({
         success: true,
-        message: "Revenue overview retrieved successfully",
+        message: "Lấy thông tin doanh thu thành công",
         data: revenueData,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to retrieve revenue overview",
+        message: "Lỗi khi lấy thông tin doanh thu",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -51,18 +51,16 @@ export class RevenueController {
       if (limit) filters.limit = parseInt(limit as string);
 
       const data = await this.revenueService.getRevenueData(filters);
-      console.log("filters::::", filters);
-      console.log("data:::::", data);
 
       res.status(200).json({
         success: true,
-        message: 'Get revenue data successfully',
+        message: 'Lấy thông tin doanh thu thành công',
         data
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to get revenue data',
+        message: 'Lỗi khi lấy thông tin doanh thu',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -82,13 +80,13 @@ export class RevenueController {
 
       res.status(200).json({
         success: true,
-        message: 'Get revenue stats successfully',
+        message: 'Lấy thông tin thống kê doanh thu thành công',
         data: stats
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to get revenue stats',
+        message: 'Lỗi khi lấy thông tin thống kê doanh thu',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -113,13 +111,13 @@ export class RevenueController {
 
       res.status(200).json({
         success: true,
-        message: 'Get transactions list successfully',
+        message: 'Lấy danh sách giao dịch thành công',
         data
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to get transactions list',
+        message: 'Lỗi khi lấy danh sách giao dịch',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -153,14 +151,14 @@ export class RevenueController {
         // Return JSON for Excel processing on frontend
         res.status(200).json({
           success: true,
-          message: 'Export data ready',
+          message: 'Dữ liệu sẵn sàng để xuất',
           data
         });
       }
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to export revenue data',
+        message: 'Lỗi khi xuất dữ liệu doanh thu',
         error: error instanceof Error ? error.message : String(error)
       });
     }

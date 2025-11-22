@@ -10,13 +10,13 @@ export class DashboardController {
       const stats = await this.service.getDashboardStats();
       res.status(200).json({
         success: true,
-        message: 'Get dashboard stats successfully',
+        message: 'Lấy thống kê dashboard thành công',
         data: stats
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to get dashboard stats',
+        message: 'Lỗi khi lấy thống kê dashboard',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -28,13 +28,13 @@ export class DashboardController {
       const data = await this.service.getDashboardData();
       res.status(200).json({
         success: true,
-        message: 'Get dashboard data successfully',
+        message: 'Lấy dữ liệu dashboard thành công',
         data
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to get dashboard data',
+        message: 'Lỗi khi lấy dữ liệu dashboard',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -47,13 +47,13 @@ export class DashboardController {
       const data = await this.service.getRevenueData(months);
       res.status(200).json({
         success: true,
-        message: 'Get revenue data successfully',
+        message: 'Lấy dữ liệu doanh thu thành công',
         data
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to get revenue data',
+        message: 'Lỗi khi lấy dữ liệu doanh thu',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -66,13 +66,13 @@ export class DashboardController {
       const data = await this.service.getUserGrowthData(months);
       res.status(200).json({
         success: true,
-        message: 'Get user growth data successfully',
+        message: 'Lấy dữ liệu tăng trưởng người dùng thành công',
         data
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to get user growth data',
+        message: 'Lỗi khi lấy dữ liệu tăng trưởng người dùng',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -84,13 +84,13 @@ export class DashboardController {
       const data = await this.service.getCourseStatusData();
       res.status(200).json({
         success: true,
-        message: 'Get course status data successfully',
+        message: 'Lấy dữ liệu trạng thái khóa học thành công',
         data
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to get course status data',
+        message: 'Lỗi khi lấy dữ liệu trạng thái khóa học',
         error: error instanceof Error ? error.message : String(error)
       });
     }
