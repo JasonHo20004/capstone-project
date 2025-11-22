@@ -3,29 +3,28 @@ import bcrypt from "bcrypt";
 import type {
   SafeUser,
   CreateUserInput,
-  UpdateUserInput,
   CreateCourseSellerApplicationInput,
-  UserProfileResponse
+  UserProfileResponse,
 } from "@/modules/users/dtos/user.dto";
 import { CartRepository } from "@/modules/cart/repositories/cart.repository";
-import type { CourseSellerApplication } from "@/../generated/prisma"
-import {WalletRepository} from '@/modules/users/repositories/wallet.repository'
+import type { CourseSellerApplication } from "@/../generated/prisma";
+import { WalletRepository } from "@/modules/users/repositories/wallet.repository";
 export class UserService {
-  private userRepository = new UserRepository(); 
-  private walletRepository = new WalletRepository()
-  private cartRepository = new CartRepository()
-  public async getUserInformation(userId:string): Promise<UserProfileResponse> {
-    const userProfile = await this.userRepository.findUserProfileById(
-      userId
-    );
+  private userRepository = new UserRepository();
+  private walletRepository = new WalletRepository();
+  private cartRepository = new CartRepository();
+  public async getUserInformation(
+    userId: string
+  ): Promise<UserProfileResponse> {
+    const userProfile = await this.userRepository.findUserProfileById(userId);
     if (!userProfile) {
       throw new Error("User Profile is not existece");
     }
-    return userProfile
-
-
+    return userProfile;
   }
-  public async createUser(userData: CreateUserInput['body']): Promise<SafeUser> {
+  public async createUser(
+    userData: CreateUserInput["body"]
+  ): Promise<SafeUser> {
     const existingUser = await this.userRepository.findUserByEmail(
       userData.email
     );
@@ -40,14 +39,21 @@ export class UserService {
       password: hashedPassword,
     });
     // wallet
-    await this.walletRepository.createWallet(newUser.id)
-    await this.cartRepository.createCart(newUser.id)
+    await this.walletRepository.createWallet(newUser.id);
+    await this.cartRepository.createCart(newUser.id);
     const { password, ...userWithoutPassword } = newUser;
     return userWithoutPassword;
   }
   public async updateUser(
     userId: string,
-    updateData: UpdateUserInput["body"]
+    updateData: {
+      fullName: string;
+      phoneNumber: string;
+      dateOfBirth: Date;
+      englishLevel: string[];
+      learningGoals: string;
+      profilePicture: string;
+    }
   ): Promise<SafeUser | null> {
     const existingUser = await this.userRepository.findUserById(userId);
     if (!existingUser) {
@@ -84,7 +90,6 @@ export class UserService {
     userId: string,
     updateData: CreateCourseSellerApplicationInput["body"]
   ): Promise<CourseSellerApplication | null> {
-
     const existingCourseSeller = await this.userRepository.findCourseSellerById(
       userId
     );
@@ -93,14 +98,16 @@ export class UserService {
       throw new Error("Course Seller is Existence");
     }
 
-    const existingApplication = await this.userRepository.findApplicationIsPending(userId)
-     if (existingApplication) {
+    const existingApplication =
+      await this.userRepository.findApplicationIsPending(userId);
+    if (existingApplication) {
       throw new Error("Application of this user is Pending");
     }
-    const newCourseSellerApplication = await this.userRepository.createCourseSellerApplication(
-      userId,
-      updateData
-    );
+    const newCourseSellerApplication =
+      await this.userRepository.createCourseSellerApplication(
+        userId,
+        updateData
+      );
 
     return newCourseSellerApplication;
   }
