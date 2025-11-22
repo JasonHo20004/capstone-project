@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+export const getAllFlashcardDTO =z.object({
+  params:z.object({
+    deckId:z.uuid({
+      message: 'Flashcard ID must be a valid UUID'
+    })
+  })
+})
 export const createFlashcardDTO = z.object({
   body: z.object({
     frontContent: z.string({
@@ -35,6 +42,7 @@ export const deleteFlashcardDTO = z.object({
   })
 });
 
+export type GetAllFlashcardInput = z.infer<typeof getAllFlashcardDTO>
 export type CreateFlashcardInput = z.infer<typeof createFlashcardDTO>;
 export type UpdateFlashcardInput = z.infer<typeof updateFlashcardDTO>;
 export type DeleteFlashcardInput = z.infer<typeof deleteFlashcardDTO>;

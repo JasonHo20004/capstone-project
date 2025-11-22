@@ -55,6 +55,13 @@ export class FlashcardService {
       return undefined;
     }
   }
+  public async getAllFlashcards(userId:string, deckId:string):Promise<Flashcard[]>{
+    const existingDeck = await this.flashcardDeckRepository.findFlashcardDeckById(deckId)
+    if(!existingDeck || existingDeck.userId!==userId){
+      throw Error("This deck is not belong to user")
+    }
+    return this.flashcardRepository.findFlashCardByDeck({deckId})
+  }
   public async createFlashcard(
     userId: string,
     flashcardData: {

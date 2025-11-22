@@ -4,6 +4,11 @@ import type { Flashcard } from "@/../generated/prisma";
 export class FlashcardRepository {
   private prisma = databaseService.getClient();
 
+  public async findFlashCardByDeck(data:{deckId:string}):Promise<Flashcard[]>{
+    return this.prisma.flashcard.findMany({
+      where:{...data}
+    })
+  }
   public async createFlashcard(flashcardData: {
     frontContent: string;
     backContent: string;
