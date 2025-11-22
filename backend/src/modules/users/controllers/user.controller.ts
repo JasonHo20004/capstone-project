@@ -59,9 +59,10 @@ export class UserController {
   ): Promise<void> => {
     try {
       const userId = req.user!.userId;
-      const updateData = req.body;
-
-      const updatedUser = await this.userService.updateUser(userId, updateData);
+      const {fullName,phoneNumber, dateOfBirth,englishLevel, learningGoals} = req.body;
+      const file = (req as any).file;
+      const profilePicture = file?.location || file?.key;
+      const updatedUser = await this.userService.updateUser(userId, {fullName,phoneNumber, dateOfBirth,englishLevel, learningGoals,profilePicture});
 
       res.status(200).json({
         success: true,
