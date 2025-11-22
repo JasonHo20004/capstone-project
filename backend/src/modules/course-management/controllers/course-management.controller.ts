@@ -9,14 +9,14 @@ export class CourseManagementController {
       const courses = await this.service.getAllCourses();
       res.status(200).json({
         success: true,
-        message: 'Get all courses successfully',
+        message: 'Lấy tất cả khóa học thành công',
         data: courses,
         count: courses.length
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to get courses',
+        message: 'Lỗi khi lấy tất cả khóa học',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -28,27 +28,27 @@ export class CourseManagementController {
       if (!id) {
         res.status(400).json({
           success: false,
-          message: 'Course ID is required'
+          message: 'ID khóa học là bắt buộc'
         });
         return;
       }
       const course = await this.service.getCourseById(id);
       res.status(200).json({
         success: true,
-        message: 'Get course details successfully',
+        message: 'Lấy chi tiết khóa học thành công',
         data: course
       });
     } catch (error) {
       if (error instanceof Error && error.message === 'Course not found') {
         res.status(404).json({
           success: false,
-          message: 'Course not found'
+          message: 'Khóa học không tồn tại'
         });
         return;
       }
       res.status(500).json({
         success: false,
-        message: 'Failed to get course details',
+        message: 'Lỗi khi lấy chi tiết khóa học',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -60,27 +60,27 @@ export class CourseManagementController {
       if (!id) {
         res.status(400).json({
           success: false,
-          message: 'Course ID is required'
+          message: 'ID khóa học là bắt buộc'
         });
         return;
       }
       const data = await this.service.getCourseLessons(id);
       res.status(200).json({
         success: true,
-        message: 'Get course lessons successfully',
+        message: 'Lấy tất cả bài giảng của khóa học thành công',
         data
       });
     } catch (error) {
       if (error instanceof Error && error.message === 'Course not found') {
         res.status(404).json({
           success: false,
-          message: 'Course not found'
+          message: 'Khóa học không tồn tại'
         });
         return;
       }
       res.status(500).json({
         success: false,
-        message: 'Failed to get course lessons',
+        message: 'Lỗi khi lấy tất cả bài giảng của khóa học',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -92,34 +92,34 @@ export class CourseManagementController {
       if (!courseId || !lessonId) {
         res.status(400).json({
           success: false,
-          message: 'Course ID and Lesson ID are required'
+          message: 'ID khóa học và ID bài giảng là bắt buộc'
         });
         return;
       }
       const data = await this.service.getSpecificLesson(courseId, lessonId);
       res.status(200).json({
         success: true,
-        message: 'Get lesson successfully',
+        message: 'Lấy bài giảng thành công',
         data
       });
     } catch (error) {
       if (error instanceof Error && error.message === 'Course not found') {
         res.status(404).json({
           success: false,
-          message: 'Course not found'
+          message: 'Khóa học không tồn tại'
         });
         return;
       }
       if (error instanceof Error && error.message === 'Lesson not found') {
         res.status(404).json({
           success: false,
-          message: 'Lesson not found'
+          message: 'Bài giảng không tồn tại'
         });
         return;
       }
       res.status(500).json({
         success: false,
-        message: 'Failed to get lesson',
+        message: 'Lỗi khi lấy bài giảng',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -131,34 +131,34 @@ export class CourseManagementController {
       if (!courseId || !lessonId) {
         res.status(400).json({
           success: false,
-          message: 'Course ID and Lesson ID are required'
+          message: 'ID khóa học và ID bài giảng là bắt buộc'
         });
         return;
       }
       const data = await this.service.updateLesson(courseId, lessonId, req.body);
       res.status(200).json({
         success: true,
-        message: 'Update lesson successfully',
+        message: 'Cập nhật bài giảng thành công',
         data
       });
     } catch (error) {
       if (error instanceof Error && error.message === 'Course not found') {
         res.status(404).json({
           success: false,
-          message: 'Course not found'
+          message: 'Khóa học không tồn tại'
         });
         return;
       }
       if (error instanceof Error && error.message === 'Lesson not found') {
         res.status(404).json({
           success: false,
-          message: 'Lesson not found'
+          message: 'Bài giảng không tồn tại'
         });
         return;
       }
       res.status(500).json({
         success: false,
-        message: 'Failed to update lesson',
+        message: 'Lỗi khi cập nhật bài giảng',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -167,37 +167,37 @@ export class CourseManagementController {
   public deleteLesson = async (req: Request, res: Response): Promise<void> => {
     try {
       const { courseId, lessonId } = req.params;
-      console.log("courseId, lessonId::::::::", courseId, lessonId);
+      
       if (!courseId || !lessonId) {
         res.status(400).json({
           success: false,
-          message: 'Course ID and Lesson ID are required'
+          message: 'ID khóa học và ID bài giảng là bắt buộc'
         });
         return;
       }
       await this.service.deleteLesson(courseId, lessonId);
       res.status(200).json({
         success: true,
-        message: 'Delete lesson successfully'
+        message: 'Xóa bài giảng thành công'
       });
     } catch (error) {
       if (error instanceof Error && error.message === 'Course not found') {
         res.status(404).json({
           success: false,
-          message: 'Course not found'
+          message: 'Khóa học không tồn tại'
         });
         return;
       }
       if (error instanceof Error && error.message === 'Lesson not found') {
         res.status(404).json({
           success: false,
-          message: 'Lesson not found'
+          message: 'Bài giảng không tồn tại'
         });
         return;
       }
       res.status(500).json({
         success: false,
-        message: 'Failed to delete lesson',
+        message: 'Lỗi khi xóa bài giảng',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -209,40 +209,40 @@ export class CourseManagementController {
       if (!courseId || !lessonId || !commentId) {
         res.status(400).json({
           success: false,
-          message: 'Course ID, Lesson ID, and Comment ID are required'
+          message: 'ID khóa học, ID bài giảng, và ID bình luận là bắt buộc'
         });
         return;
       }
       await this.service.deleteComment(courseId, lessonId, commentId);
       res.status(200).json({
         success: true,
-        message: 'Delete comment successfully'
+        message: 'Xóa bình luận thành công'
       });
     } catch (error) {
       if (error instanceof Error && error.message === 'Course not found') {
         res.status(404).json({
           success: false,
-          message: 'Course not found'
+          message: 'Khóa học không tồn tại'
         });
         return;
       }
       if (error instanceof Error && error.message === 'Lesson not found') {
         res.status(404).json({
           success: false,
-          message: 'Lesson not found'
+          message: 'Bài giảng không tồn tại'
         });
         return;
       }
       if (error instanceof Error && error.message === 'Comment not found') {
         res.status(404).json({
           success: false,
-          message: 'Comment not found'
+          message: 'Bình luận không tồn tại'
         });
         return;
       }
       res.status(500).json({
         success: false,
-        message: 'Failed to delete comment',
+        message: 'Lỗi khi xóa bình luận',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -254,27 +254,27 @@ export class CourseManagementController {
       if (!id) {
         res.status(400).json({
           success: false,
-          message: 'Course ID is required'
+          message: 'ID khóa học là bắt buộc'
         });
         return;
       }
       const data = await this.service.getCourseRatings(id);
       res.status(200).json({
         success: true,
-        message: 'Get course ratings successfully',
+        message: 'Lấy đánh giá khóa học thành công',
         data
       });
     } catch (error) {
       if (error instanceof Error && error.message === 'Course not found') {
         res.status(404).json({
           success: false,
-          message: 'Course not found'
+          message: 'Khóa học không tồn tại'
         });
         return;
       }
       res.status(500).json({
         success: false,
-        message: 'Failed to get course ratings',
+        message: 'Lỗi khi lấy đánh giá khóa học',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -286,27 +286,27 @@ export class CourseManagementController {
       if (!id) {
         res.status(400).json({
           success: false,
-          message: 'Course ID is required'
+          message: 'ID khóa học là bắt buộc'
         });
         return;
       }
       const course = await this.service.updateCourse(id, req.body);
       res.status(200).json({
         success: true,
-        message: 'Course updated successfully',
+        message: 'Cập nhật khóa học thành công',
         data: course
       });
     } catch (error) {
       if (error instanceof Error && error.message === 'Course not found') {
         res.status(404).json({
           success: false,
-          message: 'Course not found'
+          message: 'Khóa học không tồn tại'
         });
         return;
       }
       res.status(500).json({
         success: false,
-        message: 'Failed to update course',
+        message: 'Lỗi khi cập nhật khóa học',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -318,26 +318,26 @@ export class CourseManagementController {
       if (!id) {
         res.status(400).json({
           success: false,
-          message: 'Course ID is required'
+          message: 'ID khóa học là bắt buộc'
         });
         return;
       }
       await this.service.deleteCourse(id);
       res.status(200).json({
         success: true,
-        message: 'Course deleted successfully'
+        message: 'Xóa khóa học thành công'
       });
     } catch (error) {
       if (error instanceof Error && error.message === 'Course not found') {
         res.status(404).json({
           success: false,
-          message: 'Course not found'
+          message: 'Khóa học không tồn tại'
         });
         return;
       }
       res.status(500).json({
         success: false,
-        message: 'Failed to delete course',
+        message: 'Lỗi khi xóa khóa học',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -350,7 +350,7 @@ export class CourseManagementController {
       if (!courseId || !lessonId) {
         res.status(400).json({
           success: false,
-          message: 'Course ID and Lesson ID are required'
+          message: 'ID khóa học và ID bài giảng là bắt buộc'
         });
         return;
       }
@@ -358,7 +358,7 @@ export class CourseManagementController {
       if (!req.file) {
         res.status(400).json({
           success: false,
-          message: 'Video file is required'
+          message: 'File video là bắt buộc'
         });
         return;
       }
@@ -370,27 +370,27 @@ export class CourseManagementController {
 
       res.status(200).json({
         success: true,
-        message: 'Upload lesson video successfully',
+        message: 'Upload video bài giảng thành công',
         data
       });
     } catch (error) {
       if (error instanceof Error && error.message === 'Course not found') {
         res.status(404).json({
           success: false,
-          message: 'Course not found'
+          message: 'Khóa học không tồn tại'
         });
         return;
       }
       if (error instanceof Error && error.message === 'Lesson not found') {
         res.status(404).json({
           success: false,
-          message: 'Lesson not found'
+          message: 'Bài giảng không tồn tại'
         });
         return;
       }
       res.status(500).json({
         success: false,
-        message: 'Failed to upload video',
+        message: 'Lỗi khi upload video bài giảng',
         error: error instanceof Error ? error.message : String(error)
       });
     }

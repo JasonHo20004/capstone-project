@@ -25,13 +25,13 @@ export class TransactionManagementController {
 
       res.status(200).json({
         success: true,
-        message: 'Get transactions successfully',
+        message: 'Lấy danh sách giao dịch thành công',
         data
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to get transactions',
+        message: 'Lỗi khi lấy danh sách giao dịch',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -45,7 +45,7 @@ export class TransactionManagementController {
       if (!id) {
         res.status(400).json({
           success: false,
-          message: 'Transaction ID is required'
+          message: 'ID giao dịch là bắt buộc'
         });
         return;
       }
@@ -54,21 +54,21 @@ export class TransactionManagementController {
 
       res.status(200).json({
         success: true,
-        message: 'Get transaction details successfully',
+        message: 'Lấy chi tiết giao dịch thành công',
         data
       });
     } catch (error) {
       if (error instanceof Error && error.message === 'Transaction not found') {
         res.status(404).json({
           success: false,
-          message: 'Transaction not found'
+          message: 'Giao dịch không tồn tại'
         });
         return;
       }
 
       res.status(500).json({
         success: false,
-        message: 'Failed to get transaction details',
+        message: 'Lỗi khi lấy chi tiết giao dịch',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -87,13 +87,13 @@ export class TransactionManagementController {
 
       res.status(200).json({
         success: true,
-        message: 'Get transaction statistics successfully',
+        message: 'Lấy thống kê giao dịch thành công',
         data: stats
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to get transaction statistics',
+        message: 'Lỗi khi lấy thống kê giao dịch',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -133,14 +133,14 @@ export class TransactionManagementController {
         // Return JSON for Excel processing on frontend
         res.status(200).json({
           success: true,
-          message: 'Export data ready',
+          message: 'Dữ liệu sẵn sàng để xuất',
           data
         });
       }
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to export transactions',
+        message: 'Lỗi khi xuất giao dịch',
         error: error instanceof Error ? error.message : String(error)
       });
     }

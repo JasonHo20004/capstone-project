@@ -14,14 +14,13 @@ export class AdminController {
       
       res.status(200).json({
         success: true,
-        message: 'Approve successfully',
+        message: 'Chấp nhận thành công',
         data: upgradedCourseSeller,
       });
-
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to approve user',
+        message: 'Lỗi khi chấp nhận người dùng',
         error: error instanceof Error ? error.message : String(error)
       });
     }

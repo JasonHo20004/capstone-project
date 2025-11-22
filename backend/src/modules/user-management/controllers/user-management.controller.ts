@@ -7,36 +7,36 @@ export class UserManagementController {
   public getAllUsers = async (_req: Request, res: Response): Promise<void> => {
     try {
       const users = await this.service.getAllUsers();
-      res.status(200).json({ success: true, message: 'Get all user profiles successfully', data: users, count: users.length });
+      res.status(200).json({ success: true, message: 'Lấy tất cả hồ sơ người dùng thành công', data: users, count: users.length });
     } catch (error) {
-      res.status(500).json({ success: false, message: 'Failed to get user profiles', error: error instanceof Error ? error.message : String(error) });
+      res.status(500).json({ success: false, message: 'Lỗi khi lấy tất cả hồ sơ người dùng', error: error instanceof Error ? error.message : String(error) });
     }
   };
 
   public createUser = async (req: Request, res: Response): Promise<void> => {
     try {
       const user = await this.service.createUser(req.body);
-      res.status(201).json({ success: true, message: 'User created successfully', data: user });
+      res.status(201).json({ success: true, message: 'Tạo hồ sơ người dùng thành công', data: user });
     } catch (error) {
-      res.status(500).json({ success: false, message: 'Failed to create user', error: error instanceof Error ? error.message : String(error) });
+      res.status(500).json({ success: false, message: 'Lỗi khi tạo hồ sơ người dùng', error: error instanceof Error ? error.message : String(error) });
     }
   };
 
   public updateUser = async (req: Request, res: Response): Promise<void> => {
     try {
       const user = await this.service.updateUser(req.params.id, req.body);
-      res.status(200).json({ success: true, message: 'User updated successfully', data: user });
+      res.status(200).json({ success: true, message: 'Cập nhật hồ sơ người dùng thành công', data: user });
     } catch (error) {
-      res.status(500).json({ success: false, message: 'Failed to update user', error: error instanceof Error ? error.message : String(error) });
+      res.status(500).json({ success: false, message: 'Lỗi khi cập nhật hồ sơ người dùng', error: error instanceof Error ? error.message : String(error) });
     }
   };
 
   public deleteUser = async (req: Request, res: Response): Promise<void> => {
     try {
       const result = await this.service.deleteUser(req.params.id);
-      res.status(200).json({ success: true, message: 'User deleted successfully', data: result });
+      res.status(200).json({ success: true, message: 'Xóa hồ sơ người dùng thành công', data: result });
     } catch (error) {
-      res.status(500).json({ success: false, message: 'Failed to delete user', error: error instanceof Error ? error.message : String(error) });
+      res.status(500).json({ success: false, message: 'Lỗi khi xóa hồ sơ người dùng', error: error instanceof Error ? error.message : String(error) });
     }
   };
 
