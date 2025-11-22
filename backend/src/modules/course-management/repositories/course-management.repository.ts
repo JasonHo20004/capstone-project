@@ -72,6 +72,13 @@ export class CourseManagementRepository {
             lessonOrder: true,
             materials: true,
             commentCount: true,
+            mediaAssets: {
+              select: {
+                id: true,
+                assetType: true,
+                assetUrl: true,
+              },
+            },
           },
           orderBy: { lessonOrder: "asc" },
         },
@@ -118,6 +125,13 @@ export class CourseManagementRepository {
             lessonOrder: true,
             materials: true,
             commentCount: true,
+            mediaAssets: {
+              select: {
+                id: true,
+                assetType: true,
+                assetUrl: true,
+              },
+            },
           },
           orderBy: { lessonOrder: "asc" },
         },
@@ -162,6 +176,13 @@ export class CourseManagementRepository {
         materials: true,
         commentCount: true,
         courseId: true,
+        mediaAssets: {
+          select: {
+            id: true,
+            assetType: true,
+            assetUrl: true,
+          },
+        },
         comments: {
           select: {
             id: true,
@@ -223,6 +244,29 @@ export class CourseManagementRepository {
   public async deleteCourse(id: string) {
     return this.prisma.course.delete({
       where: { id },
+    });
+  }
+
+  public async createMediaAsset(data: {
+    assetType: string;
+    assetUrl: string;
+    lessonId: string;
+  }) {
+    return this.prisma.mediaAsset.create({
+      data: {
+        assetType: data.assetType as any,
+        assetUrl: data.assetUrl,
+        lessonId: data.lessonId
+      }
+    });
+  }
+
+  public async deleteMediaAssetsByLessonId(lessonId: string, assetType?: string) {
+    return this.prisma.mediaAsset.deleteMany({
+      where: {
+        lessonId: lessonId,
+        ...(assetType && { assetType: assetType as any })
+      }
     });
   }
 }

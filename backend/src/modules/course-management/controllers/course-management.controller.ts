@@ -342,4 +342,57 @@ export class CourseManagementController {
       });
     }
   };
+
+  public uploadLessonVideo = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { courseId, lessonId } = req.params;
+
+      if (!courseId || !lessonId) {
+        res.status(400).json({
+          success: false,
+          message: 'Course ID and Lesson ID are required'
+        });
+        return;
+      }
+
+      if (!req.file) {
+        res.status(400).json({
+          success: false,
+          message: 'Video file is required'
+        });
+        return;
+      }
+
+      // Get the S3 URL from multer-s3
+      const videoUrl = (req.file as any).location;
+
+      const data = await this.service.uploadLessonVideo(courseId, lessonId, videoUrl);
+
+      res.status(200).json({
+        success: true,
+        message: 'Upload lesson video successfully',
+        data
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Course not found') {
+        res.status(404).json({
+          success: false,
+          message: 'Course not found'
+        });
+        return;
+      }
+      if (error instanceof Error && error.message === 'Lesson not found') {
+        res.status(404).json({
+          success: false,
+          message: 'Lesson not found'
+        });
+        return;
+      }
+      res.status(500).json({
+        success: false,
+        message: 'Failed to upload video',
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  };
 }
