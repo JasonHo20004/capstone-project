@@ -8,6 +8,27 @@ import type {
 
 export class TagController {
   private tagService = new TagService();
+public getAllTags = async (
+    _req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+     
+      const tags = await this.tagService.getAllTags();
+
+      res.status(200).json({
+        success: true,
+        message: "Get All Tag successfully",
+        data: tags,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to Get All tag",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
 
   public createTag = async (
     req: Request<{}, {}, CreateTagInput["body"]>,

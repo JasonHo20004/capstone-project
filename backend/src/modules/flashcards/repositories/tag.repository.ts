@@ -4,6 +4,9 @@ import type { CreateTagInput } from "@/modules/flashcards/dtos/tag.dto";
 export class TagRepository {
   private prisma = databaseService.getClient();
 
+    public async getAllTags(): Promise<Tag[]> {
+    return this.prisma.tag.findMany()
+  }
   public async createTag(tagData: CreateTagInput["body"]): Promise<Tag> {
     return this.prisma.tag.create({
       data: tagData,
