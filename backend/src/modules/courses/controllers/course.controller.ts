@@ -230,8 +230,10 @@ export class CourseController {
       res.status(200).json({
         success: true,
         message: 'Courses retrieved successfully',
-        data: filteredCourses,
-        count: filteredCourses.length,
+        data: {
+          data: filteredCourses,
+          count: filteredCourses.length,
+        },
       });
     } catch (error) {
       next(error);
@@ -264,8 +266,10 @@ export class CourseController {
       res.status(200).json({
         success: true,
         message: 'Courses retrieved successfully',
-        data: filteredCourses,
-        count: filteredCourses.length,
+        data: {
+          data: filteredCourses,
+          count: filteredCourses.length,
+        },
       });
     } catch (error) {
       next(error);
