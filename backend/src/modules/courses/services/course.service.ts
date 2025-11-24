@@ -79,6 +79,8 @@ export class CourseService {
     status?: CourseStatus;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
+    userId?: string;
+    enrollmentStatus?:string;
   }): Promise<{ courses: Course[]; total: number }> {
     return this.courseRepository.findAllWithPagination(params);
   }

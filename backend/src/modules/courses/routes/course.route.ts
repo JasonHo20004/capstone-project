@@ -17,7 +17,7 @@ import { sendCourseUpdateNotificationDTO } from '@/modules/notifications/dtos/no
 import { getCourseRatingsDTO } from '@/modules/courses/dtos/rating.dto';
 import { UserRole } from '@/../generated/prisma';
 import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
-
+import {optionalAuthMiddleware} from '@/middlewares/optionalAuth.middleware'
 const router = Router();
 const courseController = new CourseController();
 const analyticsController = new AnalyticsController();
@@ -25,7 +25,7 @@ const notificationController = new NotificationController();
 const ratingController = new RatingController();
 
 // Public route - Get all courses with pagination and filters
-router.get('/', validate(getCoursesDTO), courseController.getCourses);
+router.get('/', optionalAuthMiddleware,validate(getCoursesDTO), courseController.getCourses);
 
 // Protected routes - require authentication and role
 router.use(authMiddleware);
