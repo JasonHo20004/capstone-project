@@ -1,5 +1,5 @@
-import { databaseService } from '@/services/database.service';
-import type { Course, CourseStatus, CourseLevel } from '@/../generated/prisma';
+import { databaseService } from "@/services/database.service";
+import type { Course, CourseStatus, CourseLevel } from "@/../generated/prisma";
 
 export class CourseRepository {
   private prisma = databaseService.getClient();
@@ -16,12 +16,14 @@ export class CourseRepository {
       title: data.title,
       price: data.price,
       courseSellerId: data.courseSellerId,
-      status: 'DRAFT' as CourseStatus,
+      status: "DRAFT" as CourseStatus,
     };
-    
-    if (data.description !== undefined) createData.description = data.description;
+
+    if (data.description !== undefined)
+      createData.description = data.description;
     if (data.category !== undefined) createData.category = data.category;
-    if (data.courseLevel !== undefined) createData.courseLevel = data.courseLevel as CourseLevel;
+    if (data.courseLevel !== undefined)
+      createData.courseLevel = data.courseLevel as CourseLevel;
 
     return this.prisma.course.create({ data: createData });
   }
@@ -44,7 +46,7 @@ export class CourseRepository {
       page?: number;
       limit?: number;
       sortBy?: string;
-      sortOrder?: 'asc' | 'desc';
+      sortOrder?: "asc" | "desc";
     }
   ): Promise<Course[]> {
     const where: any = { courseSellerId: sellerId };
@@ -57,7 +59,7 @@ export class CourseRepository {
       include: {
         lessons: {
           orderBy: {
-            lessonOrder: 'asc',
+            lessonOrder: "asc",
           },
         },
         test: true,
@@ -79,11 +81,19 @@ export class CourseRepository {
     // Add sorting
     const orderBy: any = {};
     if (options?.sortBy) {
-      const validSortFields = ['createdAt', 'price', 'ratingCount', 'averageRating', 'title'];
-      const sortField = validSortFields.includes(options.sortBy) ? options.sortBy : 'createdAt';
-      orderBy[sortField] = options.sortOrder || 'desc';
+      const validSortFields = [
+        "createdAt",
+        "price",
+        "ratingCount",
+        "averageRating",
+        "title",
+      ];
+      const sortField = validSortFields.includes(options.sortBy)
+        ? options.sortBy
+        : "createdAt";
+      orderBy[sortField] = options.sortOrder || "desc";
     } else {
-      orderBy.createdAt = 'desc';
+      orderBy.createdAt = "desc";
     }
     queryOptions.orderBy = orderBy;
 
@@ -102,11 +112,13 @@ export class CourseRepository {
   ): Promise<Course> {
     const updateData: any = {};
     if (data.title !== undefined) updateData.title = data.title;
-    if (data.description !== undefined) updateData.description = data.description;
+    if (data.description !== undefined)
+      updateData.description = data.description;
     if (data.price !== undefined) updateData.price = data.price;
     if (data.category !== undefined) updateData.category = data.category;
-    if (data.courseLevel !== undefined) updateData.courseLevel = data.courseLevel;
-    
+    if (data.courseLevel !== undefined)
+      updateData.courseLevel = data.courseLevel;
+
     return this.prisma.course.update({
       where: { id },
       data: updateData,
@@ -160,6 +172,8 @@ export class CourseRepository {
     maxPrice?: number;
     courseLevel?: CourseLevel;
     status?: CourseStatus;
+    userId?: string;
+    enrollmentStatus?: string;
   }): any {
     const where: any = {};
 
@@ -191,18 +205,40 @@ export class CourseRepository {
 
     if (params.search) {
       where.OR = [
-        { title: { contains: params.search, mode: 'insensitive' } },
-        { description: { contains: params.search, mode: 'insensitive' } },
+        { title: { contains: params.search, mode: "insensitive" } },
+        { description: { contains: params.search, mode: "insensitive" } },
       ];
     }
-
+    if (params.userId && params.enrollmentStatus) {
+      if (params.enrollmentStatus === "enrolled") {
+        // Lấy khóa học MÀ user CÓ trong bảng UserActivity
+        where.userActivities = {
+          some: { userId: params.userId },
+        };
+      } else if (params.enrollmentStatus === "not_enrolled") {
+        // Lấy khóa học MÀ user KHÔNG CÓ trong bảng UserActivity
+        where.userActivities = {
+          none: { userId: params.userId },
+        };
+      } 
+    }
     return where;
   }
 
-  private buildOrderBy(sortBy?: string, sortOrder: 'asc' | 'desc' = 'desc'): any {
+  private buildOrderBy(
+    sortBy?: string,
+    sortOrder: "asc" | "desc" = "desc"
+  ): any {
     const orderBy: any = {};
-    const validSortFields = ['createdAt', 'price', 'ratingCount', 'averageRating', 'title'];
-    const sortField = sortBy && validSortFields.includes(sortBy) ? sortBy : 'createdAt';
+    const validSortFields = [
+      "createdAt",
+      "price",
+      "ratingCount",
+      "averageRating",
+      "title",
+    ];
+    const sortField =
+      sortBy && validSortFields.includes(sortBy) ? sortBy : "createdAt";
     orderBy[sortField] = sortOrder;
     return orderBy;
   }
@@ -217,18 +253,15 @@ export class CourseRepository {
     courseLevel?: CourseLevel;
     status?: CourseStatus;
     sortBy?: string;
-    sortOrder?: 'asc' | 'desc';
+    sortOrder?: "asc" | "desc";
+    userId?: string;
+    enrollmentStatus?: string;
   }): Promise<{ courses: Course[]; total: number }> {
-    const {
-      page,
-      limit,
-      sortBy = 'createdAt',
-      sortOrder = 'desc',
-    } = params;
+    const { page, limit, sortBy = "createdAt", sortOrder = "desc" } = params;
 
     const where = this.buildWhereClause(params);
     const orderBy = this.buildOrderBy(sortBy, sortOrder);
-    
+
     // Chỉ áp dụng pagination nếu có page và limit
     const skip = page && limit ? (page - 1) * limit : undefined;
     const take = limit;
