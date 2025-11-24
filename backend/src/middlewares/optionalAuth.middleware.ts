@@ -1,11 +1,11 @@
-import type { Response, NextFunction, Request } from "express";
+import type { Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import type { UserRole } from "@/../generated/prisma"; // Import đúng từ prisma của bạn
 import type { AuthenticatedRequest } from "./auth.middleware"; 
 
 export const optionalAuthMiddleware = (
   req: AuthenticatedRequest,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): void => {
   const authHeader = req.headers["authorization"];
