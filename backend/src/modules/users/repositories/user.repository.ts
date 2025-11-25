@@ -7,8 +7,7 @@ import type {
 import type {
   SafeUser,
   CreateUserInput,
-  CreateCourseSellerApplicationInput,
-  UserProfileResponse
+  UserProfileResponse,
 } from "@/modules/users/dtos/user.dto";
 
 import type { PrismaTx } from "@/services/database.service";
@@ -22,8 +21,10 @@ export class UserRepository {
     });
   }
 
-  public async findUserProfileById(userId:string):Promise<UserProfileResponse|null>{
-const userProfile = await this.prisma.user.findUnique({
+  public async findUserProfileById(
+    userId: string
+  ): Promise<UserProfileResponse | null> {
+    const userProfile = await this.prisma.user.findUnique({
       where: {
         id: userId,
       },
@@ -73,9 +74,8 @@ const userProfile = await this.prisma.user.findUnique({
       // @ts-ignore
       userProfile.wallet.allowance = Number(userProfile.wallet.allowance);
     }
-    
+
     return userProfile as UserProfileResponse | null;
-  
   }
   public async findCourseSellerById(id: string): Promise<SafeUser | null> {
     return this.prisma.user.findUnique({
@@ -97,7 +97,7 @@ const userProfile = await this.prisma.user.findUnique({
   }
   public async createCourseSellerApplication(
     idUser: string,
-    userData: CreateCourseSellerApplicationInput["body"]
+    userData: { certification: string[]; expertise: string[] }
   ): Promise<CourseSellerApplication> {
     const applicationDataToCreate = {
       userId: idUser,
@@ -125,10 +125,9 @@ const userProfile = await this.prisma.user.findUnique({
   // Transation
   public async findUserById_InTx(
     id: string,
-    tx: PrismaTx 
+    tx: PrismaTx
   ): Promise<User | null> {
-    return tx.user.findUnique({ where: { id } }); 
-    
+    return tx.user.findUnique({ where: { id } });
   }
   public async updateUser(userId: string, data: any): Promise<SafeUser> {
     return this.prisma.user.update({

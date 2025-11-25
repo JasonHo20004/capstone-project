@@ -3,7 +3,6 @@ import bcrypt from "bcrypt";
 import type {
   SafeUser,
   CreateUserInput,
-  CreateCourseSellerApplicationInput,
   UserProfileResponse,
 } from "@/modules/users/dtos/user.dto";
 import { CartRepository } from "@/modules/cart/repositories/cart.repository";
@@ -88,7 +87,7 @@ export class UserService {
 
   public async createCourseSellerApplication(
     userId: string,
-    updateData: CreateCourseSellerApplicationInput["body"]
+    updateData: { certification: string[]; expertise: string[] }
   ): Promise<CourseSellerApplication | null> {
     const existingCourseSeller = await this.userRepository.findCourseSellerById(
       userId
