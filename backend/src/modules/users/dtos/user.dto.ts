@@ -55,8 +55,15 @@ export const updateUserDTO = z.object({
 
 export const createCourseSellerApplicationDTO = z.object({
   body: z.object({
-    certification: z.array(z.string()),
-    expertise: z.array(z.string()),
+   expertise: z.preprocess(
+      (val) => {
+        if (val === undefined) return []; // Nếu không có gì -> mảng rỗng
+        if (Array.isArray(val)) return val; // Nếu đã là mảng -> giữ nguyên
+        return [val]; // Nếu là string (1 item) -> bọc vào mảng
+      },
+      z.array(z.string().min(1, "Expertise is not empty"))
+        .min(1, "Need at least one expertise")
+    ),
   }),
 });
 
