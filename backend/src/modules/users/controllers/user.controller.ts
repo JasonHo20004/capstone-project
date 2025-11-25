@@ -19,7 +19,7 @@ export class UserController {
     try {
       const userId = req.user!.userId;
       const userData = await this.userService.getUserInformation(userId);
-       res.status(200).json({
+      res.status(200).json({
         success: true,
         message: "Get user Information successfully",
         data: userData,
@@ -59,10 +59,23 @@ export class UserController {
   ): Promise<void> => {
     try {
       const userId = req.user!.userId;
-      const {fullName,phoneNumber, dateOfBirth,englishLevel, learningGoals} = req.body;
+      const {
+        fullName,
+        phoneNumber,
+        dateOfBirth,
+        englishLevel,
+        learningGoals,
+      } = req.body;
       const file = (req as any).file;
       const profilePicture = file?.location || file?.key;
-      const updatedUser = await this.userService.updateUser(userId, {fullName,phoneNumber, dateOfBirth,englishLevel, learningGoals,profilePicture});
+      const updatedUser = await this.userService.updateUser(userId, {
+        fullName,
+        phoneNumber,
+        dateOfBirth,
+        englishLevel,
+        learningGoals,
+        profilePicture,
+      });
 
       res.status(200).json({
         success: true,
@@ -83,36 +96,68 @@ export class UserController {
     }
   };
 
-  public createCourseSellerAppolication = async (
-    req: AuthenticatedRequest & {
-      body: CreateCourseSellerApplicationInput["body"];
-    },
-    res: Response
-  ): Promise<void> => {
-    try {
-      const userId = req.user!.userId;
-      const updateData = req.body;
+  public createCourseSellerApplication = async (
+  req: AuthenticatedRequest & {
+    body: CreateCourseSellerApplicationInput["body"];
+  },
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user!.userId;
+    const { expertise } = req.body; // Giả sử expertise là string[] hoặc string
 
-      const updatedUser = await this.userService.createCourseSellerApplication(
-        userId,
-        updateData
-      );
+    // 1. Validate: Kiểm tra xem có file nào được upload không
+    // Ép kiểu req.files về đúng dạng của Multer S3 để TypeScript không báo lỗi
+    const files = req.files as Express.MulterS3.File[] | undefined;
 
-      res.status(200).json({
-        success: true,
-        message: "Create CourseSeller profile successfully",
-        data: updatedUser,
+    if (!files || files.length === 0) {
+      // Return ngay lập tức nếu thiếu ảnh chứng chỉ (Validation)
+      res.status(400).json({ 
+        success: false, 
+        message: "Certification images are required." 
       });
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("not found")) {
-        res.status(404).json({ success: false, message: error.message });
-        return;
-      }
-      res.status(500).json({
-        success: false,
-        message: "Failed to Create CourseSeller profile",
-        error: error instanceof Error ? error.message : String(error),
-      });
+      return; 
     }
-  };
+
+    // 2. Transform Data: Chỉ lấy ra đường dẫn URL từ S3 để lưu vào DB
+    // files là mảng object -> map ra mảng string (url)
+    const certificationUrls = files.map((file) => file.location);
+
+    // Chuẩn bị dữ liệu update
+    const updateData = {
+      certification: certificationUrls, // Mảng các đường link ảnh
+      expertise: expertise,
+    };
+
+    // 3. Call Service
+    const updatedUser = await this.userService.createCourseSellerApplication(
+      userId,
+      updateData
+    );
+
+    // 4. Response Success
+    res.status(200).json({
+      success: true,
+      message: "Create Course Seller profile successfully",
+      data: updatedUser,
+    });
+
+  } catch (error) {
+    // 5. Error Handling tập trung
+    if (error instanceof Error) {
+        // Xử lý các lỗi business logic cụ thể nếu cần
+        if (error.message.includes("not found")) {
+            res.status(404).json({ success: false, message: error.message });
+            return;
+        }
+    }
+
+    console.error("Error creating seller application:", error); // Log lỗi để debug
+    res.status(500).json({
+      success: false,
+      message: "Failed to Create Course Seller profile",
+      error: error instanceof Error ? error.message : "Internal Server Error",
+    });
+  }
+};
 }

@@ -91,18 +91,37 @@ const uploadImageConfig = multer({
 // Export middleware upload image
 // Lưu ý: 'image' là tên field trong FormData từ Frontend gửi lên
 export const uploadImage = uploadImageConfig.single('image');
+export const uploadImages = uploadImageConfig.array('images', 20);
 // Error handling middleware for upload errors
-export const handleUploadError = (err: Error, _req: any, res: any, next: any) => {
+export const handleUploadError = (err: Error, req: any, res: any, next: any) => {
   if (err instanceof multer.MulterError) {
+    // Xử lý lỗi quá dung lượng file
     if (err.code === 'LIMIT_FILE_SIZE') {
+      // Kiểm tra xem request này là upload video hay ảnh để báo lỗi chính xác
+      // (Đây là một mẹo nhỏ kiểm tra fieldname để đoán context)
+      const message = req.is('multipart/form-data') && req.url.includes('image') 
+        ? 'File too large. Maximum size for images is 5MB.'
+        : 'File too large. Maximum limit exceeded.';
+        
+      return res.status(400).json({ message });
+    }
+    
+    // Xử lý lỗi quá số lượng file cho phép (khi dùng .array)
+    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
       return res.status(400).json({
-        message: 'File too large. Maximum size is 100MB.',
+        message: 'Too many files or invalid field name.',
       });
     }
+
     return res.status(400).json({
       message: err.message,
     });
   }
-  next(err);
+  
+  // Lỗi từ fileFilter (sai định dạng)
+  if (err) {
+      return res.status(400).json({ message: err.message });
+  }
+  
+  next();
 };
-

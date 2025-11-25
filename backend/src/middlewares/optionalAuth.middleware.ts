@@ -33,8 +33,7 @@ export const optionalAuthMiddleware = (
     } else {
       // ✅ Token đúng -> Gán user
       req.user = decoded as { userId: string; role: UserRole };
-      console.log("✅ Optional Auth Success UserID:", req.user.userId); // Log để kiểm tra
-      console.log("HIiiiiiiiiiiiiii")
+
       return next();
     }
   });
