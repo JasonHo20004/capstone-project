@@ -35,6 +35,17 @@ export class CourseRepository {
         lessons: true,
         ratings: true,
         test: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            profilePicture: true,
+            phoneNumber: true,
+            englishLevel: true,
+            learningGoals: true,
+          },
+        },
       },
     });
   }
@@ -276,6 +287,9 @@ export class CourseRepository {
             fullName: true,
             email: true,
             profilePicture: true,
+            phoneNumber: true,
+            englishLevel: true,
+            learningGoals: true,
           },
         },
         _count: {

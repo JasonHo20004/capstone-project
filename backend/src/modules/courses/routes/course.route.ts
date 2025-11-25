@@ -24,21 +24,21 @@ const analyticsController = new AnalyticsController();
 const notificationController = new NotificationController();
 const ratingController = new RatingController();
 
-// Public route - Get all courses with pagination and filters
-router.get('/', optionalAuthMiddleware,validate(getCoursesDTO), courseController.getCourses);
+// Public/optional-auth routes
+router.get('/', optionalAuthMiddleware, validate(getCoursesDTO), courseController.getCourses);
+router.get('/:courseId', optionalAuthMiddleware, validate(getCourseByIdDTO), courseController.getCourseById);
 
-// Protected routes - require authentication and role
+// Protected routes - require authentication and role (seller/admin)
 router.use(authMiddleware);
 router.use(checkRole([UserRole.COURSESELLER, UserRole.ADMINISTRATOR]));
 
-// Course routes
+// Course management routes (seller/admin only)
 router.post('/', validate(createCourseDTO), courseController.createCourse);
 router.get('/seller/me', courseController.getMyCourses);
 router.get('/seller/:sellerId', validate(getCoursesBySellerDTO), courseController.getCoursesBySeller);
 router.get('/:courseId/analytics/completion', validate(getCompletionAnalyticsDTO), analyticsController.getCompletionRate);
 router.post('/:courseId/notifications', validate(sendCourseUpdateNotificationDTO), notificationController.sendCourseUpdateNotification);
 router.get('/:courseId/ratings', validate(getCourseRatingsDTO), ratingController.getCourseRatings);
-router.get('/:courseId', validate(getCourseByIdDTO), courseController.getCourseById);
 router.put('/:courseId', validate(updateCourseDTO), courseController.updateCourse);
 router.put('/:courseId/publish', validate(publishCourseDTO), courseController.publishCourse);
 
