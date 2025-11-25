@@ -226,28 +226,11 @@ export class SellerRepository {
   async getMonthlyFees(sellerId: string, page: number = 1, limit: number = 50) {
     const skip = (page - 1) * limit;
 
-    const subscriptionContract = await this.prisma.subscriptionContract.findFirst({
-      where: {
-        courseSellerId: sellerId
-      },
-      select: {
-        id: true
-      }
-    });
-
-    if (!subscriptionContract) {
-      return {
-        data: [],
-        total: 0,
-        page,
-        limit,
-        totalPages: 0
-      };
-    }
-
     const where = {
       transactionType: TransactionType.MONTHLYFEE,
-      subscriptionContractId: subscriptionContract.id
+      subscriptionContract: {
+        courseSellerId: sellerId,
+      },
     };
 
     const [transactions, total] = await Promise.all([

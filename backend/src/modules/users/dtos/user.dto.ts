@@ -72,6 +72,7 @@ export type SafeUser = Omit<User, "password">;
 // Response
 
 export const includedWalletDTO = z.object({
+  id: z.string(),
   allowance: z.number(),
 });
 export const includedCourseSellerApplicationDTO = z.object({
@@ -83,10 +84,10 @@ export const includedCourseSellerApplicationDTO = z.object({
   expertise:z.array(z.string()),
 })
 export const includedCourseSellerProfileDTO = z.object({
-  certification:z.array(z.string()),
-  expertise:z.array(z.string())
-}
-)
+  certification: z.array(z.string()),
+  expertise: z.array(z.string()),
+  isActive: z.boolean(),
+});
 export const userProfileResponseDTO = z.object({
   id: z.uuid(),
   email: z.string(),

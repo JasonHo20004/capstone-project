@@ -41,6 +41,7 @@ const userProfile = await this.prisma.user.findUnique({
         // Lấy thông tin ví
         wallet: {
           select: {
+            id: true,
             allowance: true,
           },
         },
@@ -49,6 +50,7 @@ const userProfile = await this.prisma.user.findUnique({
           select: {
             certification: true,
             expertise: true,
+            isActive: true,
           },
         },
         // Lấy đơn đăng ký giảng viên (nếu có)

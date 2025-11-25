@@ -1,5 +1,6 @@
 import { CourseRepository } from '@/modules/courses/repositories/course.repository';
 import type { Course, CourseLevel, CourseStatus } from '@/../generated/prisma';
+import { calculateAverageRating } from '@/utils/admin';
 
 export class CourseService {
   private courseRepository = new CourseRepository();
@@ -61,11 +62,46 @@ export class CourseService {
   }
 
   async getCourseById(courseId: string): Promise<Course | null> {
-    return this.courseRepository.findById(courseId);
+    const course: any = await this.courseRepository.findById(courseId);
+    if (!course) return null;
+
+    const ratings = (course.ratings ?? []) as { score: number }[];
+    const averageRating = calculateAverageRating(ratings);
+    const ratingCount =
+      typeof course.ratingCount === 'number'
+        ? course.ratingCount
+        : Array.isArray(ratings)
+        ? ratings.length
+        : 0;
+
+    return {
+      ...course,
+      averageRating,
+      ratingCount,
+    } as Course;
   }
 
   async getCoursesBySeller(sellerId: string): Promise<Course[]> {
-    return this.courseRepository.findByCourseSellerId(sellerId);
+    const courses: any[] = await this.courseRepository.findByCourseSellerId(
+      sellerId,
+    );
+
+    return courses.map((course) => {
+      const ratings = (course.ratings ?? []) as { score: number }[];
+      const averageRating = calculateAverageRating(ratings);
+      const ratingCount =
+        typeof course.ratingCount === 'number'
+          ? course.ratingCount
+          : Array.isArray(ratings)
+          ? ratings.length
+          : 0;
+
+      return {
+        ...course,
+        averageRating,
+        ratingCount,
+      } as Course;
+    });
   }
 
   async getCourses(params: {
