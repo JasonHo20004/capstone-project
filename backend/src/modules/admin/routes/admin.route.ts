@@ -9,6 +9,8 @@ import contractsManagementRoute from '../../contract-management/routes/contract-
 import usersManagementRoute from '../../user-management-by-admin/routes/user-management.route';
 import coursesManagementRoute from '../../course-management-by-admin/routes/course-management.route';
 import transactionManagementRoute from '../../transaction-management-by-admin/routes/transaction-management.route';
+import applicationsManagementRoute from '../../application-management-by-admin/routes/application-management.route';
+
 import dashboardRoute from './dashboard.route';
 
 const router = Router();
@@ -30,5 +32,7 @@ router.use('/revenue', revenueRoute);
 router.use('/courses', coursesManagementRoute);
 
 router.use('/transactions', transactionManagementRoute);
+
+router.use('/applications', applicationsManagementRoute);
 
 export default router;
