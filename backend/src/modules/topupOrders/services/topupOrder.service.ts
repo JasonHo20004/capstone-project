@@ -27,7 +27,7 @@ export class TopupOrderService {
     return this.topupOrderRepository.createOrder({
       userId: userId,
       realMoney: realMoney,
-      realAmount: realMoney / 1000, // 1:1000
+      realAmount: realMoney, // 1:1000
       paymentMethod: "MOMO",
       status: "PENDING",
       currency: "VND",
