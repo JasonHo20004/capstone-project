@@ -5,7 +5,7 @@ import type { PasswordValidationResult } from '../types/user.types';
 // Password Utilities
 // =============================================================================
 
-const SALT_ROUNDS = 12;
+const SALT_ROUNDS = 10;
 
 /**
  * Password strength regex patterns

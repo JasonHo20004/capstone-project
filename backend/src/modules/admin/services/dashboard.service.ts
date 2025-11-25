@@ -1,18 +1,21 @@
-import { DashboardRepository } from '@/modules/admin/repositories/dashboard.repository';
+import { DashboardRepository } from "@/modules/admin/repositories/dashboard.repository";
 
 export class DashboardService {
   private dashboardRepository = new DashboardRepository();
 
-  // Calculate percentage change
-  private calculateGrowth(current: number | bigint, previous: number | bigint): number {
+  private calculateGrowth(
+    current: number | bigint,
+    previous: number | bigint
+  ): number {
     const currentNum = Number(current);
     const previousNum = Number(previous);
 
     if (previousNum === 0) return currentNum > 0 ? 100 : 0;
-    return Number((((currentNum - previousNum) / previousNum) * 100).toFixed(1));
+    return Number(
+      (((currentNum - previousNum) / previousNum) * 100).toFixed(1)
+    );
   }
 
-  // Get dashboard stats
   async getDashboardStats() {
     const [
       totalUsers,
@@ -24,7 +27,7 @@ export class DashboardService {
       coursesLastMonth,
       coursesPreviousMonth,
       revenueLastMonth,
-      revenuePreviousMonth
+      revenuePreviousMonth,
     ] = await Promise.all([
       this.dashboardRepository.getTotalUsers(),
       this.dashboardRepository.getTotalCourses(),
@@ -35,7 +38,7 @@ export class DashboardService {
       this.dashboardRepository.getCoursesLastMonth(),
       this.dashboardRepository.getCoursesPreviousMonth(),
       this.dashboardRepository.getRevenueLastMonth(),
-      this.dashboardRepository.getRevenuePreviousMonth()
+      this.dashboardRepository.getRevenuePreviousMonth(),
     ]);
 
     return {
@@ -46,44 +49,44 @@ export class DashboardService {
       monthlyGrowth: {
         users: this.calculateGrowth(usersLastMonth, usersPreviousMonth),
         courses: this.calculateGrowth(coursesLastMonth, coursesPreviousMonth),
-        revenue: this.calculateGrowth(revenueLastMonth, revenuePreviousMonth)
-      }
+        revenue: this.calculateGrowth(
+          Number(revenueLastMonth),
+          Number(revenuePreviousMonth)
+        ),
+      },
     };
   }
 
-  // Get revenue data
   async getRevenueData(months: number = 6) {
     const data = await this.dashboardRepository.getRevenueByMonth(months);
-    return data.map(d => ({
+    return data.map((d) => ({
       month: d.month,
-      revenue: Number(d.revenue)
+      revenue: Number(d.revenue),
     }));
   }
 
-  // Get user growth data
   async getUserGrowthData(months: number = 6) {
     return this.dashboardRepository.getUserGrowthByMonth(months);
   }
 
-  // Get course status data
   async getCourseStatusData() {
     return this.dashboardRepository.getCourseStatusDistribution();
   }
 
-  // Get complete dashboard data
   async getDashboardData() {
-    const [stats, revenueData, userGrowthData, courseStatusData] = await Promise.all([
-      this.getDashboardStats(),
-      this.getRevenueData(6),
-      this.getUserGrowthData(6),
-      this.getCourseStatusData()
-    ]);
+    const [stats, revenueData, userGrowthData, courseStatusData] =
+      await Promise.all([
+        this.getDashboardStats(),
+        this.getRevenueData(6),
+        this.getUserGrowthData(6),
+        this.getCourseStatusData(),
+      ]);
 
     return {
       stats,
       revenueData,
       userGrowthData,
-      courseStatusData
+      courseStatusData,
     };
   }
 }

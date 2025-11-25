@@ -4,19 +4,16 @@ import { DashboardController } from '@/modules/admin/controllers/dashboard.contr
 const router = Router();
 const dashboardController = new DashboardController();
 
-// Get dashboard stats only
-router.get('/stats', dashboardController.getDashboardStats);
 
-// Get complete dashboard data
+
 router.get('/', dashboardController.getDashboardData);
 
-// Get revenue data
-router.get('/revenue', dashboardController.getRevenueData);
+// router.get('/stats', dashboardController.getDashboardStats);
 
-// Get user growth data
-router.get('/user-growth', dashboardController.getUserGrowthData);
+// router.get('/revenue', dashboardController.getRevenueData);
 
-// Get course status data
-router.get('/course-status', dashboardController.getCourseStatusData);
+// router.get('/user-growth', dashboardController.getUserGrowthData);
+
+// router.get('/course-status', dashboardController.getCourseStatusData);
 
 export default router;
