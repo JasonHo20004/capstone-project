@@ -116,8 +116,25 @@ export class CourseManagementService {
       throw new Error('Lesson not found');
     }
 
+    // Separate mediaAssets from other data
+    const { mediaAssets, ...lessonData } = data;
+
+    // Build update data
+    const updateData: any = { ...lessonData };
+
+    // Handle mediaAssets if provided
+    if (mediaAssets && Array.isArray(mediaAssets)) {
+      updateData.mediaAssets = {
+        deleteMany: {}, // Delete all existing mediaAssets
+        create: mediaAssets.map((asset: any) => ({
+          assetType: asset.assetType,
+          assetUrl: asset.assetUrl
+        }))
+      };
+    }
+
     // Update the lesson
-    const updatedLesson = await this.courseRepository.updateLesson(lessonId, data);
+    const updatedLesson = await this.courseRepository.updateLesson(lessonId, updateData);
     return updatedLesson;
   }
 
@@ -128,7 +145,6 @@ export class CourseManagementService {
       throw new Error('Course not found');
     }
 
-    console.log('courseId, lessonId:<><><><><>: ', courseId, lessonId);
     // Check if lesson exists
     const existingLesson = await this.courseRepository.findLessonById(lessonId);
     if (!existingLesson) {
@@ -201,5 +217,38 @@ export class CourseManagementService {
 
     // Delete the course (cascade deletes will handle related data)
     await this.courseRepository.deleteCourse(id);
+  }
+
+  public async uploadLessonVideo(courseId: string, lessonId: string, videoUrl: string) {
+    // Verify the course exists
+    const course = await this.courseRepository.findCourseById(courseId);
+    if (!course) {
+      throw new Error('Course not found');
+    }
+
+    // Verify the lesson exists and belongs to the course
+    const lesson = await this.courseRepository.findLessonById(lessonId);
+    if (!lesson) {
+      throw new Error('Lesson not found');
+    }
+
+    if (lesson.courseId !== courseId) {
+      throw new Error('Lesson not found');
+    }
+
+    // Delete all existing VIDEO mediaAssets for this lesson first
+    await this.courseRepository.deleteMediaAssetsByLessonId(lessonId, 'VIDEO');
+
+    // Create new media asset record
+    const mediaAsset = await this.courseRepository.createMediaAsset({
+      assetType: 'VIDEO',
+      assetUrl: videoUrl,
+      lessonId: lessonId
+    });
+
+    return {
+      url: mediaAsset.assetUrl,
+      id: mediaAsset.id
+    };
   }
 }

@@ -55,7 +55,7 @@ export class FlashcardDeckService {
     }
     updatePayload.tagIds.map(async (tagId: string) => {
       const existingTag = await this.tagRepository.findTagById(tagId);
-      if (existingTag) {
+      if (!existingTag) {
         throw Error("Tag is not existence");
       }
     });

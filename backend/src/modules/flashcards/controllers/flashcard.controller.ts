@@ -4,11 +4,35 @@ import type {
   CreateFlashcardInput,
   UpdateFlashcardInput,
   DeleteFlashcardInput,
+  GetAllFlashcardInput,
 } from "@/modules/flashcards/dtos/flashcard.dto";
 import type { AuthenticatedRequest } from "@/middlewares/auth.middleware";
 
 export class FlashcardController {
   private flashcardService = new FlashcardService();
+
+  public getAllFlashcard = async (
+    req: AuthenticatedRequest & { params: GetAllFlashcardInput["params"] },
+    res: Response
+  ): Promise<void> => {
+    try {
+      const userId = req.user!.userId;
+      const {deckId} = req.params
+      const flashcards = await this.flashcardService.getAllFlashcards(userId,deckId);
+
+      res.status(200).json({
+        success: true,
+        message: "Create flashcard  successfully",
+        data: flashcards,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to create flashcard deck",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
 
   public createFlashcard = async (
     req: AuthenticatedRequest & { body: CreateFlashcardInput["body"] },
@@ -16,8 +40,7 @@ export class FlashcardController {
   ): Promise<void> => {
     try {
       const userId = req.user!.userId;
-      const { frontContent, backContent, exampleSentence, deckId } =
-        req.body;
+      const { frontContent, backContent, exampleSentence, deckId } = req.body;
       const newFlashcard = await this.flashcardService.createFlashcard(userId, {
         frontContent,
         backContent,
@@ -55,7 +78,7 @@ export class FlashcardController {
         {
           frontContent,
           backContent,
-          exampleSentence
+          exampleSentence,
         },
         flashcardId!
       );
@@ -83,10 +106,7 @@ export class FlashcardController {
       const userId = req.user!.userId;
       const { flashcardId } = req.params;
 
-      await this.flashcardService.deleteFlashcard(
-        flashcardId!,
-        userId
-      );
+      await this.flashcardService.deleteFlashcard(flashcardId!, userId);
 
       res.status(200).json({
         success: true,

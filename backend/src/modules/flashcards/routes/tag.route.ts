@@ -9,7 +9,7 @@ const router = Router();
 const tagController = new TagController();
 
 router.use(authMiddleware)
-router.use(checkRole([UserRole.ADMINISTRATOR]))
-router.post('/create',validate(createTagDTO),tagController.createTag);
-router.post('/update/tagId',validate(updateTagDTO),tagController.updateTag)
+router.get('/',tagController.getAllTags)
+router.post('/create',checkRole([UserRole.ADMINISTRATOR]),validate(createTagDTO),tagController.createTag);
+router.post('/update/tagId',checkRole([UserRole.ADMINISTRATOR]),validate(updateTagDTO),tagController.updateTag)
 export default router;
