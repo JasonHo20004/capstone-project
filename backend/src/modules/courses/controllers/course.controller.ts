@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import { CourseService } from "@/modules/courses/services/course.service";
+import { NotificationService } from "@/modules/notifications/services/notification.service";
 import type {
   CreateCourseInput,
   UpdateCourseInput,
@@ -11,6 +12,7 @@ import type {
 
 export class CourseController {
   private courseService = new CourseService();
+  private notificationService = new NotificationService();
 
   public createCourse = async (
     req: Request<{}, CreateCourseInput["body"], CreateCourseInput["body"]>,
@@ -83,6 +85,22 @@ export class CourseController {
         courseId,
         updatePayload
       );
+
+      try {
+        const title = "Cập nhật khoá học";
+        const content = `Khoá học "${updatedCourse.title}" đã được cập nhật. Vui lòng kiểm tra lại nội dung và thông tin khoá học.`;
+        await this.notificationService.sendCourseUpdateNotifications(
+          courseId,
+          title,
+          content
+        );
+      } catch (err) {
+        // Do not block course update if notification delivery fails or no students enrolled
+        console.warn(
+          "Course update notifications failed or were skipped:",
+          err instanceof Error ? err.message : String(err)
+        );
+      }
 
       res.status(200).json({
         success: true,

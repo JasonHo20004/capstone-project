@@ -37,6 +37,7 @@ router.post('/in-app/:notificationId/read', notificationController.markNotificat
 router.post('/in-app/user/:userId/mark-all-read', notificationController.markAllNotificationsAsRead);
 router.post('/in-app/:notificationId/archive', notificationController.archiveNotification);
 router.get('/in-app/user/:userId/stats', notificationController.getUserNotificationStats);
+router.get('/in-app/stream', notificationController.streamUserNotifications);
 
 // Maintenance
 router.delete('/cleanup', notificationController.cleanupOldNotifications);

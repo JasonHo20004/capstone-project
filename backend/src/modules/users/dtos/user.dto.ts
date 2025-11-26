@@ -55,15 +55,8 @@ export const updateUserDTO = z.object({
 
 export const createCourseSellerApplicationDTO = z.object({
   body: z.object({
-   expertise: z.preprocess(
-      (val) => {
-        if (val === undefined) return []; // Nếu không có gì -> mảng rỗng
-        if (Array.isArray(val)) return val; // Nếu đã là mảng -> giữ nguyên
-        return [val]; // Nếu là string (1 item) -> bọc vào mảng
-      },
-      z.array(z.string().min(1, "Expertise is not empty"))
-        .min(1, "Need at least one expertise")
-    ),
+    certification: z.array(z.string()),
+    expertise: z.array(z.string()),
   }),
 });
 
@@ -79,7 +72,6 @@ export type SafeUser = Omit<User, "password">;
 // Response
 
 export const includedWalletDTO = z.object({
-  id: z.string(),
   allowance: z.number(),
 });
 export const includedCourseSellerApplicationDTO = z.object({
@@ -91,10 +83,10 @@ export const includedCourseSellerApplicationDTO = z.object({
   expertise:z.array(z.string()),
 })
 export const includedCourseSellerProfileDTO = z.object({
-  certification: z.array(z.string()),
-  expertise: z.array(z.string()),
-  isActive: z.boolean(),
-});
+  certification:z.array(z.string()),
+  expertise:z.array(z.string())
+}
+)
 export const userProfileResponseDTO = z.object({
   id: z.uuid(),
   email: z.string(),
