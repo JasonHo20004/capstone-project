@@ -1,5 +1,11 @@
 import type { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import { NotificationService } from '@/modules/notifications/services/notification.service';
+import {
+  IN_APP_NOTIFICATION_CREATED_EVENT,
+  notificationEvents,
+  type InAppNotificationPayload,
+} from '@/modules/notifications/services/notification.events';
 
 export class NotificationController {
   private notificationService = new NotificationService();
@@ -647,6 +653,67 @@ export class NotificationController {
         message: 'Failed to cleanup old notifications',
         error: error instanceof Error ? error.message : String(error)
       });
+    }
+  };
+
+  /**
+   * Server-Sent Events stream for real-time in-app notifications
+   * Authenticates using ?token=<JWT> query param
+   */
+  public streamUserNotifications = (req: Request, res: Response): void => {
+    try {
+      const token = (req.query.token as string) || '';
+
+      if (!token) {
+        res.status(401).json({ success: false, message: 'Missing access token' });
+        return;
+      }
+
+      if (!process.env.ACCESS_TOKEN_SECRET) {
+        res.status(500).json({ success: false, message: 'JWT secret is not configured' });
+        return;
+      }
+
+      let decoded: any;
+      try {
+        decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+      } catch (err) {
+        res.status(401).json({ success: false, message: 'Invalid or expired token' });
+        return;
+      }
+
+      const userId = decoded?.userId as string | undefined;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Invalid token payload' });
+        return;
+      }
+
+      // Set SSE headers
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      (res as any).flushHeaders?.();
+
+      const sendEvent = (payload: InAppNotificationPayload) => {
+        if (payload.userId !== userId) return;
+        const data = JSON.stringify(payload);
+        res.write(`event: notification\n`);
+        res.write(`data: ${data}\n\n`);
+      };
+
+      // Initial heartbeat
+      res.write(`event: ping\n`);
+      res.write(`data: "connected"\n\n`);
+
+      notificationEvents.on(IN_APP_NOTIFICATION_CREATED_EVENT, sendEvent);
+
+      req.on('close', () => {
+        notificationEvents.off(IN_APP_NOTIFICATION_CREATED_EVENT, sendEvent);
+        res.end();
+      });
+    } catch (error) {
+      // If anything goes wrong, just close the stream
+      res.end();
     }
   };
 

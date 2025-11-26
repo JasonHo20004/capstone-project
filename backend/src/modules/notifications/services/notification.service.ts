@@ -1,13 +1,25 @@
 import { databaseService } from "@/services/database.service";
 import { NotificationTypeRepository } from "../repositories/notificationType.repository";
 import { NotificationRepository } from "../repositories/notification.repository";
+import { UserRole } from "@/../generated/prisma";
+import {
+  IN_APP_NOTIFICATION_CREATED_EVENT,
+  notificationEvents,
+  type InAppNotificationPayload,
+} from "./notification.events";
 
 export interface NotificationData {
   recipientId: string;
   recipientEmail: string;
   recipientName: string;
   notificationTypeName: string;
+  /**
+   * Optional contract identifier (billing / subscription context)
+   */
   contractId?: string;
+  /**
+   * Optional course identifier (learning context)
+   */
   courseId?: string;
   title: string;
   content: string;
@@ -121,7 +133,7 @@ export class NotificationService {
       metadata.courseId = notification.courseId;
     }
 
-    await this.prisma.inAppNotification.create({
+    const createdInApp = await this.prisma.inAppNotification.create({
       data: {
         userId: notification.recipientId,
         title: notification.title,
@@ -131,9 +143,27 @@ export class NotificationService {
         courseId: notification.courseId || null,
         metadata: Object.keys(metadata).length > 0 ? metadata : null,
         isRead: false,
-        isArchived: false
-      }
+        isArchived: false,
+      },
     });
+
+    const payload: InAppNotificationPayload = {
+      id: createdInApp.id,
+      userId: createdInApp.userId,
+      title: createdInApp.title,
+      content: createdInApp.content,
+      type: createdInApp.type,
+      isRead: createdInApp.isRead,
+      isArchived: createdInApp.isArchived,
+      createdAt: createdInApp.createdAt,
+      readAt: createdInApp.readAt,
+      archivedAt: createdInApp.archivedAt,
+      contractId: createdInApp.contractId,
+      courseId: createdInApp.courseId,
+      metadata: createdInApp.metadata,
+    };
+
+    notificationEvents.emit(IN_APP_NOTIFICATION_CREATED_EVENT, payload);
   }
 
   /**
@@ -319,7 +349,7 @@ export class NotificationService {
       case NOTIFICATION_TYPES.SELLER_ACCOUNT_LOCKED:
         return {
           title: 'Account Suspended',
-          content: `Dear ${sellerName},\n\nYour account has been suspended due to contract expiration. Please renew your contract to restore access to course creation features.\n\nYour existing courses remain available to enrolled students.`
+          content: `Dear ${sellerName},\n\nYour account has been suspended by the platform administrators. You cannot create or manage courses until your access is restored.\n\nYour existing courses remain available to enrolled students. If you believe this is a mistake, please contact support.`
         };
 
       default:
@@ -889,6 +919,47 @@ export class NotificationService {
           data: inAppNotifications,
         }),
       ]);
+
+      // Emit real-time events for each in-app notification
+      inAppNotifications.forEach((n) => {
+        const payload: InAppNotificationPayload = {
+          id: "", // id not available in createMany result
+          userId: n.userId,
+          title: n.title,
+          content: n.content,
+          type: n.type,
+          isRead: n.isRead,
+          isArchived: n.isArchived,
+          createdAt: new Date(),
+          readAt: null,
+          archivedAt: null,
+          contractId: n.contractId,
+          courseId: n.courseId,
+          metadata: n.metadata,
+        };
+
+        notificationEvents.emit(IN_APP_NOTIFICATION_CREATED_EVENT, payload);
+      });
+
+      // Notify all administrators about the course update (for monitoring)
+      const admins = await this.prisma.user.findMany({
+        where: { role: UserRole.ADMINISTRATOR },
+        select: { id: true, email: true, fullName: true },
+      });
+
+      if (admins.length > 0) {
+        const adminNotifications: NotificationData[] = admins.map((admin) => ({
+          recipientId: admin.id,
+          recipientEmail: admin.email,
+          recipientName: admin.fullName,
+          notificationTypeName: NOTIFICATION_TYPES.COURSE_UPDATE,
+          courseId,
+          title: `Course updated: ${course.title}`,
+          content,
+        }));
+
+        await this.sendBulkNotifications(adminNotifications);
+      }
 
       result.sentCount = enrolledStudents.length;
       result.details = enrolledStudents.map((activity) => ({
