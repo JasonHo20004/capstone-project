@@ -42,6 +42,7 @@ export class UserRepository {
         // Lấy thông tin ví
         wallet: {
           select: {
+            id: true,
             allowance: true,
           },
         },
@@ -50,6 +51,7 @@ export class UserRepository {
           select: {
             certification: true,
             expertise: true,
+            isActive: true,
           },
         },
         // Lấy đơn đăng ký giảng viên (nếu có)

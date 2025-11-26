@@ -33,7 +33,21 @@ export class CourseRepository {
       where: { id },
       include: {
         lessons: true,
-        ratings: true,
+        ratings: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                profilePicture: true,
+                phoneNumber: true,
+                englishLevel: true,
+                learningGoals: true,
+              },
+            },
+          },
+        },
         test: true,
         user: {
           select: {
@@ -74,6 +88,7 @@ export class CourseRepository {
           },
         },
         test: true,
+        ratings: true,
         _count: {
           select: {
             lessons: true,
