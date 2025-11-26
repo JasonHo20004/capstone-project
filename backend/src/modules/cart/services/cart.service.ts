@@ -169,7 +169,7 @@ export class CartService {
       );
     }
     const wallet = await this.walletRepository.findWalletById(userId);
-    if (!wallet || wallet.allowance < existingCourse.price) {
+    if (!wallet ||wallet.allowance.lessThan(existingCourse.price)) {
       throw Error("Your allowance is not enough");
     }
 
