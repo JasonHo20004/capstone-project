@@ -7,6 +7,8 @@ import { createHash } from "crypto";
 import { AuthRepository } from "../repositories/auth.repository";
 import { UserRepository } from "@/modules/users/repositories/user.repository";
 import type { LoginResponse } from "@/modules/auth/dtos/auth.dto";
+import { randomBytes } from "crypto";
+import { redisService, emailService } from "@/services";
 export interface ITokens {
   accessToken: string;
   refreshToken: string;
@@ -33,6 +35,64 @@ export class AuthService {
     });
     return { accessToken, refreshToken };
   }
+
+  /**
+   * Generate and store an email verification token in Redis
+   * and return the raw token.
+   */
+  public async generateEmailVerificationToken(
+    userId: string
+  ): Promise<string> {
+    const client = redisService.getClient();
+
+    const token = randomBytes(32).toString("hex");
+    const key = `verify:${token}`;
+
+    // 15 minutes TTL
+    const ttlSeconds = 15 * 60;
+
+    await client.set(key, userId, {
+      EX: ttlSeconds,
+    });
+
+    return token;
+  }
+
+  public async sendVerificationEmail(userId: string): Promise<void> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    if (user.isEmailVerified) {
+      return;
+    }
+
+    const token = await this.generateEmailVerificationToken(user.id);
+
+    const baseUrl =
+      process.env.EMAIL_VERIFICATION_BASE_URL ||
+      `${process.env.FRONTEND_BASE_URL || "http://localhost:5173"}/auth/verify`;
+
+    const verificationUrl = `${baseUrl}?token=${encodeURIComponent(token)}`;
+
+    const html = `
+      <p>Hello ${user.fullName},</p>
+      <p>Thank you for registering. Please verify your email by clicking the link below:</p>
+      <p><a href="${verificationUrl}">Verify your email</a></p>
+      <p>This link will expire in 15 minutes.</p>
+      <p>If you did not create an account, you can safely ignore this email.</p>
+    `;
+
+    await emailService.sendMail({
+      to: user.email,
+      subject: "Verify your email address",
+      html,
+    });
+  }
   public async addRefreshTokenToDatabase(
     token: string,
     userId: string
@@ -54,6 +114,10 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       throw new Error("Invalid email or password");
+    }
+
+    if (!user.isEmailVerified) {
+      throw new Error("Email address is not verified");
     }
 
     const { accessToken, refreshToken } = await this.generateTokens({

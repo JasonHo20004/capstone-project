@@ -8,10 +8,12 @@ import type {
 import { CartRepository } from "@/modules/cart/repositories/cart.repository";
 import type { CourseSellerApplication } from "@/../generated/prisma";
 import { WalletRepository } from "@/modules/users/repositories/wallet.repository";
+import { AuthService } from "@/modules/auth/services/auth.service";
 export class UserService {
   private userRepository = new UserRepository();
   private walletRepository = new WalletRepository();
   private cartRepository = new CartRepository();
+  private authService = new AuthService();
   public async getUserInformation(
     userId: string
   ): Promise<UserProfileResponse> {
@@ -40,6 +42,11 @@ export class UserService {
     // wallet
     await this.walletRepository.createWallet(newUser.id);
     await this.cartRepository.createCart(newUser.id);
+
+    // Fire-and-forget email verification (log error, do not block registration)
+    this.authService
+      .sendVerificationEmail(newUser.id)
+      .catch((err) => console.error("Failed to send verification email:", err));
     const { password, ...userWithoutPassword } = newUser;
     return userWithoutPassword;
   }
