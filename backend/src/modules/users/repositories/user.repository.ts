@@ -82,7 +82,7 @@ export class UserRepository {
       where: { id: id, role: "COURSESELLER" },
     });
   }
-  public async createUser(userData: CreateUserInput["body"]): Promise<User> {
+  public async createUser(userData: CreateUserInput["body"] & { password: string }): Promise<User> {
     return this.prisma.user.create({
       data: userData,
     });
@@ -144,6 +144,7 @@ export class UserRepository {
         profilePicture: true,
         englishLevel: true,
         learningGoals: true,
+        isEmailVerified: true,
         role: true,
         createdAt: true,
       },

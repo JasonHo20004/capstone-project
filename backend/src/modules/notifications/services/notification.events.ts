@@ -19,5 +19,3 @@ export interface InAppNotificationPayload {
   courseId: string | null;
   metadata: unknown;
 }
-
-

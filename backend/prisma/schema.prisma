@@ -41,6 +41,7 @@ model User {
   userNotifications       UserNotification[]
   wallet                  Wallet?
   order                   Order[]
+  isEmailVerified         Boolean                  @default(false) @map("is_email_verified")
   cart                    Cart?
   @@map("users")
 }
