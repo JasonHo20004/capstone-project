@@ -32,6 +32,8 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "multer-s3": "^3.0.1",
+    "nodemailer": "^7.0.10",
+    "redis": "^5.10.0",
     "word-list": "^4.1.0",
     "zod": "^4.1.12"
   },
@@ -43,6 +45,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer-s3": "^3.0.3",
     "@types/node": "^24.5.2",
+    "@types/nodemailer": "^7.0.4",
     "esbuild": "^0.25.10",
     "nodemon": "^3.1.10",
     "prisma": "^6.17.0",

@@ -1,7 +1,5 @@
-# version: '3.8' # Removed - version is obsolete in newer Docker Compose
-
 services:
-  # PostgreSQL Database
+  # 1. PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     container_name: capstone-postgres
@@ -15,8 +13,29 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - capstone-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  # Backend Service
+  redis:
+    image: redis:7-alpine
+    container_name: capstone-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - capstone-network
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ./redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # 3. Backend Service
   backend:
     build:
       context: ./backend
@@ -26,6 +45,7 @@ services:
       NODE_ENV: development
       PORT: 3000
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/capstone_dev
+      REDIS_URL: redis://redis:6379 
     ports:
       - "3000:3000"
     volumes:
@@ -37,7 +57,10 @@ services:
       - ./backend/.env:/app/.env
       - backend_node_modules:/app/node_modules
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - capstone-network
     command: sh -c "npx prisma migrate deploy && npm run dev"
