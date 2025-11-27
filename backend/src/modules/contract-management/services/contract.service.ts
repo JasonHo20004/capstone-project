@@ -150,10 +150,9 @@ export class ContractManagementService {
           contract.user.fullName
         );
 
-      const notificationResult =
-        await this.notificationService.sendBulkNotifications(
-          studentNotifications
-        );
+      await this.notificationService.sendBulkNotifications(
+        studentNotifications
+      );
     }
 
     const lockResult = await this.repository.lockCourseSellerAccount(contractId);
