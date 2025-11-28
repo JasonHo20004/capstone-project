@@ -19,6 +19,7 @@ import topupOrderRouter from './modules/topupOrders/routes/topupOrder.route'
 import reportRouter from './modules/reports/routes/report.route'
 import practiceSessionRouter from './modules/practice_sessions/routes/practiceSession.route'
 import sellerRouter from './modules/seller/routes/seller.route'
+import studentRouter from './modules/student-learning/routes/student.route'
 
 import cookieParser from 'cookie-parser'; // Import cookie-parser
 
@@ -68,5 +69,8 @@ app.use("/api/practice-sessions", practiceSessionRouter);
 
 // Seller Routes
 app.use("/api/seller", sellerRouter);
+
+// Student Learning Routes (new namespace for student/learner features)
+app.use("/api/student", studentRouter);
 
 export default app;
