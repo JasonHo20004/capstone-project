@@ -55,8 +55,14 @@ export const updateUserDTO = z.object({
 
 export const createCourseSellerApplicationDTO = z.object({
   body: z.object({
-    certification: z.array(z.string()),
-    expertise: z.array(z.string()),
+    expertise: z.preprocess(
+      (val) => {
+        if (Array.isArray(val)) return val; // Nếu là mảng thì giữ nguyên
+        if (typeof val === "string" && val.trim() !== "") return [val]; // Nếu là string thì bọc vào mảng
+        return []; // Các trường hợp khác trả về mảng rỗng
+      },
+      z.array(z.string()).min(1, "Vui lòng nhập ít nhất 1 chuyên môn")
+    ),
   }),
 });
 

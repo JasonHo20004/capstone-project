@@ -121,8 +121,9 @@ export class UserController {
 
     // 2. Transform Data: Chỉ lấy ra đường dẫn URL từ S3 để lưu vào DB
     // files là mảng object -> map ra mảng string (url)
+  
     const certificationUrls = files.map((file) => file.location);
-
+    
     // Chuẩn bị dữ liệu update
     const updateData = {
       certification: certificationUrls, // Mảng các đường link ảnh
