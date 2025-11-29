@@ -37,4 +37,9 @@ export class TopupOrderRepository {
     data: { status: status },
   });
 }
+public async findById(id: string): Promise<TopupOrder | null> {
+    return this.prisma.topupOrder.findUnique({
+      where: { id: id },
+    });
+  }
 }

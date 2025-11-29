@@ -13,16 +13,6 @@ export const createTopupDTO = z.object({
 });
 
 
-export const confirmPaymentDTO = z.object({
-  body: z.object({
-    orderId: z.uuid({
-      error: (issue) =>
-        issue.input === undefined
-          ? "This field is required"
-          : "Invalid Money Amount"
-    }),
-  }),
-});
+
 
 export type CreateTopupInput = z.infer<typeof createTopupDTO>
-export type ConfirmPaymentInput = z.infer<typeof confirmPaymentDTO>;
