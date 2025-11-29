@@ -46,6 +46,9 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/capstone_dev
       REDIS_URL: redis://redis:6379 
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     ports:
       - "3000:3000"
     volumes:
