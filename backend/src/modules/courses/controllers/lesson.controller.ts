@@ -1,5 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { LessonService } from '@/modules/courses/services/lesson.service';
+import { CourseRepository } from '@/modules/courses/repositories/course.repository';
+import { UserRole } from '@/../generated/prisma';
 import type {
   CreateLessonInput,
   UpdateLessonInput,
@@ -8,6 +10,7 @@ import type {
 
 export class LessonController {
   private lessonService = new LessonService();
+  private courseRepository = new CourseRepository();
 
   public createLesson = async (
     req: Request<CreateLessonInput['params'], {}, CreateLessonInput['body']>,
@@ -19,6 +22,36 @@ export class LessonController {
       const lessonData = req.body;
       const file = (req as any).file;
       const videoUrl = file?.location || file?.key;
+      const userId = (req as any).user?.userId;
+      const userRole = (req as any).user?.role;
+
+      // Check if user is authenticated
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+        });
+        return;
+      }
+
+      // Check if course exists and verify ownership (unless admin)
+      const course = await this.courseRepository.findById(courseId);
+      if (!course) {
+        res.status(404).json({
+          success: false,
+          message: 'Course not found',
+        });
+        return;
+      }
+
+      // Verify seller owns the course (admins can bypass)
+      if (userRole !== UserRole.ADMINISTRATOR && course.courseSellerId !== userId) {
+        res.status(403).json({
+          success: false,
+          message: 'Forbidden: You do not own this course',
+        });
+        return;
+      }
 
       const createData: {
         courseId: string;
@@ -53,12 +86,50 @@ export class LessonController {
         data: newLesson,
       });
     } catch (error) {
-      if (error instanceof Error && error.message.includes('upload video')) {
-        res.status(400).json({
-          success: false,
-          message: error.message,
-        });
-        return;
+      // Handle S3 connection/upload errors
+      if (error instanceof Error) {
+        const errorMessage = error.message || '';
+        
+        // S3 connection errors
+        if (
+          errorMessage.includes('getaddrinfo') ||
+          errorMessage.includes('EAI_AGAIN') ||
+          errorMessage.includes('ENOTFOUND') ||
+          errorMessage.includes('ECONNREFUSED') ||
+          errorMessage.includes('ETIMEDOUT') ||
+          errorMessage.includes('NetworkError') ||
+          errorMessage.includes('socket hang up')
+        ) {
+          res.status(503).json({
+            success: false,
+            message: 'Không thể kết nối đến dịch vụ lưu trữ file. Vui lòng kiểm tra cấu hình AWS S3 hoặc thử lại sau.',
+            error: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+          });
+          return;
+        }
+
+        // AWS authentication errors
+        if (
+          errorMessage.includes('InvalidAccessKeyId') ||
+          errorMessage.includes('SignatureDoesNotMatch') ||
+          errorMessage.includes('AccessDenied')
+        ) {
+          res.status(503).json({
+            success: false,
+            message: 'Lỗi xác thực dịch vụ lưu trữ file. Vui lòng kiểm tra cấu hình AWS S3.',
+            error: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+          });
+          return;
+        }
+
+        // General upload errors
+        if (errorMessage.includes('upload video') || errorMessage.includes('upload')) {
+          res.status(400).json({
+            success: false,
+            message: errorMessage,
+          });
+          return;
+        }
       }
       next(error);
     }

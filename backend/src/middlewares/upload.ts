@@ -49,8 +49,18 @@ const upload = multer({
 
 export const uploadVideo = upload.single('video');
 
+export const uploadVideoOptional = (req: any, res: any, next: any) => {
+  upload.single('video')(req, res, (err: any) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_UNEXPECTED_FILE') {
+        return next();
+      }
+      return next(err);
+    }
+    next();
+  });
+};
 
-// ... (Code khởi tạo s3 giữ nguyên)
 
 // Configure multer for IMAGES
 const uploadImageConfig = multer({
@@ -94,33 +104,84 @@ export const uploadImage = uploadImageConfig.single('image');
 export const uploadImages = uploadImageConfig.array('images', 20);
 // Error handling middleware for upload errors
 export const handleUploadError = (err: Error, req: any, res: any, next: any) => {
+  // Check for S3 connection errors (network/DNS errors)
+  if (err.message && (
+    err.message.includes('getaddrinfo') ||
+    err.message.includes('EAI_AGAIN') ||
+    err.message.includes('ENOTFOUND') ||
+    err.message.includes('ECONNREFUSED') ||
+    err.message.includes('ETIMEDOUT') ||
+    err.message.includes('NetworkError') ||
+    err.message.includes('socket hang up')
+  )) {
+    return res.status(503).json({
+      success: false,
+      message: 'Không thể kết nối đến dịch vụ lưu trữ file. Vui lòng kiểm tra cấu hình AWS S3 hoặc thử lại sau.',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    });
+  }
+
+  // Check for AWS credentials/authentication errors
+  if (err.message && (
+    err.message.includes('InvalidAccessKeyId') ||
+    err.message.includes('SignatureDoesNotMatch') ||
+    err.message.includes('AccessDenied') ||
+    err.message.includes('InvalidAccessKeyId')
+  )) {
+    return res.status(503).json({
+      success: false,
+      message: 'Lỗi xác thực dịch vụ lưu trữ file. Vui lòng kiểm tra cấu hình AWS S3.',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    });
+  }
+
+  // Check for S3 bucket errors
+  if (err.message && (
+    err.message.includes('NoSuchBucket') ||
+    err.message.includes('BucketNotFound')
+  )) {
+    return res.status(503).json({
+      success: false,
+      message: 'Bucket lưu trữ file không tồn tại. Vui lòng kiểm tra cấu hình AWS S3.',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    });
+  }
+
   if (err instanceof multer.MulterError) {
     // Xử lý lỗi quá dung lượng file
     if (err.code === 'LIMIT_FILE_SIZE') {
       // Kiểm tra xem request này là upload video hay ảnh để báo lỗi chính xác
-      // (Đây là một mẹo nhỏ kiểm tra fieldname để đoán context)
       const message = req.is('multipart/form-data') && req.url.includes('image') 
         ? 'File too large. Maximum size for images is 5MB.'
-        : 'File too large. Maximum limit exceeded.';
+        : 'File too large. Maximum size is 100MB.';
         
-      return res.status(400).json({ message });
+      return res.status(400).json({
+        success: false,
+        message,
+      });
     }
     
     // Xử lý lỗi quá số lượng file cho phép (khi dùng .array)
     if (err.code === 'LIMIT_UNEXPECTED_FILE') {
       return res.status(400).json({
+        success: false,
         message: 'Too many files or invalid field name.',
       });
     }
 
     return res.status(400).json({
+      success: false,
       message: err.message,
     });
   }
   
-  // Lỗi từ fileFilter (sai định dạng)
+  // Lỗi từ fileFilter (sai định dạng) hoặc các lỗi khác
   if (err) {
-      return res.status(400).json({ message: err.message });
+    return res.status(400).json({
+      success: false,
+      message: err.message || 'Upload failed. Please try again.',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    });
   }
   
   next();

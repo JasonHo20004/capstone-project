@@ -22,11 +22,7 @@ export class LessonService {
       throw new Error('Course not found');
     }
 
-    if (data.videoUrl === undefined) {
-      throw new Error('Could not upload video, please try again');
-    }
-
-    // Create lesson without videoUrl
+    // Create lesson
     const createData: {
       title: string;
       description?: string;
@@ -44,18 +40,20 @@ export class LessonService {
     
     const lesson = await this.lessonRepository.create(createData);
 
-    // Create media asset for the video
-    const mediaAssetData: {
-      assetType: MediaType;
-      assetUrl: string;
-      lessonId: string;
-    } = {
-      assetType: 'VIDEO' as MediaType,
-      assetUrl: data.videoUrl,
-      lessonId: lesson.id,
-    };
+    // Create media asset for the video if provided
+    if (data.videoUrl) {
+      const mediaAssetData: {
+        assetType: MediaType;
+        assetUrl: string;
+        lessonId: string;
+      } = {
+        assetType: 'VIDEO' as MediaType,
+        assetUrl: data.videoUrl,
+        lessonId: lesson.id,
+      };
 
-    await this.mediaAssetRepository.create(mediaAssetData);
+      await this.mediaAssetRepository.create(mediaAssetData);
+    }
 
     // Return lesson with media assets
     return this.lessonRepository.findById(lesson.id) as Promise<Lesson>;

@@ -8,7 +8,7 @@ import {
 } from '@/modules/courses/dtos/lesson.dto';
 import { UserRole } from '@/../generated/prisma';
 import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
-import { uploadVideo, handleUploadError } from '@/middlewares/upload';
+import { uploadVideoOptional, handleUploadError } from '@/middlewares/upload';
 
 const router = Router();
 const lessonController = new LessonController();
@@ -17,7 +17,7 @@ router.use(authMiddleware);
 router.use(checkRole([UserRole.COURSESELLER, UserRole.ADMINISTRATOR]));
 
 // Lesson routes
-router.post('/:courseId/lessons',uploadVideo,handleUploadError,validate(createLessonDTO),lessonController.createLesson);
+router.post('/:courseId/lessons', uploadVideoOptional, handleUploadError, validate(createLessonDTO), lessonController.createLesson);
 
 router.get('/:courseId/lessons',lessonController.getLessonsByCourse);
 
