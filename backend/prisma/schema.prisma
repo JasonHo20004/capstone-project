@@ -262,6 +262,7 @@ model Course {
   courseSellerId  String        @map("course_seller_id") @db.Uuid
   finalTestId     String?       @map("final_test_id") @db.Uuid
   ratingCount     Int?          @map("rating_count")
+  thumbnailUrl    String?       @map("thumbnail_url")
   status          CourseStatus  @default(PENDING)
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   user            User          @relation(fields: [courseSellerId], references: [id], onDelete: Cascade)
