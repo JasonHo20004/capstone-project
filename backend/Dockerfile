@@ -25,5 +25,5 @@ COPY . .
 # Expose port
 EXPOSE 3000
 
-# Start development server
-CMD ["npm", "run", "dev"]
+# Build and run bundled server with migrations
+CMD ["sh", "-lc", "npm run build:esbuild && npx prisma migrate deploy && node dist/server.js"]
