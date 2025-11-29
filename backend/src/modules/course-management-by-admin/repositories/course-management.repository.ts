@@ -15,6 +15,7 @@ export class CourseManagementRepository {
         courseSellerId: true,
         finalTestId: true,
         ratingCount: true,
+        thumbnailUrl: true,
         status: true,
         createdAt: true,
         user: {
@@ -53,6 +54,7 @@ export class CourseManagementRepository {
         courseSellerId: true,
         finalTestId: true,
         ratingCount: true,
+        thumbnailUrl: true,
         status: true,
         createdAt: true,
         user: {

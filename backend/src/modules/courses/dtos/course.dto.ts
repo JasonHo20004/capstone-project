@@ -2,19 +2,24 @@ import { z } from "zod";
 import { CourseLevel, CourseStatus } from "@/../generated/prisma";
 
 // Create Course DTO
+// Note: Uses z.coerce for multipart/form-data support
+// The thumbnail image file is handled by multer middleware and accessed via req.file
 export const createCourseDTO = z.object({
   body: z.object({
     title: z.string().min(1, "Course name is required"),
     description: z.string().optional(),
-    price: z.number().min(0, "Price must be non-negative"),
+    price: z.coerce.number().min(0, "Price must be non-negative"),
     category: z.string().optional(),
     courseLevel: z.enum(CourseLevel).optional(),
+    thumbnailUrl: z.string().url().optional(),
   }),
 });
 
 export type CreateCourseInput = z.infer<typeof createCourseDTO>;
 
 // Update Course DTO
+// Note: Uses z.coerce for multipart/form-data support
+// The thumbnail image file is handled by multer middleware and accessed via req.file
 export const updateCourseDTO = z.object({
   params: z.object({
     courseId: z.uuid({ message: "Course ID must be a valid UUID" }),
@@ -22,9 +27,10 @@ export const updateCourseDTO = z.object({
   body: z.object({
     title: z.string().optional(),
     description: z.string().optional(),
-    price: z.number().min(0).optional(),
+    price: z.coerce.number().min(0).optional(),
     category: z.string().optional(),
     courseLevel: z.enum(CourseLevel).optional(),
+    thumbnailUrl: z.string().url().optional(),
   }),
 });
 

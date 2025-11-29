@@ -17,7 +17,8 @@ import { sendCourseUpdateNotificationDTO } from '@/modules/notifications/dtos/no
 import { getCourseRatingsDTO } from '@/modules/courses/dtos/rating.dto';
 import { UserRole } from '@/../generated/prisma';
 import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
-import {optionalAuthMiddleware} from '@/middlewares/optionalAuth.middleware'
+import {optionalAuthMiddleware} from '@/middlewares/optionalAuth.middleware';
+import { uploadImageOptional, handleUploadError } from '@/middlewares/upload';
 const router = Router();
 const courseController = new CourseController();
 const analyticsController = new AnalyticsController();
@@ -33,13 +34,13 @@ router.use(authMiddleware);
 router.use(checkRole([UserRole.COURSESELLER, UserRole.ADMINISTRATOR]));
 
 // Course management routes (seller/admin only)
-router.post('/', validate(createCourseDTO), courseController.createCourse);
+router.post('/', uploadImageOptional, handleUploadError, validate(createCourseDTO), courseController.createCourse);
 router.get('/seller/me', courseController.getMyCourses);
 router.get('/seller/:sellerId', validate(getCoursesBySellerDTO), courseController.getCoursesBySeller);
 router.get('/:courseId/analytics/completion', validate(getCompletionAnalyticsDTO), analyticsController.getCompletionRate);
 router.post('/:courseId/notifications', validate(sendCourseUpdateNotificationDTO), notificationController.sendCourseUpdateNotification);
 router.get('/:courseId/ratings', validate(getCourseRatingsDTO), ratingController.getCourseRatings);
-router.put('/:courseId', validate(updateCourseDTO), courseController.updateCourse);
+router.put('/:courseId', uploadImageOptional, handleUploadError, validate(updateCourseDTO), courseController.updateCourse);
 router.put('/:courseId/publish', validate(publishCourseDTO), courseController.publishCourse);
 
 export default router;

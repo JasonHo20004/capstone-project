@@ -11,6 +11,7 @@ export class CourseRepository {
     category?: string;
     courseLevel?: string;
     courseSellerId: string;
+    thumbnailUrl?: string;
   }): Promise<Course> {
     const createData: any = {
       title: data.title,
@@ -24,6 +25,8 @@ export class CourseRepository {
     if (data.category !== undefined) createData.category = data.category;
     if (data.courseLevel !== undefined)
       createData.courseLevel = data.courseLevel as CourseLevel;
+    if (data.thumbnailUrl !== undefined)
+      createData.thumbnailUrl = data.thumbnailUrl;
 
     return this.prisma.course.create({ data: createData });
   }
@@ -134,6 +137,7 @@ export class CourseRepository {
       price?: number;
       category?: string;
       courseLevel?: CourseLevel;
+      thumbnailUrl?: string;
     }
   ): Promise<Course> {
     const updateData: any = {};
@@ -144,6 +148,8 @@ export class CourseRepository {
     if (data.category !== undefined) updateData.category = data.category;
     if (data.courseLevel !== undefined)
       updateData.courseLevel = data.courseLevel;
+    if (data.thumbnailUrl !== undefined)
+      updateData.thumbnailUrl = data.thumbnailUrl;
 
     return this.prisma.course.update({
       where: { id },
