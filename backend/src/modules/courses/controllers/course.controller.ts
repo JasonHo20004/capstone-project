@@ -9,6 +9,8 @@ import type {
   GetCoursesBySellerInput,
   GetCoursesInput,
 } from "../dtos/course.dto";
+import { UserRole } from "@/../generated/prisma";
+import type { AuthenticatedRequest } from "@/middlewares/auth.middleware";
 
 export class CourseController {
   private courseService = new CourseService();
@@ -207,7 +209,11 @@ export class CourseController {
         sortOrder,
         enrollmentStatus,
       } = req.query;
-      const userId = (req as any).user?.userId;
+      const authenticatedReq = req as AuthenticatedRequest;
+      const userId = authenticatedReq.user?.userId;
+      const userRole = authenticatedReq.user?.role;
+      const isAdmin = userRole === UserRole.ADMINISTRATOR;
+      
       const params: {
         page?: number;
         limit?: number;
@@ -230,8 +236,15 @@ export class CourseController {
       if (minPrice) params.minPrice = parseFloat(minPrice);
       if (maxPrice) params.maxPrice = parseFloat(maxPrice);
       if (courseLevel) params.courseLevel = courseLevel;
-      if (status) params.status = status;
-      else params.status = "PUBLISHED";
+      if (status) {
+        params.status = status;
+      } else {
+        // Chỉ set mặc định PUBLISHED nếu không phải admin
+        // Admin có thể xem tất cả courses với mọi trạng thái
+        if (!isAdmin) {
+          params.status = "PUBLISHED";
+        }
+      }
       if (sortBy) params.sortBy = sortBy;
       if (sortOrder) params.sortOrder = sortOrder as "asc" | "desc";
       if (userId) params.userId = userId;
