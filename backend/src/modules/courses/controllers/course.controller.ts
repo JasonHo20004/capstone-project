@@ -9,6 +9,8 @@ import type {
   GetCoursesBySellerInput,
   GetCoursesInput,
 } from "../dtos/course.dto";
+import { UserRole } from "@/../generated/prisma";
+import type { AuthenticatedRequest } from "@/middlewares/auth.middleware";
 
 export class CourseController {
   private courseService = new CourseService();
@@ -22,6 +24,13 @@ export class CourseController {
     try {
       const courseData = req.body;
       const courseSellerId = (req as any).user?.userId;
+      const file = (req as any).file;
+      
+      // Debug: log request info
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Create Course - Body:', courseData);
+        console.log('Create Course - File:', file);
+      }
 
       if (!courseSellerId) {
         res.status(401).json({
@@ -29,6 +38,13 @@ export class CourseController {
           message: "Unauthorized",
         });
         return;
+      }
+
+      // Get thumbnail URL from uploaded file or from body
+      let thumbnailUrl: string | undefined = courseData.thumbnailUrl;
+      if (file) {
+        // File uploaded to S3, get the URL
+        thumbnailUrl = file.location || file.key;
       }
 
       const payload = {
@@ -43,6 +59,9 @@ export class CourseController {
         }),
         ...(courseData.courseLevel !== undefined && {
           courseLevel: courseData.courseLevel,
+        }),
+        ...(thumbnailUrl !== undefined && {
+          thumbnailUrl: thumbnailUrl,
         }),
       };
 
@@ -66,6 +85,14 @@ export class CourseController {
     try {
       const { courseId } = req.params;
       const updateData = req.body;
+      const file = (req as any).file;
+
+      // Get thumbnail URL from uploaded file or from body
+      let thumbnailUrl: string | undefined = updateData.thumbnailUrl;
+      if (file) {
+        // File uploaded to S3, get the URL
+        thumbnailUrl = file.location || file.key;
+      }
 
       const updatePayload = {
         ...(updateData.title !== undefined && { title: updateData.title }),
@@ -78,6 +105,9 @@ export class CourseController {
         }),
         ...(updateData.courseLevel !== undefined && {
           courseLevel: updateData.courseLevel,
+        }),
+        ...(thumbnailUrl !== undefined && {
+          thumbnailUrl: thumbnailUrl,
         }),
       };
 
@@ -179,7 +209,11 @@ export class CourseController {
         sortOrder,
         enrollmentStatus,
       } = req.query;
-      const userId = (req as any).user?.userId;
+      const authenticatedReq = req as AuthenticatedRequest;
+      const userId = authenticatedReq.user?.userId;
+      const userRole = authenticatedReq.user?.role;
+      const isAdmin = userRole === UserRole.ADMINISTRATOR;
+      
       const params: {
         page?: number;
         limit?: number;
@@ -202,8 +236,15 @@ export class CourseController {
       if (minPrice) params.minPrice = parseFloat(minPrice);
       if (maxPrice) params.maxPrice = parseFloat(maxPrice);
       if (courseLevel) params.courseLevel = courseLevel;
-      if (status) params.status = status;
-      else params.status = "PUBLISHED";
+      if (status) {
+        params.status = status;
+      } else {
+        // Chỉ set mặc định PUBLISHED nếu không phải admin
+        // Admin có thể xem tất cả courses với mọi trạng thái
+        if (!isAdmin) {
+          params.status = "PUBLISHED";
+        }
+      }
       if (sortBy) params.sortBy = sortBy;
       if (sortOrder) params.sortOrder = sortOrder as "asc" | "desc";
       if (userId) params.userId = userId;

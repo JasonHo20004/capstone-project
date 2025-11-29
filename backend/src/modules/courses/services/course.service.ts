@@ -12,6 +12,7 @@ export class CourseService {
     category?: string;
     courseLevel?: string;
     courseSellerId: string;
+    thumbnailUrl?: string;
   }): Promise<Course> {
     return this.courseRepository.create(data);
   }
@@ -42,6 +43,7 @@ export class CourseService {
       price?: number;
       category?: string;
       courseLevel?: string;
+      thumbnailUrl?: string;
     }
   ): Promise<Course> {
     const updateData: {
@@ -50,6 +52,7 @@ export class CourseService {
       price?: number;
       category?: string;
       courseLevel?: CourseLevel;
+      thumbnailUrl?: string;
     } = {};
     
     if (data.title !== undefined) updateData.title = data.title;
@@ -57,6 +60,7 @@ export class CourseService {
     if (data.price !== undefined) updateData.price = data.price;
     if (data.category !== undefined) updateData.category = data.category;
     if (data.courseLevel !== undefined) updateData.courseLevel = data.courseLevel as CourseLevel;
+    if (data.thumbnailUrl !== undefined) updateData.thumbnailUrl = data.thumbnailUrl;
     
     return this.courseRepository.update(courseId, updateData);
   }

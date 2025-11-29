@@ -5,8 +5,25 @@ import { ZodObject, ZodError } from 'zod'; // Dùng AnyZodObject linh hoạt hơ
 export const validate = (schema: ZodObject) => {
   return (req: Request, res: Response, next: NextFunction): void => { // <-- Thêm : void ở đây
     try {
+      // Handle multipart/form-data: ensure body is an object (multer parses text fields into req.body)
+      // When multer processes FormData, text fields are parsed into req.body as an object
+      // If req.body is undefined or null, use empty object
+      let body: any = {};
+      if (req.body) {
+        if (typeof req.body === 'object' && !Array.isArray(req.body)) {
+          body = req.body;
+        } else if (typeof req.body === 'string') {
+          // This shouldn't happen with multer, but handle it just in case
+          try {
+            body = JSON.parse(req.body);
+          } catch {
+            body = {};
+          }
+        }
+      }
+      
       const parsed = schema.parse({
-        body: req.body,
+        body: body,
         query: req.query,
         params: req.params,
       });

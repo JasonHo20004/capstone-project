@@ -9,6 +9,7 @@ import { CartRepository } from "@/modules/cart/repositories/cart.repository";
 import type { CourseSellerApplication } from "@/../generated/prisma";
 import { WalletRepository } from "@/modules/users/repositories/wallet.repository";
 import { AuthService } from "@/modules/auth/services/auth.service";
+import { emailService } from "@/services";
 export class UserService {
   private userRepository = new UserRepository();
   private walletRepository = new WalletRepository();
@@ -44,9 +45,22 @@ export class UserService {
     await this.cartRepository.createCart(newUser.id);
 
     // Fire-and-forget email verification (log error, do not block registration)
-    this.authService
-      .sendVerificationEmail(newUser.id)
-      .catch((err) => console.error("Failed to send verification email:", err));
+    if (emailService.isEmailConfigured()) {
+      this.authService
+        .sendVerificationEmail(newUser.id)
+        .catch((err) => {
+          console.error("Failed to send verification email:", err.message || err);
+          console.error("User registration completed, but email verification was not sent.");
+        });
+    } else {
+      console.warn(
+        "Email service is not configured. Verification email will not be sent."
+      );
+      console.warn(
+        "Please configure SMTP settings (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS) to enable email verification."
+      );
+    }
+    
     const { password, ...userWithoutPassword } = newUser;
     return userWithoutPassword;
   }

@@ -102,6 +102,19 @@ const uploadImageConfig = multer({
 // Lưu ý: 'image' là tên field trong FormData từ Frontend gửi lên
 export const uploadImage = uploadImageConfig.single('image');
 export const uploadImages = uploadImageConfig.array('images', 20);
+
+// Optional image upload middleware (similar to uploadVideoOptional)
+export const uploadImageOptional = (req: any, res: any, next: any) => {
+  uploadImageConfig.single('image')(req, res, (err: any) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_UNEXPECTED_FILE') {
+        return next();
+      }
+      return next(err);
+    }
+    next();
+  });
+};
 // Error handling middleware for upload errors
 export const handleUploadError = (err: Error, req: any, res: any, next: any) => {
   // Check for S3 connection errors (network/DNS errors)
