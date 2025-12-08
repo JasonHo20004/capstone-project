@@ -48,7 +48,7 @@ services:
       PORT: 3000
       # Dùng tên service để kết nối
       DATABASE_URL: postgresql://postgres_dev:7Y9Cb8ARpD0UC6lXjNpoEsvgNu89Csnh@dpg-d4r2nhkhg0os738jf5ig-a/capstone_dev_yy4c
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: rediss://default:AbGFAAIncDI4MDE3ZDVjMmZlM2Q0ODRmODQxYzdiZmJkODA4MThjOXAyNDU0NDU@funky-molly-45445.upstash.io:6379
       # Thêm các biến khác từ .env vào đây nếu cần
     ports:
       - "3000:3000"
