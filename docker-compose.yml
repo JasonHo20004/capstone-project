@@ -38,7 +38,7 @@ services:
   # 3. Backend Service
   backend:
     build:
-      context: ./backend
+      context: ./backend  
       dockerfile: Dockerfile
     container_name: capstone-backend
     environment:
@@ -66,7 +66,7 @@ services:
         condition: service_healthy
     networks:
       - capstone-network
-    command: sh -c "npx prisma migrate deploy && npm run dev"
+    command: sh -c "npx prisma migrate deploy && node dist/server.js"
 
 volumes:
   postgres_data:

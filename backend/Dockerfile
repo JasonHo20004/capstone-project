@@ -1,29 +1,51 @@
-# Use Node.js 20 LTS as base image
-FROM node:20-alpine
+# --- Giai đoạn 1: Builder ---
+FROM node:20-alpine AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies for Prisma
-RUN apk add --no-cache openssl
+# Cài đặt Python/Make/G++ để compile thư viện 'bcrypt'
+RUN apk add --no-cache python3 make g++
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# Cài dependencies (bao gồm cả devDependencies để có esbuild, prisma cli)
+RUN npm install
 
-# Copy Prisma schema
-COPY prisma ./prisma/
-
-# Generate Prisma client
-RUN npx prisma generate
-
-# Copy source code
+# Copy source code và prisma schema
 COPY . .
 
-# Expose port
+# 1. Tạo Prisma Client (Generate cho môi trường Linux của Docker)
+RUN npx prisma generate
+
+# 2. Build code TS -> JS bằng esbuild (theo lệnh trong package.json của bạn)
+RUN npm run build:esbuild
+
+# --- Giai đoạn 2: Runner (Production) ---
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Cài lại thư viện cần thiết để chạy bcrypt (nếu bcrypt ko được build tĩnh)
+# Hoặc copy từ builder sang (phức tạp hơn), cách an toàn nhất cho người mới là cài lại dependencies prod
+RUN apk add --no-cache python3 make g++
+
+COPY package*.json ./
+
+# Chỉ cài dependencies production (bỏ typescript, esbuild...)
+RUN npm install --only=production
+
+# Quan trọng: Copy Prisma Client đã generate từ builder sang
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+
+# Copy code đã build (từ folder dist)
+COPY --from=builder /app/dist ./dist
+
+# Copy thư mục prisma schema (cần thiết nếu bạn muốn chạy migrate lúc deploy)
+COPY prisma ./prisma
+
 EXPOSE 3000
 
-# Build and run bundled server with migrations
-CMD ["sh", "-lc", "npm run build:esbuild && npx prisma migrate deploy && node dist/server.js"]
+# Lệnh chạy server
+CMD ["node", "dist/server.js"]
