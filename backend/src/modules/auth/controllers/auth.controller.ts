@@ -41,7 +41,7 @@ export class AuthController {
       const tokens = await this.authService.refreshUserToken(refreshToken);
       res.cookie("refreshToken", tokens.refreshToken, {
         httpOnly: true,
-        secure: false, //true -> https
+        secure: process.env.NODE_ENV === "production",
         sameSite: "strict",
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       });
