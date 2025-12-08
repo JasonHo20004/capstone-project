@@ -145,7 +145,7 @@ export class TestController {
         data: newSection,
       });
     } catch (error) {
-      if (error instanceof Error && error.message === 'Test not found') {
+      if (error instanceof Error && error.message === 'Bài kiểm tra không tồn tại') {
         res.status(404).json({
           success: false,
           message: error.message,
@@ -234,7 +234,7 @@ export class TestController {
         data: newPassage,
       });
     } catch (error) {
-      if (error instanceof Error && error.message === 'Section not found') {
+      if (error instanceof Error && error.message === 'Phần không tồn tại') {
         res.status(404).json({
           success: false,
           message: error.message,
@@ -418,4 +418,3 @@ export class TestController {
     }
   };
 }
-

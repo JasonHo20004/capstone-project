@@ -83,7 +83,7 @@ export class UserController {
         data: updatedUser,
       });
     } catch (error) {
-      if (error instanceof Error && error.message.includes("not found")) {
+      if (error instanceof Error && error.message.includes("không tồn tại")) {
         res.status(404).json({ success: false, message: error.message });
         // 404 Not Found
         return;
@@ -147,7 +147,7 @@ export class UserController {
     // 5. Error Handling tập trung
     if (error instanceof Error) {
         // Xử lý các lỗi business logic cụ thể nếu cần
-        if (error.message.includes("not found")) {
+        if (error.message.includes("không tồn tại")) {
             res.status(404).json({ success: false, message: "Người dùng không tồn tại." });
             return;
         }
@@ -157,7 +157,7 @@ export class UserController {
     res.status(500).json({
       success: false,
       message: "Tạo hồ sơ bán khóa học thất bại",
-      error: error instanceof Error ? error.message : "Internal Server Error",
+      error: error instanceof Error ? error.message : "Lỗi máy chủ",
     });
   }
 };

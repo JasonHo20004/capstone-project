@@ -42,7 +42,7 @@ export class CourseManagementController {
         data: course,
       });
     } catch (error) {
-      if (error instanceof Error && error.message === "Course not found") {
+      if (error instanceof Error && error.message === "Khóa học không tồn tại") {
         res.status(404).json({
           success: false,
           message: "Khóa học không tồn tại",
@@ -77,7 +77,7 @@ export class CourseManagementController {
         data,
       });
     } catch (error) {
-      if (error instanceof Error && error.message === "Course not found") {
+      if (error instanceof Error && error.message === "Khóa học không tồn tại") {
         res.status(404).json({
           success: false,
           message: "Khóa học không tồn tại",
@@ -112,14 +112,14 @@ export class CourseManagementController {
         data,
       });
     } catch (error) {
-      if (error instanceof Error && error.message === "Course not found") {
+      if (error instanceof Error && error.message === "Khóa học không tồn tại") {
         res.status(404).json({
           success: false,
           message: "Khóa học không tồn tại",
         });
         return;
       }
-      if (error instanceof Error && error.message === "Lesson not found") {
+      if (error instanceof Error && error.message === "Bài giảng không tồn tại") {
         res.status(404).json({
           success: false,
           message: "Bài giảng không tồn tại",
@@ -315,7 +315,7 @@ export class CourseManagementController {
         data: course,
       });
     } catch (error) {
-      if (error instanceof Error && error.message === "Course not found") {
+      if (error instanceof Error && error.message === "Khóa học không tồn tại") {
         res.status(404).json({
           success: false,
           message: "Khóa học không tồn tại",
@@ -346,7 +346,7 @@ export class CourseManagementController {
         message: "Xóa khóa học thành công",
       });
     } catch (error) {
-      if (error instanceof Error && error.message === "Course not found") {
+      if (error instanceof Error && error.message === "Khóa học không tồn tại") {
         res.status(404).json({
           success: false,
           message: "Khóa học không tồn tại",

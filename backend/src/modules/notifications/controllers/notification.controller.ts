@@ -324,7 +324,7 @@ export class NotificationController {
       if (!notificationTypeId) {
         res.status(400).json({
           success: false,
-          message: 'Notification type ID is required'
+          message: 'ID loại thông báo là bắt buộc'
         });
         return;
       }
@@ -765,14 +765,14 @@ export class NotificationController {
       });
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message === 'Course not found') {
+        if (error.message === 'Khóa học không tồn tại') {
           res.status(404).json({
             success: false,
             message: 'Không tìm thấy khóa học',
           });
           return;
         }
-        if (error.message === 'No students enrolled') {
+        if (error.message === 'Không có học viên đăng ký') {
           res.status(404).json({
             success: false,
             message: 'Không có người dùng nào đăng ký khóa học này',

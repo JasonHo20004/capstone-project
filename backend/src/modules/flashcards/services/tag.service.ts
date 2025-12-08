@@ -26,7 +26,7 @@ export class TagService {
       const updateTag = await this.tagRepository.updateTag(id, updateData);
       return updateTag;
     } catch {
-      throw Error("Can not find tagId");
+      throw Error("Không tìm thấy tagId");
     }
   }
 
@@ -35,9 +35,9 @@ export class TagService {
     await this.tagRepository.deleteTag(id);
   } catch (error:any) { 
       if (error.code === 'P2025') {
-        throw new Error('Flashcard deck not found or user does not have permission.');
+        throw new Error('Không tìm thấy bộ thẻ hoặc người dùng không có quyền.');
       }
-    throw error;
+      throw error;
+    }
   }
-}
 }

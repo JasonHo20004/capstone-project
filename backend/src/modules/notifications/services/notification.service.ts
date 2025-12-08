@@ -841,7 +841,7 @@ export class NotificationService {
     });
 
     if (!course) {
-      throw new Error('Course not found');
+      throw new Error('Khóa học không tồn tại');
     }
 
     const enrolledStudents = await this.prisma.userActivity.findMany({
@@ -863,7 +863,7 @@ export class NotificationService {
     });
 
     if (enrolledStudents.length === 0) {
-      throw new Error('No students enrolled');
+      throw new Error('Không có học viên đăng ký');
     }
 
     const result: NotificationResult = {

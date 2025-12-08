@@ -43,10 +43,10 @@ export class AnalyticsController {
         data: analytics,
       });
     } catch (error) {
-      if (error instanceof Error && error.message === 'Course not found') {
+      if (error instanceof Error && error.message === 'Khóa học không tồn tại') {
         res.status(404).json({
           success: false,
-          message: 'Không tìm thấy khóa học',
+          message: 'Khóa học không tồn tại',
         });
         return;
       }
@@ -54,4 +54,3 @@ export class AnalyticsController {
     }
   };
 }
-

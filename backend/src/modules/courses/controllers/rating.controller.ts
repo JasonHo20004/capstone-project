@@ -71,7 +71,7 @@ export class RatingController {
         count: ratings.length,
       });
     } catch (error) {
-      if (error instanceof Error && error.message === 'Course not found') {
+      if (error instanceof Error && error.message === 'Khóa học không tồn tại') {
         res.status(404).json({
           success: false,
           message: 'Khoá học không tồn tại',
@@ -108,14 +108,14 @@ export class RatingController {
       });
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message === 'Rating not found') {
+        if (error.message === 'Đánh giá không tồn tại') {
           res.status(404).json({
             success: false,
             message: 'Đánh giá không tồn tại',
           });
           return;
         }
-        if (error.message === 'Please enter your reply content') {
+        if (error.message === 'Vui lòng nhập nội dung phản hồi') {
           res.status(400).json({
             success: false,
             message: 'Vui lòng nhập nội dung phản hồi',
@@ -144,14 +144,14 @@ export class RatingController {
       });
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message === 'Rating not found') {
+        if (error.message === 'Đánh giá không tồn tại') {
           res.status(404).json({
             success: false,
             message: 'Đánh giá không tồn tại',
           });
           return;
         }
-        if (error.message === 'This rating has already been reported') {
+        if (error.message === 'Đánh giá này đã được báo cáo') {
           res.status(400).json({
             success: false,
             message: 'Đánh giá này đã được báo cáo',
@@ -163,4 +163,3 @@ export class RatingController {
     }
   };
 }
-

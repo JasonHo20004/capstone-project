@@ -244,7 +244,7 @@ export class NotificationRepository {
     });
 
     if (!userNotification) {
-      throw new Error('User does not have this notification');
+      throw new Error('Người dùng không có thông báo này');
     }
 
     return await this.prisma.notification.update({

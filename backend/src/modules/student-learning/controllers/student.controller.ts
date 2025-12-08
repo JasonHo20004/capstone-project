@@ -46,7 +46,7 @@ export class StudentController {
       });
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message === "Not enrolled in this course") {
+        if (error.message === "Bạn chưa đăng ký khóa học này") {
           res.status(403).json({
             success: false,
             message: "Bạn không có quyền truy cập vào khóa học này",
@@ -54,8 +54,8 @@ export class StudentController {
           return;
         }
         if (
-          error.message === "Lesson not found" ||
-          error.message === "Lesson does not belong to this course"
+          error.message === "Bài học không tồn tại" ||
+          error.message === "Bài học không thuộc khóa học này"
         ) {
           res.status(404).json({
             success: false,
@@ -154,14 +154,14 @@ export class StudentController {
       });
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message === "Not enrolled in this course") {
+        if (error.message === "Bạn chưa đăng ký khóa học này") {
           res.status(403).json({
             success: false,
             message: "Bạn không có quyền truy cập vào khóa học này",
           });
           return;
         }
-        if (error.message === "Course not found") {
+        if (error.message === "Khóa học không tồn tại") {
           res.status(404).json({
             success: false,
             message: "Khóa học không tồn tại",
@@ -190,7 +190,7 @@ export class StudentController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: "Unauthorized: Authentication required",
+          message: "Chưa xác thực",
         });
         return;
       }
@@ -198,7 +198,7 @@ export class StudentController {
       if (!courseId || !lessonId) {
         res.status(400).json({
           success: false,
-          message: "Bad Request: Course ID and Lesson ID are required",
+          message: "Course ID và Lesson ID là bắt buộc",
         });
         return;
       }
@@ -213,7 +213,7 @@ export class StudentController {
 
       res.status(200).json({
         success: true,
-        message: "Comments retrieved successfully",
+        message: "Lấy bình luận bài học thành công",
         data: result.comments,
         pagination: {
           total: result.total,
@@ -224,14 +224,14 @@ export class StudentController {
       });
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message === "Not enrolled in this course") {
+        if (error.message === "Bạn chưa đăng ký khóa học này") {
           res.status(403).json({
             success: false,
             message: error.message,
           });
           return;
         }
-        if (error.message === "Lesson does not belong to this course") {
+        if (error.message === "Bài học không thuộc khóa học này") {
           res.status(404).json({
             success: false,
             message: error.message,
@@ -259,7 +259,7 @@ export class StudentController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: "Unauthorized: Authentication required",
+          message: "Chưa xác thực",
         });
         return;
       }
@@ -267,7 +267,7 @@ export class StudentController {
       if (!courseId || !lessonId) {
         res.status(400).json({
           success: false,
-          message: "Bad Request: Course ID and Lesson ID are required",
+          message: "Course ID và Lesson ID là bắt buộc",
         });
         return;
       }
@@ -282,26 +282,26 @@ export class StudentController {
 
       res.status(201).json({
         success: true,
-        message: "Comment created successfully",
+        message: "Tạo bình luận bài học thành công",
         data: comment,
       });
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message === "Not enrolled in this course") {
+        if (error.message === "Bạn chưa đăng ký khóa học này") {
           res.status(403).json({
             success: false,
             message: error.message,
           });
           return;
         }
-        if (error.message === "Lesson does not belong to this course") {
+        if (error.message === "Bài học không thuộc khóa học này") {
           res.status(404).json({
             success: false,
             message: error.message,
           });
           return;
         }
-        if (error.message === "Comment content is required") {
+        if (error.message === "Nội dung bình luận là bắt buộc") {
           res.status(400).json({
             success: false,
             message: error.message,
@@ -339,7 +339,7 @@ export class StudentController {
 
       res.status(200).json({
         success: true,
-        message: "Ratings retrieved successfully",
+        message: "Lấy đánh giá khóa học thành công",
         data: result.ratings,
         averageScore: result.averageScore,
         pagination: {
@@ -370,7 +370,7 @@ export class StudentController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: "Unauthorized: Authentication required",
+          message: "Chưa xác thực",
         });
         return;
       }
@@ -378,7 +378,7 @@ export class StudentController {
       if (!courseId) {
         res.status(400).json({
           success: false,
-          message: "Bad Request: Course ID is required",
+          message: "Course ID là bắt buộc",
         });
         return;
       }
@@ -392,26 +392,26 @@ export class StudentController {
 
       res.status(201).json({
         success: true,
-        message: "Rating created successfully",
+        message: "Tạo đánh giá khóa học thành công",
         data: rating,
       });
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message === "You must purchase this course to rate it") {
+        if (error.message === "Bạn cần mua khóa học này để đánh giá") {
           res.status(403).json({
             success: false,
             message: error.message,
           });
           return;
         }
-        if (error.message === "You have already rated this course") {
+        if (error.message === "Bạn đã đánh giá khóa học này rồi") {
           res.status(409).json({
             success: false,
             message: error.message,
           });
           return;
         }
-        if (error.message === "Rating score must be between 1 and 5") {
+        if (error.message === "Điểm đánh giá phải từ 1 đến 5") {
           res.status(400).json({
             success: false,
             message: error.message,
@@ -439,7 +439,7 @@ export class StudentController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: "Unauthorized: Authentication required",
+          message: "Chưa xác thực",
         });
         return;
       }
@@ -448,7 +448,7 @@ export class StudentController {
 
       res.status(200).json({
         success: true,
-        message: "Enrolled courses retrieved successfully",
+        message: "Lấy khóa học đã đăng ký thành công",
         data: result.courses,
         pagination: {
           total: result.total,
@@ -477,7 +477,7 @@ export class StudentController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: "Unauthorized: Authentication required",
+          message: "Chưa xác thực",
         });
         return;
       }
@@ -485,7 +485,7 @@ export class StudentController {
       if (!courseId || !lessonId) {
         res.status(400).json({
           success: false,
-          message: "Bad Request: Course ID and Lesson ID are required",
+          message: "Course ID và Lesson ID là bắt buộc",
         });
         return;
       }
@@ -502,14 +502,14 @@ export class StudentController {
       });
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message === "Not enrolled in this course") {
+        if (error.message === "Bạn chưa đăng ký khóa học này") {
           res.status(403).json({
             success: false,
             message: error.message,
           });
           return;
         }
-        if (error.message === "Lesson does not belong to this course") {
+        if (error.message === "Bài học không thuộc khóa học này") {
           res.status(404).json({
             success: false,
             message: error.message,
@@ -521,4 +521,3 @@ export class StudentController {
     }
   };
 }
-

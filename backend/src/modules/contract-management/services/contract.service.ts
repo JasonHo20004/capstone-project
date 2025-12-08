@@ -14,7 +14,7 @@ export class ContractManagementService {
     const subscriptionPlan = await this.prisma.subscriptionPlan.findFirst();
     if (!subscriptionPlan) {
       throw new Error(
-        "No subscription plan found. Please create a default subscription plan first."
+        "Không tìm thấy gói đăng ký. Vui lòng tạo gói đăng ký mặc định trước."
       );
     }
     return subscriptionPlan;
@@ -34,7 +34,7 @@ export class ContractManagementService {
       data.courseSellerId
     );
     if (!courseSeller) {
-      throw new Error("Course Seller not found");
+      throw new Error("Không tìm thấy Giảng viên khóa học");
     }
 
     const now = new Date();
@@ -123,7 +123,7 @@ export class ContractManagementService {
     });
 
     if (!contract) {
-      throw new Error("Contract not found");
+      throw new Error("Không tìm thấy hợp đồng");
     }
 
     const enrolledStudents = await this.prisma.userActivity.findMany({
@@ -180,7 +180,7 @@ export class ContractManagementService {
     });
 
     if (!currentContract) {
-      throw new Error("Contract not found");
+      throw new Error("Không tìm thấy hợp đồng");
     }
 
     const currentExpiry = currentContract.expiresAt;
