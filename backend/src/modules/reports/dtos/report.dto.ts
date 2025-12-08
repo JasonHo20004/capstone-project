@@ -1,5 +1,5 @@
 import { z } from "zod";
-import  {EReasonType} from "@/../generated/prisma";
+import  {EReasonType} from "@prisma/client";
 
 
 // request

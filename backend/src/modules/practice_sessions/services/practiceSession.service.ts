@@ -11,7 +11,7 @@ import type {
 import { UserAnswerRepository } from "@/modules/practice_sessions/repositories/userAnswer.repository";
 import { ScoreConversionRepository } from "@/modules/practice_sessions/repositories/scoreConversion.repository";
 import { databaseService } from "@/services/database.service";
-import type { SkillType } from "@/../generated/prisma";
+import type { SkillType } from "@prisma/client";
 
 function roundIELTSScore(score: number): number {
   const decimal = score - Math.floor(score);

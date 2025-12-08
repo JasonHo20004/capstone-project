@@ -1,5 +1,5 @@
 import { CartRepository } from "@/modules/cart/repositories/cart.repository";
-import type { CartItem, Order } from "@/../generated/prisma";
+import type { CartItem, Order } from "@prisma/client";
 import { CourseRepository } from "@/modules/courses/repositories/course.repository";
 import { WalletRepository } from "@/modules/users/repositories/wallet.repository";
 import { databaseService } from "@/services/database.service";

@@ -1,5 +1,5 @@
 import { ApplicationManagementRepository } from "@/modules/application-management-by-admin/repositories/application-management.repository";
-// import { ApplicationStatus } from "@/../generated/prisma";
+// import { ApplicationStatus } from "@prisma/client";
 
 export class ApplicationManagementService {
   private repository = new ApplicationManagementRepository();

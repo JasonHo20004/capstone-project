@@ -2,7 +2,7 @@ import { ReportRepository } from "@/modules/reports/repositories/report.reposito
 import { UserRepository } from "@/modules/users/repositories/user.repository";
 import { CourseRepository } from "@/modules/courses/repositories/course.repository";
 import { UserActivityRepository } from "@/modules/users/repositories/userActivity.repository";
-import type { EReasonType } from "@/../generated/prisma";
+import type { EReasonType } from "@prisma/client";
 import type { CreateReportResponse ,GetReportResponse} from "@/modules/reports/dtos/report.dto";
 
 export class ReportService {

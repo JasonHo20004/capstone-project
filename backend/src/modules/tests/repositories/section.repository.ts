@@ -1,5 +1,5 @@
 import { databaseService } from "@/services/database.service";
-import type { Section, Passage  } from "@/../generated/prisma";
+import type { Section, Passage  } from "@prisma/client";
 
 export class SectionRepository {
   private prisma = databaseService.getClient();

@@ -1,5 +1,5 @@
 import { CourseRepository } from '@/modules/courses/repositories/course.repository';
-import type { Course, CourseLevel, CourseStatus } from '@/../generated/prisma';
+import type { Course, CourseLevel, CourseStatus } from '@prisma/client';
 import { calculateAverageRating } from '@/utils/admin';
 
 export class CourseService {

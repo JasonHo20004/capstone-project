@@ -1,5 +1,5 @@
 import { databaseService } from '@/services/database.service';
-import { TransactionType, TransactionStatus } from '@/../generated/prisma';
+import { TransactionType, TransactionStatus } from '@prisma/client';
 
 export class SellerRepository {
   private prisma = databaseService.getClient();

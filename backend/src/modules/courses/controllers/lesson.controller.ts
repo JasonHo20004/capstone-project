@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { LessonService } from '@/modules/courses/services/lesson.service';
 import { CourseRepository } from '@/modules/courses/repositories/course.repository';
-import { UserRole } from '@/../generated/prisma';
+import { UserRole } from '@prisma/client';
 import type {
   CreateLessonInput,
   UpdateLessonInput,

@@ -1,5 +1,5 @@
 import { databaseService } from "@/services/database.service";
-import type { CourseSellerApplication, ApplicationStatus } from "@/../generated/prisma";
+import type { CourseSellerApplication, ApplicationStatus } from "@prisma/client";
 
 export class AdminRepository {
   private prisma = databaseService.getClient();

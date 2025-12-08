@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { AdminController } from '@/modules/admin/controllers/admin.controller';
 import { validate } from '@/middlewares/validations.middleware';
 import { approveCourseSellerApplicationDTO } from '@/modules/admin/dtos/courseSeller.dto';
-import { UserRole }  from "@/../generated/prisma";
+import { UserRole }  from "@prisma/client";
 import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
 import revenueRoute from '../../revenue-management-by-admin/routes/revenue.route';
 import contractsManagementRoute from '../../contract-management/routes/contract-management.route';

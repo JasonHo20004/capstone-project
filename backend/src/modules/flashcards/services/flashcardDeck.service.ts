@@ -1,6 +1,6 @@
 import { FlashcardDeckRepository } from "@/modules/flashcards/repositories/flashcardDeck.repository";
 import type { CreateFlashcardDeckInput,GetAllFlashcardDeckResponse } from "@/modules/flashcards/dtos/flashcardDeck.dto";
-import type { FlashcardDeck } from "@/../generated/prisma";
+import type { FlashcardDeck } from "@prisma/client";
 import { TagRepository } from "@/modules/flashcards/repositories/tag.repository";
 export class FlashcardDeckService {
   private flashcardDeckRepository = new FlashcardDeckRepository();

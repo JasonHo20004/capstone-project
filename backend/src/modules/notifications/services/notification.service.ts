@@ -1,7 +1,7 @@
 import { databaseService } from "@/services/database.service";
 import { NotificationTypeRepository } from "../repositories/notificationType.repository";
 import { NotificationRepository } from "../repositories/notification.repository";
-import { UserRole } from "@/../generated/prisma";
+import { UserRole } from "@prisma/client";
 import {
   IN_APP_NOTIFICATION_CREATED_EVENT,
   notificationEvents,

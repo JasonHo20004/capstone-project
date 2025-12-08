@@ -1,7 +1,7 @@
 import { LessonRepository } from '@/modules/courses/repositories/lesson.repository';
 import { MediaAssetRepository } from '@/modules/courses/repositories/media-asset.repository';
 import { CourseRepository } from '@/modules/courses/repositories/course.repository';
-import type { Lesson, MediaType } from '@/../generated/prisma';
+import type { Lesson, MediaType } from '@prisma/client';
 
 export class LessonService {
   private lessonRepository = new LessonRepository();

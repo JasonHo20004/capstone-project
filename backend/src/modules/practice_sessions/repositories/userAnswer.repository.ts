@@ -2,7 +2,7 @@ import { databaseService } from "@/services/database.service";
 import type { AnswerQuestionResponse,UserAnswerSubmitResponse } from "@/modules/practice_sessions/dtos/userAnswer.dto";
 import type { PrismaTx } from "@/services/database.service";
 
-import type { UserAnswer } from "@/../generated/prisma";
+import type { UserAnswer } from "@prisma/client";
 export class UserAnswerRepository {
   private prisma = databaseService.getClient();
 

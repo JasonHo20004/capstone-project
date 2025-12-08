@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { UserRole } from "@/../generated/prisma";
+import { UserRole } from "@prisma/client";
 
-import type { User } from "@/../generated/prisma";
+import type { User } from "@prisma/client";
 
 export const loginDTO = z.object({
   body: z.object({

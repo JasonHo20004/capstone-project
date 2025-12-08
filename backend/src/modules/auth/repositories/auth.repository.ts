@@ -1,5 +1,5 @@
 import { databaseService } from "@/services/database.service";
-import type {  RefreshToken } from "@/../generated/prisma";
+import type {  RefreshToken } from "@prisma/client";
 import type{CreateRefreshTokenInput} from "../dtos/auth.dto"
 export class AuthRepository {
   private prisma = databaseService.getClient();

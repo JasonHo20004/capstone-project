@@ -1,6 +1,6 @@
 import { FlashcardRepository } from "@/modules/flashcards/repositories/flashcard.repository";
 import { FlashcardDeckRepository } from "../repositories/flashcardDeck.repository";
-import type { Flashcard } from "@/../generated/prisma";
+import type { Flashcard } from "@prisma/client";
 import axios from "axios";
 import * as fs from "fs";
 import * as path from "path";

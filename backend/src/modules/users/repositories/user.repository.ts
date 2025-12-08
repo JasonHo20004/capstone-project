@@ -3,7 +3,7 @@ import type {
   User,
   CourseSellerApplication,
   CourseSellerProfile,
-} from "@/../generated/prisma";
+} from "@prisma/client";
 import type {
   SafeUser,
   CreateUserInput,

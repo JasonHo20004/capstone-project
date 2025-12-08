@@ -1,4 +1,4 @@
-import type { SubscriptionContract, User } from "@/../generated/prisma";
+import type { SubscriptionContract, User } from "@prisma/client";
 import { UserRepository } from "@/modules/users/repositories/user.repository";
 import { databaseService } from "@/services/database.service";
 import { NotificationService, NOTIFICATION_TYPES } from "@/modules/notifications/services/notification.service";

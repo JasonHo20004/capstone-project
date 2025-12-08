@@ -6,7 +6,7 @@ import type {
   UserProfileResponse,
 } from "@/modules/users/dtos/user.dto";
 import { CartRepository } from "@/modules/cart/repositories/cart.repository";
-import type { CourseSellerApplication } from "@/../generated/prisma";
+import type { CourseSellerApplication } from "@prisma/client";
 import { WalletRepository } from "@/modules/users/repositories/wallet.repository";
 import { AuthService } from "@/modules/auth/services/auth.service";
 import { emailService } from "@/services";

@@ -2,7 +2,7 @@ import { TestRepository } from '@/modules/tests/repositories/test.repository';
 import { SectionRepository } from '@/modules/tests/repositories/section.repository';
 import { QuestionRepository } from '@/modules/tests/repositories/question.repository';
 import { CourseRepository } from '@/modules/courses/repositories/course.repository';
-import type { Test, Question } from '@/../generated/prisma';
+import type { Test, Question } from '@prisma/client';
 
 export class TestService {
   private testRepository = new TestRepository();
