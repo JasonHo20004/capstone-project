@@ -14,7 +14,7 @@ export class SellerController {
       if (!sellerId) {
         res.status(401).json({
           success: false,
-          message: 'Unauthorized'
+          message: 'Chưa xác thực'
         });
         return;
       }
@@ -43,7 +43,7 @@ export class SellerController {
       if (!sellerId) {
         res.status(401).json({
           success: false,
-          message: 'Unauthorized'
+          message: 'Chưa xác thực'
         });
         return;
       }
@@ -76,7 +76,7 @@ export class SellerController {
       if (!sellerId) {
         res.status(401).json({
           success: false,
-          message: 'Unauthorized'
+          message: 'Chưa xác thực'
         });
         return;
       }
@@ -109,7 +109,7 @@ export class SellerController {
       if (!sellerId) {
         res.status(401).json({
           success: false,
-          message: 'Unauthorized'
+          message: 'Chưa xác thực'
         });
         return;
       }

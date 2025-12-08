@@ -18,13 +18,13 @@ public getAllTags = async (
 
       res.status(200).json({
         success: true,
-        message: "Get All Tag successfully",
+        message: "Lấy tất cả tag thành công",
         data: tags,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to Get All tag",
+        message: "Lấy tất cả tag thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -40,13 +40,13 @@ public getAllTags = async (
 
       res.status(200).json({
         success: true,
-        message: "Create Tag successfully",
+        message: "Tạo tag thành công",
         data: newTag,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to create tag",
+        message: "Tạo tag thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -62,13 +62,13 @@ public getAllTags = async (
 
       res.status(200).json({
         success: true,
-        message: "Update tag successfully",
+        message: "Cập nhật tag thành công",
         data: updatedTag,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to update tag",
+        message: "Cập nhật tag thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -84,12 +84,12 @@ public getAllTags = async (
 
       res.status(200).json({
         success: true,
-        message: "Delete tag successfully",
+        message: "Xóa tag thành công",
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to delete tag",
+        message: "Xóa tag thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }

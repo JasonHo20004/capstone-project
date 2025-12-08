@@ -48,7 +48,7 @@ export class TestController {
 
       res.status(201).json({
         success: true,
-        message: 'Test created successfully',
+        message: 'Tạo bài kiểm tra thành công',
         data: newTest,
       });
     } catch (error) {
@@ -69,14 +69,14 @@ export class TestController {
       if (!test) {
         res.status(404).json({
           success: false,
-          message: 'Test not found',
+          message: 'Bài kiểm tra không tồn tại',
         });
         return;
       }
 
       res.status(200).json({
         success: true,
-        message: 'Test retrieved successfully',
+        message: 'Lấy bài kiểm tra thành công',
         data: test,
       });
     } catch (error) {
@@ -95,7 +95,7 @@ export class TestController {
 
       res.status(200).json({
         success: true,
-        message: 'Tests retrieved successfully',
+        message: 'Lấy danh sách bài kiểm tra thành công',
         data: tests,
         count: tests.length,
       });
@@ -141,7 +141,7 @@ export class TestController {
 
       res.status(201).json({
         success: true,
-        message: 'Section created successfully',
+        message: 'Tạo phần mới thành công',
         data: newSection,
       });
     } catch (error) {
@@ -167,7 +167,7 @@ export class TestController {
 
       res.status(200).json({
         success: true,
-        message: 'Sections retrieved successfully',
+        message: 'Lấy danh sách phần mới thành công',
         data: sections,
         count: sections.length,
       });
@@ -188,14 +188,14 @@ export class TestController {
       if (!section) {
         res.status(404).json({
           success: false,
-          message: 'Section not found',
+          message: 'Phần không tồn tại',
         });
         return;
       }
 
       res.status(200).json({
         success: true,
-        message: 'Section retrieved successfully',
+        message: 'Lấy phần mới thành công',
         data: section,
       });
     } catch (error) {
@@ -230,7 +230,7 @@ export class TestController {
 
       res.status(201).json({
         success: true,
-        message: 'Passage added successfully',
+        message: 'Thêm đoạn mới thành công',
         data: newPassage,
       });
     } catch (error) {
@@ -256,7 +256,7 @@ export class TestController {
 
       res.status(200).json({
         success: true,
-        message: 'Passages retrieved successfully',
+        message: 'Lấy danh sách đoạn mới thành công',
         data: passages,
         count: passages.length,
       });
@@ -280,14 +280,14 @@ export class TestController {
         if (!questionData.options || questionData.options.length === 0) {
           res.status(400).json({
             success: false,
-            message: 'MULTIPLE_CHOICE questions must have options',
+            message: 'Câu hỏi MULTIPLE_CHOICE phải có các lựa chọn',
           });
           return;
         }
         if (questionData.correctAnswerIndex === undefined) {
           res.status(400).json({
             success: false,
-            message: 'MULTIPLE_CHOICE questions must have correctAnswerIndex',
+            message: 'Câu hỏi MULTIPLE_CHOICE phải có chỉ số đáp án đúng',
           });
           return;
         }
@@ -295,7 +295,7 @@ export class TestController {
         if (!questionData.wordLimit) {
           res.status(400).json({
             success: false,
-            message: 'ESSAY questions must have wordLimit',
+            message: 'Câu hỏi ESSAY phải có giới hạn số từ',
           });
           return;
         }
@@ -303,7 +303,7 @@ export class TestController {
         if (!questionData.correctAnswer) {
           res.status(400).json({
             success: false,
-            message: 'FILL_IN_THE_BLANK questions must have correctAnswer',
+            message: 'Câu hỏi FILL_IN_THE_BLANK phải có đáp án đúng',
           });
           return;
         }
@@ -352,7 +352,7 @@ export class TestController {
 
       res.status(201).json({
         success: true,
-        message: 'Question added successfully',
+        message: 'Thêm câu hỏi mới thành công',
         data: newQuestion,
       });
     } catch (error) {
@@ -382,7 +382,7 @@ export class TestController {
 
       res.status(200).json({
         success: true,
-        message: 'Questions retrieved successfully',
+        message: 'Lấy danh sách câu hỏi thành công',
         data: questions,
         count: questions.length,
       });
@@ -403,14 +403,14 @@ export class TestController {
       if (!question) {
         res.status(404).json({
           success: false,
-          message: 'Question not found',
+          message: 'Câu hỏi không tồn tại',
         });
         return;
       }
 
       res.status(200).json({
         success: true,
-        message: 'Question retrieved successfully',
+        message: 'Lấy câu hỏi thành công',
         data: question,
       });
     } catch (error) {

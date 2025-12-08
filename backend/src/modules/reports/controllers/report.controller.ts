@@ -25,13 +25,13 @@ export class ReportController {
 
       res.status(200).json({
         success: true,
-        message: "Report this course successfully",
+        message: "Báo cáo khóa học thành công",
         data: newReport,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to report this course",
+        message: "Báo cáo khóa học thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -46,13 +46,13 @@ export class ReportController {
 
       res.status(200).json({
         success: true,
-        message: "Get All Report successfully",
+        message: "Lấy tất cả báo cáo thành công",
         data: reports,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to get all report",
+        message: "Lấy tất cả báo cáo thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -67,13 +67,13 @@ export class ReportController {
 
       res.status(200).json({
         success: true,
-        message: "Get Detail Report successfully",
+        message: "Lấy chi tiết báo cáo thành công",
         data: reports,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to Detail all report",
+        message: "Lấy chi tiết báo cáo thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }

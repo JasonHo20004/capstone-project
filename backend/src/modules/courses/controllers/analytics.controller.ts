@@ -20,7 +20,7 @@ export class AnalyticsController {
         );
         res.status(200).json({
           success: true,
-          message: 'Export generated successfully',
+          message: 'Xuất báo cáo hoàn thành thành công',
           data: exportResult,
         });
         return;
@@ -31,7 +31,7 @@ export class AnalyticsController {
       if (analytics.totalEnrolled === 0) {
         res.status(200).json({
           success: true,
-          message: 'No data to calculate completion rate',
+          message: 'Không có dữ liệu để tính toán tỉ lệ hoàn thành',
           data: analytics,
         });
         return;
@@ -39,14 +39,14 @@ export class AnalyticsController {
 
       res.status(200).json({
         success: true,
-        message: 'Completion rate retrieved successfully',
+        message: 'Tỉ lệ hoàn thành khóa học được tính toán thành công',
         data: analytics,
       });
     } catch (error) {
       if (error instanceof Error && error.message === 'Course not found') {
         res.status(404).json({
           success: false,
-          message: 'Course not found',
+          message: 'Không tìm thấy khóa học',
         });
         return;
       }

@@ -34,7 +34,7 @@ export class AuthController {
     try {
       const { refreshToken } = req.cookies;
       if (!refreshToken) {
-        res.status(401).json({ message: "Refresh token is required" });
+        res.status(401).json({ message: "Refresh token là bắt buộc" });
         return;
       }
 
@@ -58,7 +58,7 @@ export class AuthController {
     try {
       const { refreshToken } = req.cookies;
       if (!refreshToken) {
-        res.status(401).json({ message: "Refresh token is required" });
+        res.status(401).json({ message: "Refresh token là bắt buộc" });
         return;
       }
       await this.authService.logout(refreshToken);
@@ -67,9 +67,9 @@ export class AuthController {
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",
       });
-      res.status(200).json({ message: "Logged out successfully" });
+      res.status(200).json({ message: "Đăng xuất thành công" });
     } catch (error: any) {
-      res.status(500).json({ message: "An error occurred" });
+      res.status(500).json({ message: "Lỗi máy chủ!" });
     }
   };
 
@@ -80,7 +80,7 @@ export class AuthController {
     try {
       const token = req.query.token;
       if (!token) {
-        res.status(400).json({ message: "Verification token is required" });
+        res.status(400).json({ message: "Verification token là bắt buộc" });
         return;
       }
 
@@ -89,7 +89,7 @@ export class AuthController {
 
       const userId = await client.get(key);
       if (!userId) {
-        res.status(400).json({ message: "Invalid or expired verification token" });
+        res.status(400).json({ message: "Verification token không hợp lệ" });
         return;
       }
 
@@ -99,13 +99,13 @@ export class AuthController {
       });
 
       if (!user) {
-        res.status(400).json({ message: "Invalid verification token" });
+        res.status(400).json({ message: "Verification token không hợp lệ" });
         return;
       }
 
       if (user.isEmailVerified) {
         await client.del(key);
-        res.status(200).json({ message: "Email is already verified" });
+        res.status(200).json({ message: "Email đã được xác thực" });
         return;
       }
 
@@ -118,9 +118,9 @@ export class AuthController {
 
       await client.del(key);
 
-      res.status(200).json({ message: "Email verified successfully" });
+      res.status(200).json({ message: "Email đã được xác thực" });
     } catch (error: any) {
-      res.status(500).json({ message: "Failed to verify email" });
+      res.status(500).json({ message: "Lỗi máy chủ" });
     }
   };
 }

@@ -20,7 +20,7 @@ export class StudentController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: "Unauthorized: Authentication required",
+          message: "Chưa xác thực",
         });
         return;
       }
@@ -28,7 +28,7 @@ export class StudentController {
       if (!courseId || !lessonId) {
         res.status(400).json({
           success: false,
-          message: "Bad Request: Course ID and Lesson ID are required",
+          message: "Course ID và Lesson ID là bắt buộc",
         });
         return;
       }
@@ -41,7 +41,7 @@ export class StudentController {
 
       res.status(200).json({
         success: true,
-        message: "Lesson retrieved successfully",
+        message: "Lấy chi tiết bài học thành công",
         data: lesson,
       });
     } catch (error) {
@@ -49,7 +49,7 @@ export class StudentController {
         if (error.message === "Not enrolled in this course") {
           res.status(403).json({
             success: false,
-            message: error.message,
+            message: "Bạn không có quyền truy cập vào khóa học này",
           });
           return;
         }
@@ -59,7 +59,7 @@ export class StudentController {
         ) {
           res.status(404).json({
             success: false,
-            message: error.message,
+            message: "Bài học không tồn tại hoặc không thuộc khóa học này",
           });
           return;
         }
@@ -83,7 +83,7 @@ export class StudentController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: "Unauthorized: Authentication required",
+          message: "Chưa xác thực",
         });
         return;
       }
@@ -91,7 +91,7 @@ export class StudentController {
       if (!courseId) {
         res.status(400).json({
           success: false,
-          message: "Bad Request: Course ID is required",
+          message: "Course ID là bắt buộc",
         });
         return;
       }
@@ -100,7 +100,7 @@ export class StudentController {
 
       res.status(200).json({
         success: true,
-        message: "Syllabus retrieved successfully",
+        message: "Lấy khung chương trình thành công",
         data: syllabus,
       });
     } catch (error) {
@@ -132,7 +132,7 @@ export class StudentController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: "Unauthorized: Authentication required",
+          message: "Chưa xác thực",
         });
         return;
       }
@@ -140,7 +140,7 @@ export class StudentController {
       if (!courseId) {
         res.status(400).json({
           success: false,
-          message: "Bad Request: Course ID is required",
+          message: "Course ID là bắt buộc",
         });
         return;
       }
@@ -149,7 +149,7 @@ export class StudentController {
 
       res.status(200).json({
         success: true,
-        message: "Course context retrieved successfully",
+        message: "Lấy thông tin khóa học thành công",
         data: context,
       });
     } catch (error) {
@@ -157,14 +157,14 @@ export class StudentController {
         if (error.message === "Not enrolled in this course") {
           res.status(403).json({
             success: false,
-            message: error.message,
+            message: "Bạn không có quyền truy cập vào khóa học này",
           });
           return;
         }
         if (error.message === "Course not found") {
           res.status(404).json({
             success: false,
-            message: error.message,
+            message: "Khóa học không tồn tại",
           });
           return;
         }

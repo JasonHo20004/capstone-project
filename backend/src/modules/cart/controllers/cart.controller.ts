@@ -23,13 +23,13 @@ export class CartController {
 
       res.status(200).json({
         success: true,
-        message: "Add this course to cart  successfully",
+        message: "Thêm khóa học vào giỏ hàng thành công",
         data: cartItem,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to add this course to cart ",
+        message: "Lỗi khi thêm khóa học vào giỏ hàng",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -45,13 +45,13 @@ export class CartController {
 
       res.status(200).json({
         success: true,
-        message: "Checkout this cart successfully",
+        message: "Checkout giỏ hàng thành công",
         data: order,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to checkout this cart ",
+        message: "Lỗi khi checkout giỏ hàng",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -67,13 +67,13 @@ export class CartController {
 
       res.status(200).json({
         success: true,
-        message: "Buy this item successfully",
+        message: "Mua khóa học thành công",
         data: order,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to buy this item",
+        message: "Lỗi khi mua khóa học",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -90,13 +90,13 @@ export class CartController {
 
       res.status(200).json({
         success: true,
-        message: "Checkout this cart successfully",
+        message: "Thanh toán giỏ hàng thành công",
         data: order,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to checkout this cart ",
+        message: "Lỗi khi thanh toán giỏ hàng",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -113,13 +113,13 @@ export class CartController {
 
       res.status(200).json({
         success: true,
-        message: "Get User Cart successfully",
+        message: "Lấy giỏ hàng thành công",
         data: order,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to Get User Cart",
+        message: "Lỗi khi lấy giỏ hàng",
         error: error instanceof Error ? error.message : String(error),
       });
     }

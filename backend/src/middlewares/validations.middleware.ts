@@ -34,7 +34,7 @@ export const validate = (schema: ZodObject) => {
         // Bây giờ nếu bạn thêm 'return' ở đây, TypeScript sẽ báo lỗi ngay
         // vì hàm được khai báo là void
         res.status(400).json({
-          message: 'Invalid request data',
+          message: 'Dữ liệu không hợp lệ!',
           errors: error.issues,
         });
       } else {

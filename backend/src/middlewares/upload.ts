@@ -42,7 +42,7 @@ const upload = multer({
     if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only video files are allowed.'));
+      cb(new Error('Loại tệp không hợp lệ. Chỉ chấp nhận các tệp video (MP4, MPEG, QUICKTIME, MSVIDEO, WEBM).'));
     }
   },
 });
@@ -93,7 +93,7 @@ const uploadImageConfig = multer({
     if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only image files (JPEG, PNG, WEBP, GIF) are allowed.'));
+      cb(new Error('Loại tệp không hợp lệ. Chỉ chấp nhận các tệp ảnh (JPEG, PNG, WEBP, GIF, SVG).'));
     }
   },
 });
@@ -165,8 +165,8 @@ export const handleUploadError = (err: Error, req: any, res: any, next: any) => 
     if (err.code === 'LIMIT_FILE_SIZE') {
       // Kiểm tra xem request này là upload video hay ảnh để báo lỗi chính xác
       const message = req.is('multipart/form-data') && req.url.includes('image') 
-        ? 'File too large. Maximum size for images is 5MB.'
-        : 'File too large. Maximum size is 100MB.';
+        ? 'Dung lượng file quá lớn. Dung lượng tối đa cho ảnh là 5MB.'
+        : 'Dung lượng file quá lớn. Dung lượng tối đa là 100MB.';
         
       return res.status(400).json({
         success: false,
@@ -178,7 +178,7 @@ export const handleUploadError = (err: Error, req: any, res: any, next: any) => 
     if (err.code === 'LIMIT_UNEXPECTED_FILE') {
       return res.status(400).json({
         success: false,
-        message: 'Too many files or invalid field name.',
+        message: 'Quá nhiều file hoặc tên trường không hợp lệ.',
       });
     }
 
@@ -192,7 +192,7 @@ export const handleUploadError = (err: Error, req: any, res: any, next: any) => 
   if (err) {
     return res.status(400).json({
       success: false,
-      message: err.message || 'Upload failed. Please try again.',
+      message: err.message || 'Lỗi tải file. Vui lòng thử lại.',
       error: process.env.NODE_ENV === 'development' ? err.message : undefined,
     });
   }
