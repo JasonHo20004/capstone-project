@@ -30,7 +30,7 @@ const app = express();
 // Middleware
 app.use(
   cors({
-    origin: ["http://localhost:8080"],
+    origin: ["http://localhost:8080", "https://skillboostenglish.netlify.app"],
     credentials: true,
   })
 );
