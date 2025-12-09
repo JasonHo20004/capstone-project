@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import type SMTPTransport from "nodemailer/lib/smtp-transport";
+
 export interface SendEmailOptions {
   to: string;
   subject: string;
@@ -48,15 +48,14 @@ class EmailService {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
-      family: 4,
-      connectionTimeout: 60000, // 60 seconds
-      greetingTimeout: 30000, // 30 seconds
-      socketTimeout: 60000, // 660 seconds
+      connectionTimeout: 10000, // 10 seconds
+      greetingTimeout: 5000, // 5 seconds
+      socketTimeout: 10000, // 10 seconds
       requireTLS: port === 587, // Require TLS for port 587
       tls: {
         rejectUnauthorized: process.env.NODE_ENV === "production",
       },
-    } as SMTPTransport.Options);
+    });
 
     return transporter;
   }
@@ -86,14 +85,7 @@ class EmailService {
       }
 
       const transporter = this.getTransporter();
-
-      transporter.verify(function (error:any, success:any) {
-        if (error) {
-          console.log("🔴 Lỗi kết nối SMTP:", error);
-        } else {
-          console.log("🟢 Server đã sẵn sàng gửi mail!");
-        }
-      });
+      
       await transporter.sendMail({
         from: process.env.EMAIL_FROM || "no-reply@example.com",
         to: options.to,
@@ -105,18 +97,18 @@ class EmailService {
       if (error.code === "ECONNREFUSED") {
         throw new Error(
           `Cannot connect to SMTP server at ${process.env.SMTP_HOST}:${process.env.SMTP_PORT}. ` +
-            `Please check: 1) SMTP_HOST and SMTP_PORT are correct, 2) Network/firewall allows connections, ` +
-            `3) SMTP server is running and accessible. Original error: ${error.message}`
+          `Please check: 1) SMTP_HOST and SMTP_PORT are correct, 2) Network/firewall allows connections, ` +
+          `3) SMTP server is running and accessible. Original error: ${error.message}`
         );
       } else if (error.code === "ETIMEDOUT") {
         throw new Error(
           `Connection to SMTP server timed out. Please check your network connection and SMTP server status. ` +
-            `Original error: ${error.message}`
+          `Original error: ${error.message}`
         );
       } else if (error.code === "EAUTH") {
         throw new Error(
           `SMTP authentication failed. Please check SMTP_USER and SMTP_PASS are correct. ` +
-            `Original error: ${error.message}`
+          `Original error: ${error.message}`
         );
       } else if (error.message) {
         throw new Error(`Failed to send email: ${error.message}`);
@@ -129,3 +121,5 @@ class EmailService {
 
 export const emailService = new EmailService();
 export default emailService;
+
+
