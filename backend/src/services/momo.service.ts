@@ -48,7 +48,7 @@ export const createMomoPayment = async (orderId: string, amount: number, orderIn
     return response.data; // Chứa payUrl
   } catch (error) {
     console.error("Momo Error:", error);
-    throw new Error("Failed to create Momo payment");
+    throw new Error("Không thể tạo thanh toán Momo");
   }
 };
 

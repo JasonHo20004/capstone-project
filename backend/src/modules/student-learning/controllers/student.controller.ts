@@ -330,7 +330,7 @@ export class StudentController {
       if (!courseId) {
         res.status(400).json({
           success: false,
-          message: "Bad Request: Course ID is required",
+          message: "ID khóa học là bắt buộc",
         });
         return;
       }
