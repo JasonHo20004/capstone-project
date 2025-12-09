@@ -105,7 +105,7 @@ export class StudentController {
       });
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message === "Course not found or has no lessons") {
+        if (error.message === "Khóa học không tồn tại hoặc không có bài học") {
           res.status(404).json({
             success: false,
             message: error.message,

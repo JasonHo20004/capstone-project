@@ -330,32 +330,32 @@ export class NotificationService {
     switch (typeName) {
       case NOTIFICATION_TYPES.RENEWAL_REMINDER:
         return {
-          title: 'Contract Renewal Reminder',
-          content: `Dear ${sellerName},\n\nYour ${planName} contract will expire in ${daysUntilExpiry} days. Please renew your contract to continue providing courses on our platform.\n\nThank you for being part of our community!`
+          title: 'Nhắc nhở gia hạn hợp đồng',
+          content: `Kính gửi ${sellerName},\n\nHợp đồng ${planName} của bạn sẽ hết hạn trong ${daysUntilExpiry} ngày. Vui lòng gia hạn hợp đồng để tiếp tục cung cấp khóa học trên nền tảng của chúng tôi.\n\nCảm ơn bạn đã là một phần của cộng đồng chúng tôi!`
         };
 
       case NOTIFICATION_TYPES.EXPIRATION_WARNING:
         return {
-          title: 'Contract Expiration Warning',
-          content: `Dear ${sellerName},\n\nYour ${planName} contract will expire in ${daysUntilExpiry} days. This is your final reminder to renew your contract. Failure to renew will result in account suspension.\n\nPlease contact support if you need assistance.`
+          title: 'Cảnh báo hết hạn hợp đồng',
+          content: `Kính gửi ${sellerName},\n\nHợp đồng ${planName} của bạn sẽ hết hạn trong ${daysUntilExpiry} ngày. Đây là lời nhắc cuối cùng để gia hạn hợp đồng. Việc không gia hạn sẽ dẫn đến tài khoản bị đình chỉ.\n\nVui lòng liên hệ hỗ trợ nếu bạn cần hỗ trợ.`
         };
 
       case NOTIFICATION_TYPES.FINAL_NOTICE:
         return {
-          title: 'Final Contract Notice',
-          content: `Dear ${sellerName},\n\nYour ${planName} contract has expired. Your account has been suspended and you can no longer create new courses. Please renew your contract to restore access.\n\nYour existing courses remain available to enrolled students.`
+          title: 'Thông báo hợp đồng cuối cùng',
+          content: `Kính gửi ${sellerName},\n\nHợp đồng ${planName} của bạn đã hết hạn. Tài khoản của bạn đã bị đình chỉ và bạn không thể tạo khóa học mới nữa. Vui lòng gia hạn hợp đồng để khôi phục quyền truy cập.\n\nCác khóa học hiện có của bạn vẫn có sẵn cho học viên đã đăng ký.`
         };
 
       case NOTIFICATION_TYPES.SELLER_ACCOUNT_LOCKED:
         return {
-          title: 'Account Suspended',
-          content: `Dear ${sellerName},\n\nYour account has been suspended by the platform administrators. You cannot create or manage courses until your access is restored.\n\nYour existing courses remain available to enrolled students. If you believe this is a mistake, please contact support.`
+          title: 'Tài khoản bị đình chỉ',
+          content: `Kính gửi ${sellerName},\n\nTài khoản của bạn đã bị đình chỉ bởi quản trị viên nền tảng. Bạn không thể tạo hoặc quản lý khóa học cho đến khi quyền truy cập của bạn được khôi phục.\n\nCác khóa học hiện có của bạn vẫn có sẵn cho học viên đã đăng ký. Nếu bạn cho rằng đây là nhầm lẫn, vui lòng liên hệ hỗ trợ.`
         };
 
       default:
         return {
-          title: 'Notification',
-          content: `Dear ${sellerName},\n\nThis is a notification regarding your account.`
+          title: 'Thông báo',
+          content: `Kính gửi ${sellerName},\n\nĐây là thông báo liên quan đến tài khoản của bạn.`
         };
     }
   }

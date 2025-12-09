@@ -157,14 +157,14 @@ export class CourseManagementController {
         data,
       });
     } catch (error) {
-      if (error instanceof Error && error.message === "Course not found") {
+      if (error instanceof Error && error.message === "Khóa học không tồn tại") {
         res.status(404).json({
           success: false,
           message: "Khóa học không tồn tại",
         });
         return;
       }
-      if (error instanceof Error && error.message === "Lesson not found") {
+      if (error instanceof Error && error.message === "Bài giảng không tồn tại") {
         res.status(404).json({
           success: false,
           message: "Bài giảng không tồn tại",
@@ -196,14 +196,14 @@ export class CourseManagementController {
         message: "Xóa bài giảng thành công",
       });
     } catch (error) {
-      if (error instanceof Error && error.message === "Course not found") {
+      if (error instanceof Error && error.message === "Khóa học không tồn tại") {
         res.status(404).json({
           success: false,
           message: "Khóa học không tồn tại",
         });
         return;
       }
-      if (error instanceof Error && error.message === "Lesson not found") {
+      if (error instanceof Error && error.message === "Bài giảng không tồn tại") {
         res.status(404).json({
           success: false,
           message: "Bài giảng không tồn tại",
@@ -234,21 +234,21 @@ export class CourseManagementController {
         message: "Xóa bình luận thành công",
       });
     } catch (error) {
-      if (error instanceof Error && error.message === "Course not found") {
+      if (error instanceof Error && error.message === "Khóa học không tồn tại") {
         res.status(404).json({
           success: false,
           message: "Khóa học không tồn tại",
         });
         return;
       }
-      if (error instanceof Error && error.message === "Lesson not found") {
+      if (error instanceof Error && error.message === "Bài giảng không tồn tại") {
         res.status(404).json({
           success: false,
           message: "Bài giảng không tồn tại",
         });
         return;
       }
-      if (error instanceof Error && error.message === "Comment not found") {
+      if (error instanceof Error && error.message === "Bình luận không tồn tại") {
         res.status(404).json({
           success: false,
           message: "Bình luận không tồn tại",
@@ -283,7 +283,7 @@ export class CourseManagementController {
         data,
       });
     } catch (error) {
-      if (error instanceof Error && error.message === "Course not found") {
+      if (error instanceof Error && error.message === "Khóa học không tồn tại") {
         res.status(404).json({
           success: false,
           message: "Khóa học không tồn tại",
@@ -399,14 +399,14 @@ export class CourseManagementController {
         data,
       });
     } catch (error) {
-      if (error instanceof Error && error.message === "Course not found") {
+      if (error instanceof Error && error.message === "Khóa học không tồn tại") {
         res.status(404).json({
           success: false,
           message: "Khóa học không tồn tại",
         });
         return;
       }
-      if (error instanceof Error && error.message === "Lesson not found") {
+      if (error instanceof Error && error.message === "Bài giảng không tồn tại") {
         res.status(404).json({
           success: false,
           message: "Bài giảng không tồn tại",
