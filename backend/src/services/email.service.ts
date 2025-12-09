@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-
+import SMTPTransport from 'nodemailer/lib/smtp-transport'; // <--- Thêm dòng này
 export interface SendEmailOptions {
   to: string;
   subject: string;
@@ -48,6 +48,7 @@ class EmailService {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
+      family:4,
       connectionTimeout: 10000, // 10 seconds
       greetingTimeout: 5000, // 5 seconds
       socketTimeout: 10000, // 10 seconds
@@ -55,7 +56,7 @@ class EmailService {
       tls: {
         rejectUnauthorized: process.env.NODE_ENV === "production",
       },
-    });
+    } as SMTPTransport.Options);
 
     return transporter;
   }

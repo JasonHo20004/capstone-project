@@ -13,7 +13,8 @@ export class AuthController {
   ): Promise<void> => {
     try {
       const { email, password } = req.body;
-      const { accessToken, refreshToken, userId, fullName, role } = await this.authService.login(email, password);
+      const { accessToken, refreshToken, userId, fullName, role } =
+        await this.authService.login(email, password);
       res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -89,7 +90,9 @@ export class AuthController {
 
       const userId = await client.get(key);
       if (!userId) {
-        res.status(400).json({ message: "Invalid or expired verification token" });
+        res
+          .status(400)
+          .json({ message: "Invalid or expired verification token" });
         return;
       }
 
