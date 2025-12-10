@@ -11,5 +11,5 @@ const tagController = new TagController();
 router.use(authMiddleware)
 router.get('/',tagController.getAllTags)
 router.post('/create',checkRole([UserRole.ADMINISTRATOR]),validate(createTagDTO),tagController.createTag);
-router.post('/update/tagId',checkRole([UserRole.ADMINISTRATOR]),validate(updateTagDTO),tagController.updateTag)
+router.post('/update/:tagId',checkRole([UserRole.ADMINISTRATOR]),validate(updateTagDTO),tagController.updateTag)
 export default router;
