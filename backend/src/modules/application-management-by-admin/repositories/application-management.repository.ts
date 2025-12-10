@@ -4,7 +4,7 @@ import type {
   ApplicationStatus,
   User,
   CourseSellerProfile,
-} from "@/../generated/prisma";
+} from "@prisma/client";
 
 export class ApplicationManagementRepository {
   private prisma = databaseService.getClient();

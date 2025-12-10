@@ -1,6 +1,6 @@
 import { AdminRepository } from "@/modules/admin/repositories/admin.repository";
-import { ApplicationStatus } from "@/../generated/prisma";
-import type { CourseSellerApplication, CourseSellerProfile } from "@/../generated/prisma";
+import { ApplicationStatus } from "@prisma/client";
+import type { CourseSellerApplication, CourseSellerProfile } from "@prisma/client";
 import { UserRepository } from "@/modules/users/repositories/user.repository";
 import { databaseService } from "@/services/database.service";
 

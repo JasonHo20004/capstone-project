@@ -15,7 +15,7 @@ import {
 import { getCompletionAnalyticsDTO } from '@/modules/courses/dtos/analytics.dto';
 import { sendCourseUpdateNotificationDTO } from '@/modules/notifications/dtos/notification.dto';
 import { getCourseRatingsDTO } from '@/modules/courses/dtos/rating.dto';
-import { UserRole } from '@/../generated/prisma';
+import { UserRole } from '@prisma/client';
 import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
 import {optionalAuthMiddleware} from '@/middlewares/optionalAuth.middleware';
 import { uploadImageOptional, handleUploadError } from '@/middlewares/upload';

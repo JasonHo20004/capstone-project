@@ -9,7 +9,7 @@ import type {
   GetCoursesBySellerInput,
   GetCoursesInput,
 } from "../dtos/course.dto";
-import { UserRole } from "@/../generated/prisma";
+import { UserRole } from "@prisma/client";
 import type { AuthenticatedRequest } from "@/middlewares/auth.middleware";
 
 export class CourseController {

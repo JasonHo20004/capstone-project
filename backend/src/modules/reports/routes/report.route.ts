@@ -3,7 +3,7 @@ import { validate } from '@/middlewares/validations.middleware';
 import { createReportCourseDTO, getDetailReportDTO} from '@/modules/reports/dtos/report.dto';
 import {ReportController} from '@/modules/reports/controllers/report.controller'
 import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
-import { UserRole }  from "@/../generated/prisma";
+import { UserRole }  from "@prisma/client";
 
 const router = Router();
 const reportController = new ReportController();

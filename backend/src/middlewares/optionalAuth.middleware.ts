@@ -1,6 +1,6 @@
 import type { Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import type { UserRole } from "@/../generated/prisma"; // Import đúng từ prisma của bạn
+import type { UserRole } from "@prisma/client"; // Import đúng từ prisma của bạn
 import type { AuthenticatedRequest } from "./auth.middleware"; 
 
 export const optionalAuthMiddleware = (

@@ -4,7 +4,7 @@ import { validate } from '@/middlewares/validations.middleware';
 import { createTagDTO, updateTagDTO } from '@/modules/flashcards/dtos/tag.dto';
 import {TagController} from '../controllers/tag.controller'
 import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
-import  { UserRole } from  "@/../generated/prisma";
+import  { UserRole } from  "@prisma/client";
 const router = Router();
 const tagController = new TagController();
 

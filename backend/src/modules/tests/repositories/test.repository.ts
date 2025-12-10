@@ -1,5 +1,5 @@
 import { databaseService } from '@/services/database.service';
-import type { Test, Question, TestType } from '@/../generated/prisma';
+import type { Test, Question, TestType } from '@prisma/client';
 
 export class TestRepository {
   private prisma = databaseService.getClient();

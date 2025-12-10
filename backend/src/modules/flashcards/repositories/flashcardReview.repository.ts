@@ -3,7 +3,7 @@ import type {
   Flashcard,
   UserFlashcardProgress,
   FlashcardStatus, // Import Enum
-} from "@/../generated/prisma";
+} from "@prisma/client";
 
 export class FlashcardReviewRepository {
   private prisma = databaseService.getClient();

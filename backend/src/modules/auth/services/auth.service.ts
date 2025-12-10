@@ -1,7 +1,7 @@
-import { PrismaClient } from "@/../generated/prisma";
+import { PrismaClient } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
-import type { UserRole, RefreshToken } from "@/../generated/prisma";
+import type { UserRole, RefreshToken } from "@prisma/client";
 const prisma = new PrismaClient();
 import { createHash } from "crypto";
 import { AuthRepository } from "../repositories/auth.repository";

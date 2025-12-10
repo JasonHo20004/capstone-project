@@ -1,5 +1,5 @@
 import { databaseService } from "@/services/database.service";
-import type { FlashcardDeck } from "@/../generated/prisma";
+import type { FlashcardDeck } from "@prisma/client";
 import type { GetAllFlashcardDeckResponse } from "@/modules/flashcards/dtos/flashcardDeck.dto";
 export class FlashcardDeckRepository {
   private prisma = databaseService.getClient();

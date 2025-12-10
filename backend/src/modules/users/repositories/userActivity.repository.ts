@@ -1,5 +1,5 @@
 import { databaseService } from "@/services/database.service";
-import type { UserActivity } from "@/../generated/prisma";
+import type { UserActivity } from "@prisma/client";
 import type { PrismaTx, BatchPayload } from "@/services/database.service";
 
 

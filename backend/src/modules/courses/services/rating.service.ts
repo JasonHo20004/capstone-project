@@ -1,5 +1,5 @@
 import { databaseService } from '@/services/database.service';
-import type { Rating } from '@/../generated/prisma';
+import type { Rating } from '@prisma/client';
 
 export interface RatingFilter {
   starRating?: number;

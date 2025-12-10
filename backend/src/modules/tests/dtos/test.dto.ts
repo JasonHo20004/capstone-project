@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { QuestionType, SkillType } from '@/../generated/prisma';
+import { QuestionType, SkillType } from '@prisma/client';
 
 // Create Test DTO
 export const createTestDTO = z.object({

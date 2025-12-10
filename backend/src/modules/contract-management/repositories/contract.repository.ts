@@ -1,5 +1,5 @@
 import { databaseService } from "@/services/database.service";
-import type { SubscriptionContract, User } from "@/../generated/prisma";
+import type { SubscriptionContract, User } from "@prisma/client";
 
 export class ContractManagementRepository {
   private prisma = databaseService.getClient();

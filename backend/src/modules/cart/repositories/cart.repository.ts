@@ -1,5 +1,5 @@
 import { databaseService } from "@/services/database.service";
-import type { Prisma, Cart, CartItem } from "@/../generated/prisma";
+import type { Prisma, Cart, CartItem } from "@prisma/client";
 import type { PrismaTx, BatchPayload } from "@/services/database.service";
 import type { CreateCartItemResponseDTO } from "@/modules/cart/dtos/cart.dto";
 type CartWithItems = Prisma.CartGetPayload<{

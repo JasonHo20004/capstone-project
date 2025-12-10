@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CourseLevel, CourseStatus } from "@/../generated/prisma";
+import { CourseLevel, CourseStatus } from "@prisma/client";
 
 // Create Course DTO
 // Note: Uses z.coerce for multipart/form-data support

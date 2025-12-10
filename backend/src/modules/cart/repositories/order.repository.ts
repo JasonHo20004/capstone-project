@@ -1,5 +1,5 @@
 // import { databaseService } from "@/services/database.service";
-// import type { Order } from "@/../generated/prisma";
+// import type { Order } from "@prisma/client";
 import type { PrismaTx } from "@/services/database.service";
 import type{CreateOrderResponseDTO} from "@/modules/cart/dtos/order.dto"
 export class OrderRepository {

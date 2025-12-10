@@ -1,6 +1,6 @@
 import { z} from "zod";
-import type { User } from "@/../generated/prisma";
-import { UserRole,ApplicationStatus } from "@/../generated/prisma";
+import type { User } from "@prisma/client";
+import { UserRole,ApplicationStatus } from "@prisma/client";
 
 // DTO là lớp bảo vệ và nó sẽ là con của Input (Interface)
 // Khi mà

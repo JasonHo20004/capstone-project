@@ -1,6 +1,6 @@
 import { TagRepository } from "@/modules/flashcards/repositories/tag.repository";
 import type { CreateTagInput } from "@/modules/flashcards/dtos/tag.dto";
-import type { Tag } from "@/../generated/prisma";
+import type { Tag } from "@prisma/client";
 
 export class TagService {
   private tagRepository = new TagRepository();

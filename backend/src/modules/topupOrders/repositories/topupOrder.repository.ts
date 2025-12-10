@@ -1,5 +1,5 @@
 import { databaseService } from "@/services/database.service";
-import type { PaymentMethod,OrderStatus, TopupOrder } from "@/../generated/prisma";
+import type { PaymentMethod,OrderStatus, TopupOrder } from "@prisma/client";
 import type { PrismaTx } from "@/services/database.service";
 
 export class TopupOrderRepository {

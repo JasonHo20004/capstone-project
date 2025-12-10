@@ -1,7 +1,7 @@
 import { Router } from "express";
 // import { validate } from '@/middlewares/validations.middleware';
 import { RevenueController } from "@/modules/revenue-management-by-admin/controllers/revenue.controller";
-import { UserRole } from "@/../generated/prisma";
+import { UserRole } from "@prisma/client";
 import { authMiddleware, checkRole } from "@/middlewares/auth.middleware";
 // import { getRevenueOverviewDTO} from '@/modules/revenue/dtos/revenue.dto';
 
