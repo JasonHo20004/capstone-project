@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch --clear-screen=false src/server.ts",
     "build": "tsc && tsc-alias",
-   "build:esbuild": "esbuild src/server.ts --bundle --platform=node --target=node20 --format=esm --outdir=dist --packages=external",
+    "build:esbuild": "esbuild src/server.ts --bundle --platform=node --target=node20 --format=esm --outdir=dist --packages=external",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
@@ -34,6 +34,7 @@
     "multer-s3": "^3.0.1",
     "nodemailer": "^7.0.10",
     "redis": "^5.10.0",
+    "resend": "^6.6.0",
     "word-list": "^4.1.0",
     "zod": "^4.1.12"
   },

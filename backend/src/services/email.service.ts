@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
 export interface SendEmailOptions {
   to: string;
@@ -7,64 +7,24 @@ export interface SendEmailOptions {
 }
 
 class EmailService {
-  private transporter: any | null = null;
-  private isConfigured: boolean = false;
+  private resend: Resend | null = null;
+  private maxRetries: number = 3;
+  private retryDelayMs: number = 1000;
 
   private validateConfiguration(): void {
-    if (!process.env.SMTP_HOST || !process.env.SMTP_PORT) {
-      this.isConfigured = false;
+    if (!process.env.RESEND_API_KEY) {
       throw new Error(
-        "Cấu hình SMTP bị thiếu. Vui lòng thiết lập SMTP_HOST và SMTP_PORT biến môi trường."
+        "Cấu hình Resend bị thiếu. Vui lòng thiết lập RESEND_API_KEY trong biến môi trường."
       );
     }
-
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-      this.isConfigured = false;
-      throw new Error(
-        "Cấu hình xác thực SMTP bị thiếu. Vui lòng thiết lập SMTP_USER và SMTP_PASS biến môi trường."
-      );
-    }
-
-    this.isConfigured = true;
   }
 
-  private createTransporter(): any {
-    this.validateConfiguration();
-
-    const secure = process.env.SMTP_SECURE === "true";
-    const port = Number(process.env.SMTP_PORT);
-
-    if (isNaN(port) || port <= 0) {
-      throw new Error(
-        `Cổng SMTP_PORT không hợp lệ: ${process.env.SMTP_PORT}. Vui lòng cung cấp một số cổng hợp lệ.`
-      );
+  private getResendClient(): Resend {
+    if (!this.resend) {
+      this.validateConfiguration();
+      this.resend = new Resend(process.env.RESEND_API_KEY);
     }
-
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port,
-      secure,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-      connectionTimeout: 10000, // 10 seconds
-      greetingTimeout: 5000, // 5 seconds
-      socketTimeout: 10000, // 10 seconds
-      requireTLS: port === 587, // Require TLS for port 587
-      tls: {
-        rejectUnauthorized: process.env.NODE_ENV === "production",
-      },
-    });
-
-    return transporter;
-  }
-
-  private getTransporter(): any {
-    if (!this.transporter) {
-      this.transporter = this.createTransporter();
-    }
-    return this.transporter;
+    return this.resend;
   }
 
   public isEmailConfigured(): boolean {
@@ -76,42 +36,101 @@ class EmailService {
     }
   }
 
+  /**
+   * Sleep utility for retry delays
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Retry logic with exponential backoff
+   */
+  private async retryWithBackoff<T>(
+    fn: () => Promise<T>,
+    retriesLeft: number = this.maxRetries,
+    delay: number = this.retryDelayMs
+  ): Promise<T> {
+    try {
+      return await fn();
+    } catch (error: any) {
+      // Don't retry on 4xx errors (client errors)
+      if (error?.statusCode && error.statusCode >= 400 && error.statusCode < 500) {
+        throw error;
+      }
+
+      if (retriesLeft <= 0) {
+        throw error;
+      }
+
+      const jitter = Math.random() * 0.3 * delay;
+      const backoffDelay = delay + jitter;
+
+      console.warn(
+        `Email send failed, retrying in ${Math.round(backoffDelay)}ms... (${retriesLeft} retries left)`
+      );
+
+      await this.sleep(backoffDelay);
+      return this.retryWithBackoff(fn, retriesLeft - 1, delay * 2);
+    }
+  }
+
   public async sendMail(options: SendEmailOptions): Promise<void> {
     try {
       if (!this.isEmailConfigured()) {
         throw new Error(
-          "Dịch vụ email không được cấu hình. Vui lòng kiểm tra các biến môi trường SMTP."
+          "Dịch vụ email không được cấu hình. Vui lòng kiểm tra biến môi trường RESEND_API_KEY."
         );
       }
 
-      const transporter = this.getTransporter();
-      
-      await transporter.sendMail({
-        from: process.env.EMAIL_FROM || "no-reply@example.com",
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
+      const resend = this.getResendClient();
+      const fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(options.to)) {
+        throw new Error(`Địa chỉ email không hợp lệ: ${options.to}`);
+      }
+
+      // Send email with retry logic
+      const result = await this.retryWithBackoff(async () => {
+        const { data, error } = await resend.emails.send({
+          from: fromEmail,
+          to: options.to,
+          subject: options.subject,
+          html: options.html,
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        return data;
       });
+
     } catch (error: any) {
-      // Provide more helpful error messages
-      if (error.code === "ECONNREFUSED") {
-        throw new Error(
-          `Không thể kết nối đến SMTP server tại ${process.env.SMTP_HOST}:${process.env.SMTP_PORT}. ` +
-          `Vui lòng kiểm tra: 1) SMTP_HOST và SMTP_PORT có đúng không, 2) Firewall/network cho phép kết nối, ` +
-          `3) SMTP server đang chạy và có thể truy cập. Original error: ${error.message}`
-        );
-      } else if (error.code === "ETIMEDOUT") {
-        throw new Error(
-          `Kết nối SMTP server đã hết thời gian chờ. Vui lòng kiểm tra kết nối mạng và trạng thái SMTP server. ` +
-          `Original error: ${error.message}`
-        );
-      } else if (error.code === "EAUTH") {
-        throw new Error(
-          `Xác thực SMTP thất bại. Vui lòng kiểm tra SMTP_USER và SMTP_PASS có đúng không. ` +
-          `Original error: ${error.message}`
-        );
-      } else if (error.message) {
-        throw new Error(`Gửi email thất bại: ${error.message}`);
+      // Provide helpful error messages
+      if (error?.message) {
+        // Handle Resend-specific errors
+        if (error.message.includes("API key")) {
+          throw new Error(
+            `API key Resend không hợp lệ. Vui lòng kiểm tra RESEND_API_KEY trong biến môi trường. ` +
+            `Original error: ${error.message}`
+          );
+        } else if (error.message.includes("domain") || error.message.includes("From")) {
+          throw new Error(
+            `Địa chỉ email người gửi không hợp lệ hoặc chưa được xác minh. ` +
+            `Vui lòng kiểm tra EMAIL_FROM hoặc xác minh domain trong Resend dashboard. ` +
+            `Original error: ${error.message}`
+          );
+        } else if (error.message.includes("rate limit") || error.statusCode === 429) {
+          throw new Error(
+            `Đã vượt quá giới hạn gửi email. Vui lòng thử lại sau. ` +
+            `Original error: ${error.message}`
+          );
+        } else {
+          throw new Error(`Gửi email thất bại: ${error.message}`);
+        }
       } else {
         throw error;
       }
