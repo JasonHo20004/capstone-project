@@ -36,13 +36,13 @@ export class UserRepository {
       // Validate input data
       const validation = validateCreateUserDto(userData);
       if (!validation.isValid) {
-        throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
+        throw new Error(`Dữ liệu không hợp lệ: ${validation.errors.join(', ')}`);
       }
 
       // Check if email already exists
       const existingUser = await this.findByEmail(userData.email);
       if (existingUser) {
-        throw new Error('User with this email already exists');
+        throw new Error('Email này đã được sử dụng');
       }
 
       // Hash password
@@ -66,9 +66,9 @@ export class UserRepository {
       return user as User;
     } catch (error) {
       if (error instanceof Error) {
-        throw new Error(`Failed to create user: ${error.message}`);
+        throw new Error(`Tạo người dùng thất bại: ${error.message}`);
       }
-      throw new Error('Failed to create user: Unknown error');
+      throw new Error('Tạo người dùng thất bại: Lỗi không xác định');
     }
   }
 
@@ -87,7 +87,7 @@ export class UserRepository {
 
       return user as User | null;
     } catch (error) {
-      console.error('Error finding user by ID:', error);
+      console.error('Lỗi khi tìm người dùng theo ID:', error);
       return null;
     }
   }
@@ -107,7 +107,7 @@ export class UserRepository {
 
       return user as User | null;
     } catch (error) {
-      console.error('Error finding user by email:', error);
+      console.error('Lỗi khi tìm người dùng theo email:', error);
       return null;
     }
   }
@@ -117,13 +117,13 @@ export class UserRepository {
       // Validate input data
       const validation = validateUpdateUserDto(userData);
       if (!validation.isValid) {
-        throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
+        throw new Error(`Dữ liệu không hợp lệ: ${validation.errors.join(', ')}`);
       }
 
       // Check if user exists
       const existingUser = await this.findById(id);
       if (!existingUser) {
-        throw new Error('User not found');
+        throw new Error('Người dùng không tồn tại');
       }
 
       // Prepare update data
@@ -154,9 +154,9 @@ export class UserRepository {
       return updatedUser as User;
     } catch (error) {
       if (error instanceof Error) {
-        throw new Error(`Failed to update user: ${error.message}`);
+        throw new Error(`Cập nhật người dùng thất bại: ${error.message}`);
       }
-      throw new Error('Failed to update user: Unknown error');
+      throw new Error('Cập nhật người dùng thất bại: Lỗi không xác định');
     }
   }
 
@@ -165,7 +165,7 @@ export class UserRepository {
       // Check if user exists
       const existingUser = await this.findById(id);
       if (!existingUser) {
-        throw new Error('User not found');
+        throw new Error('Người dùng không tồn tại');
       }
 
       await this.prisma.user.delete({
@@ -173,9 +173,9 @@ export class UserRepository {
       });
     } catch (error) {
       if (error instanceof Error) {
-        throw new Error(`Failed to delete user: ${error.message}`);
+        throw new Error(`Xóa người dùng thất bại: ${error.message}`);
       }
-      throw new Error('Failed to delete user: Unknown error');
+      throw new Error('Xóa người dùng thất bại: Lỗi không xác định');
     }
   }
 
@@ -187,7 +187,7 @@ export class UserRepository {
       });
       return user !== null;
     } catch (error) {
-      console.error('Error checking user existence:', error);
+      console.error('Lỗi khi kiểm tra sự tồn tại của người dùng:', error);
       return false;
     }
   }
@@ -209,7 +209,7 @@ export class UserRepository {
 
       return user !== null;
     } catch (error) {
-      console.error('Error checking email existence:', error);
+      console.error('Lỗi khi kiểm tra sự tồn tại của email:', error);
       return false;
     }
   }
@@ -255,7 +255,7 @@ export class UserRepository {
 
       return users as User[];
     } catch (error) {
-      console.error('Error finding users:', error);
+      console.error('Lỗi khi tìm kiếm người dùng:', error);
       return [];
     }
   }
@@ -272,7 +272,7 @@ export class UserRepository {
 
       return users as User[];
     } catch (error) {
-      console.error('Error finding users by role:', error);
+      console.error('Lỗi khi tìm kiếm người dùng theo vai trò:', error);
       return [];
     }
   }
@@ -285,7 +285,7 @@ export class UserRepository {
         where: whereClause,
       });
     } catch (error) {
-      console.error('Error counting users:', error);
+      console.error('Lỗi khi đếm số lượng người dùng:', error);
       return 0;
     }
   }
@@ -299,19 +299,19 @@ export class UserRepository {
       // Check if user exists
       const user = await this.findById(id);
       if (!user) {
-        throw new Error('User not found');
+        throw new Error('Người dùng không tồn tại');
       }
 
       // Verify current password
       const isCurrentPasswordValid = await comparePassword(passwordData.currentPassword, user.password);
       if (!isCurrentPasswordValid) {
-        throw new Error('Current password is incorrect');
+        throw new Error('Mật khẩu hiện tại không đúng');
       }
 
       // Validate new password
       const passwordValidation = validatePassword(passwordData.newPassword);
       if (!passwordValidation.isValid) {
-        throw new Error(`New password validation failed: ${passwordValidation.errors.join(', ')}`);
+        throw new Error(`Mật khẩu mới không hợp lệ: ${passwordValidation.errors.join(', ')}`);
       }
 
       // Hash new password
@@ -324,9 +324,9 @@ export class UserRepository {
       });
     } catch (error) {
       if (error instanceof Error) {
-        throw new Error(`Failed to update password: ${error.message}`);
+        throw new Error(`Lỗi khi cập nhật mật khẩu: ${error.message}`);
       }
-      throw new Error('Failed to update password: Unknown error');
+      throw new Error('Lỗi khi cập nhật mật khẩu');
     }
   }
 
@@ -396,19 +396,19 @@ export class UserRepository {
       }
       return this.toProfileDto(user);
     } catch (error) {
-      console.error('Error getting user profile:', error);
+      console.error('Lỗi khi lấy hồ sơ người dùng:', error);
       return null;
     }
   }
 
   async softDelete(_id: string): Promise<void> {
     // Note: This would require adding an 'isActive' or 'deletedAt' field to the User model
-    throw new Error('Soft delete not implemented - requires schema modification');
+    throw new Error('Xóa mềm không được triển khai - yêu cầu thay đổi schema');
   }
 
   async restore(_id: string): Promise<User> {
     // Note: This would require adding an 'isActive' or 'deletedAt' field to the User model
-    throw new Error('Restore not implemented - requires schema modification');
+    throw new Error('Khôi phục không được triển khai - yêu cầu thay đổi schema');
   }
 
   // =============================================================================

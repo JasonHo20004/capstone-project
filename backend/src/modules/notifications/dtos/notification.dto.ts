@@ -52,11 +52,11 @@ export type NotificationWithUsersDto = z.infer<typeof notificationWithUsersSchem
 // Send Course Update Notification DTO
 export const sendCourseUpdateNotificationDTO = z.object({
   params: z.object({
-    courseId: z.uuid({ message: 'Course ID must be a valid UUID' }),
+    courseId: z.uuid({ message: 'ID khóa học phải là UUID hợp lệ' }),
   }),
   body: z.object({
-    title: z.string().min(1, 'Title is required'),
-    content: z.string().min(1, 'Content is required'),
+    title: z.string().min(1, 'Tiêu đề là bắt buộc'),
+    content: z.string().min(1, 'Nội dung là bắt buộc'),
   }),
 });
 

@@ -19,7 +19,7 @@ export class LessonService {
     // Check if course exists
     const course = await this.courseRepository.findById(data.courseId);
     if (!course) {
-      throw new Error('Course not found');
+      throw new Error('Khóa học không tồn tại');
     }
 
     // Create lesson
@@ -95,4 +95,3 @@ export class LessonService {
     await this.lessonRepository.delete(lessonId);
   }
 }
-

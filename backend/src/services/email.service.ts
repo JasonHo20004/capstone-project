@@ -14,14 +14,14 @@ class EmailService {
     if (!process.env.SMTP_HOST || !process.env.SMTP_PORT) {
       this.isConfigured = false;
       throw new Error(
-        "SMTP configuration is missing. Please set SMTP_HOST and SMTP_PORT environment variables."
+        "Cấu hình SMTP bị thiếu. Vui lòng thiết lập SMTP_HOST và SMTP_PORT biến môi trường."
       );
     }
 
     if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
       this.isConfigured = false;
       throw new Error(
-        "SMTP authentication is missing. Please set SMTP_USER and SMTP_PASS environment variables."
+        "Cấu hình xác thực SMTP bị thiếu. Vui lòng thiết lập SMTP_USER và SMTP_PASS biến môi trường."
       );
     }
 
@@ -36,7 +36,7 @@ class EmailService {
 
     if (isNaN(port) || port <= 0) {
       throw new Error(
-        `Invalid SMTP_PORT: ${process.env.SMTP_PORT}. Must be a valid port number.`
+        `Cổng SMTP_PORT không hợp lệ: ${process.env.SMTP_PORT}. Vui lòng cung cấp một số cổng hợp lệ.`
       );
     }
 
@@ -80,7 +80,7 @@ class EmailService {
     try {
       if (!this.isEmailConfigured()) {
         throw new Error(
-          "Email service is not configured. Please check your SMTP environment variables."
+          "Dịch vụ email không được cấu hình. Vui lòng kiểm tra các biến môi trường SMTP."
         );
       }
 
@@ -96,22 +96,22 @@ class EmailService {
       // Provide more helpful error messages
       if (error.code === "ECONNREFUSED") {
         throw new Error(
-          `Cannot connect to SMTP server at ${process.env.SMTP_HOST}:${process.env.SMTP_PORT}. ` +
-          `Please check: 1) SMTP_HOST and SMTP_PORT are correct, 2) Network/firewall allows connections, ` +
-          `3) SMTP server is running and accessible. Original error: ${error.message}`
+          `Không thể kết nối đến SMTP server tại ${process.env.SMTP_HOST}:${process.env.SMTP_PORT}. ` +
+          `Vui lòng kiểm tra: 1) SMTP_HOST và SMTP_PORT có đúng không, 2) Firewall/network cho phép kết nối, ` +
+          `3) SMTP server đang chạy và có thể truy cập. Original error: ${error.message}`
         );
       } else if (error.code === "ETIMEDOUT") {
         throw new Error(
-          `Connection to SMTP server timed out. Please check your network connection and SMTP server status. ` +
+          `Kết nối SMTP server đã hết thời gian chờ. Vui lòng kiểm tra kết nối mạng và trạng thái SMTP server. ` +
           `Original error: ${error.message}`
         );
       } else if (error.code === "EAUTH") {
         throw new Error(
-          `SMTP authentication failed. Please check SMTP_USER and SMTP_PASS are correct. ` +
+          `Xác thực SMTP thất bại. Vui lòng kiểm tra SMTP_USER và SMTP_PASS có đúng không. ` +
           `Original error: ${error.message}`
         );
       } else if (error.message) {
-        throw new Error(`Failed to send email: ${error.message}`);
+        throw new Error(`Gửi email thất bại: ${error.message}`);
       } else {
         throw error;
       }

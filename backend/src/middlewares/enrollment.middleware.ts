@@ -21,7 +21,7 @@ export const isEnrolledMiddleware = async (
     if (!userId) {
       res.status(401).json({
         success: false,
-        message: "Unauthorized: Authentication required",
+        message: "Chưa xác thực!",
       });
       return;
     }
@@ -29,7 +29,7 @@ export const isEnrolledMiddleware = async (
     if (!courseId) {
       res.status(400).json({
         success: false,
-        message: "Bad Request: Course ID is required",
+        message: "ID khóa học là bắt buộc",
       });
       return;
     }
@@ -47,7 +47,7 @@ export const isEnrolledMiddleware = async (
     if (!enrollment) {
       res.status(403).json({
         success: false,
-        message: "Forbidden: You are not enrolled in this course",
+        message: "Bạn chưa đăng ký khóa học này",
       });
       return;
     }
@@ -55,10 +55,10 @@ export const isEnrolledMiddleware = async (
     // User is enrolled, proceed to next middleware/controller
     next();
   } catch (error) {
-    console.error("Enrollment check error:", error);
+    console.error("Kiểm tra đăng ký khóa học lỗi:", error);
     res.status(500).json({
       success: false,
-      message: "Internal server error while checking enrollment",
+      message: "Lỗi máy chủ khi kiểm tra đăng ký khóa học",
     });
   }
 };
@@ -79,7 +79,7 @@ export const isVerifiedPurchaserMiddleware = async (
     if (!userId) {
       res.status(401).json({
         success: false,
-        message: "Unauthorized: Authentication required",
+        message: "Chưa xác thực!",
       });
       return;
     }
@@ -87,7 +87,7 @@ export const isVerifiedPurchaserMiddleware = async (
     if (!courseId) {
       res.status(400).json({
         success: false,
-        message: "Bad Request: Course ID is required",
+        message: "ID khóa học là bắt buộc",
       });
       return;
     }
@@ -108,17 +108,17 @@ export const isVerifiedPurchaserMiddleware = async (
     if (!purchase || !purchase.transaction) {
       res.status(403).json({
         success: false,
-        message: "Forbidden: You must purchase this course to perform this action",
+        message: "Bạn phải mua khóa học này để thực hiện hành động này",
       });
       return;
     }
 
     next();
   } catch (error) {
-    console.error("Verified purchaser check error:", error);
+    console.error("Kiểm tra mua khóa học lỗi:", error);
     res.status(500).json({
       success: false,
-      message: "Internal server error while verifying purchase",
+      message: "Lỗi máy chủ khi kiểm tra mua khóa học",
     });
   }
 };

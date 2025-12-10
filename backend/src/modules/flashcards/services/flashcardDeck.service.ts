@@ -23,7 +23,7 @@ export class FlashcardDeckService {
     tagIds.map(async (tagId) => {
       const existingTag = await this.tagRepository.findTagById(tagId);
       if (!existingTag) {
-        throw Error("Tag is not existence");
+        throw Error("Tag không tồn tại");
       }
     });
     const newFlashcardDeck = await this.flashcardDeckRepository.createDeck(
@@ -56,7 +56,7 @@ export class FlashcardDeckService {
     updatePayload.tagIds.map(async (tagId: string) => {
       const existingTag = await this.tagRepository.findTagById(tagId);
       if (!existingTag) {
-        throw Error("Tag is not existence");
+        throw Error("Tag không tồn tại");
       }
     });
 
@@ -70,13 +70,14 @@ export class FlashcardDeckService {
 
     return updateFlashcardDeck;
   }
+
   public async deleteFlashcardDeck(id: string, userId: string): Promise<void> {
     try {
       await this.flashcardDeckRepository.deleteDeck(id, userId);
     } catch (error: any) {
       if (error.code === "P2025") {
         throw new Error(
-          "Flashcard deck not found or user does not have permission."
+          "Không tìm thấy bộ thẻ hoặc người dùng không có quyền."
         );
       }
       throw error;

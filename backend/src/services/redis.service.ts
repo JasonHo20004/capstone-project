@@ -57,11 +57,15 @@ class RedisService {
     });
 
     await this.client.connect();
+
+    this.isConnected = true;
+    console.log("Redis kết nối thành công");
+
   }
 
   public getClient(): RedisClientType {
     if (!this.client) {
-      throw new Error("Redis client not initialized. Call connect() first.");
+      throw new Error("Redis client chưa được khởi tạo. Vui lòng gọi connect() trước.");
     }
     return this.client;
   }
@@ -70,8 +74,9 @@ class RedisService {
     if (this.client) {
       await this.client.quit();
       this.isConnected = false;
-      this.client = null; // Clear client instance
-      console.log("Redis disconnected successfully");
+      this.client = null;
+      console.log("Redis đã ngắt kết nối");
+
     }
   }
 

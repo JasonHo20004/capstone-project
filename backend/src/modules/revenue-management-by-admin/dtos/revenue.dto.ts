@@ -8,14 +8,14 @@ export const getRevenueOverviewDTO = z.object({
         .string()
         .regex(
           /^\d{4}-\d{2}-\d{2}$/,
-          "Invalid date format, expected YYYY-MM-DD"
+          "Định dạng ngày không hợp lệ, yêu cầu YYYY-MM-DD"
         )
         .optional(),
       endDate: z
         .string()
         .regex(
           /^\d{4}-\d{2}-\d{2}$/,
-          "Invalid date format, expected YYYY-MM-DD"
+          "Định dạng ngày không hợp lệ, yêu cầu YYYY-MM-DD"
         )
         .optional(),
       transactionType: z
@@ -28,7 +28,7 @@ export const getRevenueOverviewDTO = z.object({
       (data) => {
         if (data.period && (data.startDate || data.endDate)) {
           throw new Error(
-            "Cannot specify both period and date range (startDate/endDate)."
+            "Không thể đồng thời chỉ định kỳ và khoảng thời gian (startDate/endDate)."
           );
         }
         if (
@@ -36,13 +36,13 @@ export const getRevenueOverviewDTO = z.object({
           (!data.startDate && data.endDate)
         ) {
           throw new Error(
-            "Both startDate and endDate must be provided if one is specified."
+            "Phải cung cấp cả startDate và endDate nếu đã chỉ định một trong hai."
           );
         }
         return true;
       },
       {
-        message: "Invalid query parameters for revenue overview.",
+        message: "Tham số truy vấn không hợp lệ cho tổng quan doanh thu.",
       }
     ),
 });

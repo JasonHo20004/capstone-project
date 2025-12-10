@@ -23,7 +23,7 @@ export class AdminService {
 
     
     if (!existingApplication) {
-      throw new Error("Application not found or has been deleted.");
+      throw new Error("Không tìm thấy đơn đăng ký hoặc đã bị xóa.");
     }
 
     if (status === "APPROVED") {
@@ -49,19 +49,16 @@ export class AdminService {
           certification: certification,
           expertise: expertise,
         });
-
         return newProfile;
       } catch (error: any) {
         if (error.code === "P2002") {
-          // Lỗi unique constraint (user đã có profile)
-          throw new Error("This user already has a Course Seller profile.");
+          throw new Error("Người dùng này đã có hồ sơ Giảng viên khóa học.");
         }
-
-        throw new Error("Can not approve this application.");
+        throw new Error("Không thể duyệt đơn đăng ký này.");
       }
     } else {
       if (!rejectionReason) {
-        throw new Error("Need to have Rejection Reason.");
+        throw new Error("Cần cung cấp lý do từ chối.");
       }
 
       const dataToUpdate = {
