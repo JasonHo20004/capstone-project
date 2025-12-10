@@ -83,15 +83,15 @@ export class NotificationTypeRepository {
     });
 
     if (!notificationType) {
-      throw new Error('Notification type not found');
+      throw new Error('Không tìm thấy loại thông báo');
     }
 
     if (notificationType.isLocked) {
-      throw new Error('Cannot delete locked notification type');
+      throw new Error('Không thể xóa loại thông báo đã khóa');
     }
 
     if (notificationType.notifications.length > 0) {
-      throw new Error('Cannot delete notification type that has associated notifications');
+      throw new Error('Không thể xóa loại thông báo đang có thông báo liên kết');
     }
 
     return await this.prisma.notificationType.delete({

@@ -18,13 +18,13 @@ export class FlashcardReviewController {
 
       res.status(200).json({
         success: true,
-        message: "Fetched review queue successfully",
+        message: "Lấy hàng đợi bài kiểm tra thành công",
         data: queue,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to fetch review queue",
+        message: "Lấy hàng đợi bài kiểm tra thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -49,13 +49,13 @@ public submitReview = async (
 
       res.status(200).json({
         success: true,
-        message: "Review submitted successfully",
+        message: "Gửi bài kiểm tra thành công",
         data: updatedProgress,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to submit review",
+        message: "Gửi bài kiểm tra thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }

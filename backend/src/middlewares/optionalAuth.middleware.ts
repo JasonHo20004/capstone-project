@@ -20,7 +20,7 @@ export const optionalAuthMiddleware = (
   const secretKey = process.env.ACCESS_TOKEN_SECRET; 
 
   if (!secretKey) {
-    console.error("❌ ACCESS_TOKEN_SECRET is not defined");
+    console.error("❌ ACCESS_TOKEN_SECRET không được cấu hình!");
     return next();
   }
 
@@ -28,7 +28,7 @@ export const optionalAuthMiddleware = (
     if (err) {
       // Token lỗi/hết hạn -> Coi như khách -> Cho qua
       // (Bạn có thể console.log(err) ở đây để debug xem lỗi gì)
-      console.log("⚠️ Optional Auth Token Error:", err.message);
+      console.log("Token không hợp lệ:", err.message);
       return next();
     } else {
       // ✅ Token đúng -> Gán user

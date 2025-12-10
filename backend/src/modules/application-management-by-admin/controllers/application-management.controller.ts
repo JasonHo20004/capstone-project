@@ -72,7 +72,7 @@ export class ApplicationManagementController {
       if (!status || !["APPROVED", "REJECTED"].includes(status)) {
         res.status(400).json({
           success: false,
-          message: "Status phải là APPROVED hoặc REJECTED",
+          message: "Status phải là 'Duyệt' hoặc 'Từ chối'",
         });
         return;
       }

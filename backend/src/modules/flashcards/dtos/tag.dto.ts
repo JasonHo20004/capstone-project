@@ -4,7 +4,7 @@ export const createTagDTO = z.object({
   body: z.object({
     name: z.string({
       error: (issue) =>
-        issue.input === undefined ? "This field is required" : "Invalid name",
+        issue.input === undefined ? "Trường này là bắt buộc" : "Tên không hợp lệ",
     })
   }),
 });
@@ -16,7 +16,7 @@ export const updateTagDTO = z.object({
   }),
   params: z.object({
     tagId:z.uuid({
-      message: 'Tag ID must be a valid UUID'
+      message: 'ID thẻ phải là UUID hợp lệ'
     })
   })
 });
@@ -24,7 +24,7 @@ export const updateTagDTO = z.object({
 export const deleteTagDTO = z.object({
    params: z.object({
     tagId:z.uuid({
-      message: 'Tag ID must be a valid UUID'
+      message: 'ID thẻ phải là UUID hợp lệ'
     })
   })
 });

@@ -52,17 +52,17 @@ async function startServer() {
 
 // Graceful shutdown logic
 async function shutdown() {
-  console.log("\n gracefully shutting down...");
+  console.log("🚧 Đang dừng server...");
   try {
     await databaseService.disconnect();
   } catch (err) {
-    console.error("Error disconnecting database:", err);
+    console.error("Lỗi khi ngắt kết nối cơ sở dữ liệu:", err);
   }
 
   try {
     await redisService.disconnect();
   } catch (err) {
-    console.error("Error disconnecting Redis:", err);
+    console.error("Lỗi khi ngắt kết nối Redis:", err);
   }
 
   process.exit(0);

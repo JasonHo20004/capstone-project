@@ -113,36 +113,36 @@ export function validateCreateUserDto(userData: CreateUserDto): UserValidationRe
 
   // Required fields validation
   if (!userData.email || !validateEmail(userData.email)) {
-    errors.push('Valid email is required');
+    errors.push('Email không hợp lệ');
   }
 
   if (!userData.password || userData.password.length < 6) {
-    errors.push('Password must be at least 6 characters long');
+    errors.push('Mật khẩu phải có ít nhất 6 ký tự');
   }
 
   if (!userData.fullName || !validateFullName(userData.fullName)) {
-    errors.push('Valid full name is required (2-255 characters)');
+    errors.push('Họ và tên phải có độ dài từ 2 đến 255 ký tự');
   }
 
   if (!userData.dateOfBirth || !validateDateOfBirth(userData.dateOfBirth)) {
-    errors.push('Valid date of birth is required (must be 13-120 years old)');
+    errors.push('Ngày sinh phải là một ngày trong quá khứ và có tuổi từ 13 đến 120 tuổi');
   }
 
   if (!userData.role || !validateUserRole(userData.role)) {
-    errors.push('Valid user role is required');
+    errors.push('Vai trò người dùng không hợp lệ');
   }
 
   // Optional fields validation
   if (userData.phoneNumber && !validatePhoneNumber(userData.phoneNumber)) {
-    errors.push('Invalid phone number format');
+    errors.push('Số điện thoại không hợp lệ');
   }
 
   if (userData.englishLevel && !validateEnglishLevel(userData.englishLevel)) {
-    errors.push('Invalid English level');
+    errors.push('Cấp độ tiếng Anh không hợp lệ');
   }
 
   if (userData.learningGoals && !validateLearningGoals(userData.learningGoals)) {
-    errors.push('Invalid learning goals format');
+    errors.push('Mục tiêu học tập không hợp lệ');
   }
 
   return {
@@ -161,24 +161,24 @@ export function validateUpdateUserDto(userData: UpdateUserDto): UserValidationRe
 
   // Optional fields validation (only validate if provided)
   if (userData.fullName !== undefined && !validateFullName(userData.fullName)) {
-    errors.push('Full name must be 2-255 characters long');
+    errors.push('Họ và tên phải có độ dài từ 2 đến 255 ký tự');
   }
 
   if (userData.phoneNumber !== undefined && userData.phoneNumber && !validatePhoneNumber(userData.phoneNumber)) {
-    errors.push('Invalid phone number format');
+    errors.push('Số điện thoại không hợp lệ');
   }
 
   if (userData.englishLevel !== undefined && userData.englishLevel && !validateEnglishLevel(userData.englishLevel)) {
-    errors.push('Invalid English level');
+    errors.push('Cấp độ tiếng Anh không hợp lệ');
   }
 
   if (userData.learningGoals !== undefined && userData.learningGoals && !validateLearningGoals(userData.learningGoals)) {
-    errors.push('Invalid learning goals format');
+    errors.push('Mục tiêu học tập không hợp lệ');
   }
 
   // Check if at least one field is being updated
   if (Object.keys(userData).length === 0) {
-    errors.push('At least one field must be provided for update');
+    errors.push('Cần có ít nhất một trường được cập nhật');
   }
 
   return {

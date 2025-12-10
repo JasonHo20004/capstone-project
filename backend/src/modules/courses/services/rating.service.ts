@@ -20,7 +20,7 @@ export class RatingService {
     });
 
     if (!course) {
-      throw new Error('Course not found');
+      throw new Error('Khóa học không tồn tại');
     }
 
     const where: any = {
@@ -67,11 +67,11 @@ export class RatingService {
     });
 
     if (!rating) {
-      throw new Error('Rating not found');
+      throw new Error('Đánh giá không tồn tại');
     }
 
     if (!replyContent || replyContent.trim() === '') {
-      throw new Error('Please enter your reply content');
+      throw new Error('Vui lòng nhập nội dung phản hồi');
     }
 
     return this.prisma.rating.update({
@@ -89,11 +89,11 @@ export class RatingService {
     });
 
     if (!rating) {
-      throw new Error('Rating not found');
+      throw new Error('Đánh giá không tồn tại');
     }
 
     if (rating.isReported) {
-      throw new Error('This rating has already been reported');
+      throw new Error('Đánh giá này đã được báo cáo');
     }
 
     return this.prisma.rating.update({
@@ -104,4 +104,3 @@ export class RatingService {
     });
   }
 }
-
