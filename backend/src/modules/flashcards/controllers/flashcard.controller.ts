@@ -22,13 +22,13 @@ export class FlashcardController {
 
       res.status(200).json({
         success: true,
-        message: "Create flashcard  successfully",
+        message: "Lấy tất cả flashcard thành công",
         data: flashcards,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to create flashcard deck",
+        message: "Lấy tất cả flashcard thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -50,13 +50,13 @@ export class FlashcardController {
 
       res.status(200).json({
         success: true,
-        message: "Create flashcard  successfully",
+        message: "Tạo flashcard thành công",
         data: newFlashcard,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to create flashcard deck",
+        message: "Lấy tất cả flashcard thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -85,13 +85,13 @@ export class FlashcardController {
 
       res.status(200).json({
         success: true,
-        message: "Update flashcard deck successfully",
+        message: "Cập nhật flashcard thành công",
         data: updatedFlashcard,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to update flashcard deck",
+        message: "Cập nhật flashcard thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -110,12 +110,12 @@ export class FlashcardController {
 
       res.status(200).json({
         success: true,
-        message: "Delete flashcard successfully",
+        message: "Xóa flashcard thành công",
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to delete flashcard ",
+        message: "Xóa flashcard thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }

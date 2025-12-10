@@ -16,13 +16,13 @@ export class PracticeSessionController {
       const newSession = await this.practiceSessionService.startSession(userId, testId, sectionIds);
       res.status(200).json({
         success: true,
-        message: "Start Practice Session successfully",
+        message: "Bắt đầu thực hành thành công",
         data: newSession,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to Start Practice Session",
+        message: "Bắt đầu thực hành thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -39,13 +39,13 @@ export class PracticeSessionController {
       const newAnswer = await this.practiceSessionService.answerQuestion(userId, {questionId,selectedOptionIndex, answerText, sessionId});
       res.status(200).json({
         success: true,
-        message: "Answer question successfully",
+        message: "Trả lời câu hỏi thành công",
         data: newAnswer,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to answer this question",
+        message: "Trả lời câu hỏi thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -60,13 +60,13 @@ export class PracticeSessionController {
       const newAnswer = await this.practiceSessionService.submit(userId, sessionId);
       res.status(200).json({
         success: true,
-        message: "Answer question successfully",
+        message: "Nộp bài thành công",
         data: newAnswer,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to answer this question",
+        message: "Nộp bài thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }

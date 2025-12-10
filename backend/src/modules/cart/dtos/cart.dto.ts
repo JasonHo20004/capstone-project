@@ -3,17 +3,17 @@ import { z } from "zod";
 // Request
 export const addToCartDTO = z.object({
   body: z.object({
-    courseId:z.uuid("Invalid Course ID format")
+    courseId:z.uuid("Định dạng ID khóa học không hợp lệ")
   }),
 });
 export const directBuyDTO = z.object({
   body: z.object({
-    courseId:z.uuid("Invalid Course ID format")
+    courseId:z.uuid("Định dạng ID khóa học không hợp lệ")
   }),
 });
 export const partialCheckoutDTO = z.object({
   body: z.object({
-    cartItemIds: z.array(z.uuid("Invalid cart Item ID format")).nonempty({ message: "You must select at least cart Item Id " }),
+    cartItemIds: z.array(z.uuid("Định dạng ID mục giỏ hàng không hợp lệ")).nonempty({ message: "Bạn phải chọn ít nhất một mục giỏ hàng" }),
   }),
 });
 

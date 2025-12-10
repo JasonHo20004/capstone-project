@@ -24,7 +24,7 @@ export class RatingController {
         if (isNaN(rating) || rating < 1 || rating > 5) {
           res.status(400).json({
             success: false,
-            message: 'Invalid star rating. Must be between 1 and 5',
+            message: 'Số sao phải nằm trong khoảng từ 1 đến 5',
           });
           return;
         }
@@ -36,7 +36,7 @@ export class RatingController {
         if (isNaN(filters.startDate.getTime())) {
           res.status(400).json({
             success: false,
-            message: 'Invalid start date format',
+            message: 'Ngày bắt đầu không hợp lệ',
           });
           return;
         }
@@ -47,7 +47,7 @@ export class RatingController {
         if (isNaN(filters.endDate.getTime())) {
           res.status(400).json({
             success: false,
-            message: 'Invalid end date format',
+            message: 'Ngày kết thúc không hợp lệ',
           });
           return;
         }
@@ -58,7 +58,7 @@ export class RatingController {
       if (ratings.length === 0) {
         res.status(200).json({
           success: true,
-          message: 'No reviews from students yet',
+          message: 'Chưa có đánh giá từ sinh viên nào',
           data: [],
         });
         return;
@@ -66,15 +66,15 @@ export class RatingController {
 
       res.status(200).json({
         success: true,
-        message: 'Ratings retrieved successfully',
+        message: 'Danh sách đánh giá đã được lấy thành công',
         data: ratings,
         count: ratings.length,
       });
     } catch (error) {
-      if (error instanceof Error && error.message === 'Course not found') {
+      if (error instanceof Error && error.message === 'Khóa học không tồn tại') {
         res.status(404).json({
           success: false,
-          message: 'Course not found',
+          message: 'Khoá học không tồn tại',
         });
         return;
       }
@@ -94,7 +94,7 @@ export class RatingController {
       if (!replyContent || replyContent.trim() === '') {
         res.status(400).json({
           success: false,
-          message: 'Please enter your reply content',
+          message: 'Vui lòng nhập nội dung phản hồi',
         });
         return;
       }
@@ -103,22 +103,22 @@ export class RatingController {
 
       res.status(200).json({
         success: true,
-        message: 'Reply added successfully',
+        message: 'Phản hồi đã được thêm thành công',
         data: rating,
       });
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message === 'Rating not found') {
+        if (error.message === 'Đánh giá không tồn tại') {
           res.status(404).json({
             success: false,
-            message: 'Rating not found',
+            message: 'Đánh giá không tồn tại',
           });
           return;
         }
-        if (error.message === 'Please enter your reply content') {
+        if (error.message === 'Vui lòng nhập nội dung phản hồi') {
           res.status(400).json({
             success: false,
-            message: error.message,
+            message: 'Vui lòng nhập nội dung phản hồi',
           });
           return;
         }
@@ -139,22 +139,22 @@ export class RatingController {
 
       res.status(200).json({
         success: true,
-        message: 'Rating reported successfully',
+        message: 'Đánh giá đã được báo cáo thành công',
         data: rating,
       });
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message === 'Rating not found') {
+        if (error.message === 'Đánh giá không tồn tại') {
           res.status(404).json({
             success: false,
-            message: 'Rating not found',
+            message: 'Đánh giá không tồn tại',
           });
           return;
         }
-        if (error.message === 'This rating has already been reported') {
+        if (error.message === 'Đánh giá này đã được báo cáo') {
           res.status(400).json({
             success: false,
-            message: error.message,
+            message: 'Đánh giá này đã được báo cáo',
           });
           return;
         }
@@ -163,4 +163,3 @@ export class RatingController {
     }
   };
 }
-

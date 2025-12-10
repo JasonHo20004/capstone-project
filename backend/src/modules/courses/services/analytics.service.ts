@@ -21,7 +21,7 @@ export class AnalyticsService {
     });
 
     if (!course) {
-      throw new Error('Course not found');
+      throw new Error('Khóa học không tồn tại');
     }
 
     const enrolledStudents = await this.prisma.userActivity.findMany({
@@ -123,4 +123,3 @@ export class AnalyticsService {
     };
   }
 }
-

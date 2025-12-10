@@ -70,7 +70,7 @@ export class TransactionManagementController {
         data
       });
     } catch (error) {
-      if (error instanceof Error && error.message === 'Transaction not found') {
+      if (error instanceof Error && error.message === 'Giao dịch không tồn tại') {
         res.status(404).json({
           success: false,
           message: 'Giao dịch không tồn tại'

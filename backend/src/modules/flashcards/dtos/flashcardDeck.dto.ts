@@ -4,10 +4,10 @@ export const createFlashcardDeckDTO = z.object({
   body: z.object({
     title: z.string({
       error: (issue) =>
-        issue.input === undefined ? "This field is required" : "Invalid title",
+        issue.input === undefined ? "Trường này là bắt buộc" : "Tiêu đề không hợp lệ",
     }),
     description: z.string().nullable().optional(),
-    tagIds: z.array(z.uuid("Invalid tag ID format")).nonempty({ message: "You must select at least one tag." }),
+    tagIds: z.array(z.uuid("Định dạng ID thẻ không hợp lệ")).nonempty({ message: "Bạn phải chọn ít nhất một thẻ." }),
   }),
 });
 
@@ -16,11 +16,11 @@ export const updateFlashcardDeckDTO = z.object({
   body: z.object({
     title: z.string().nonempty().optional(),
     description: z.string().nullable().optional(),
-    tagIds: z.array(z.uuid("Invalid tag ID format")).nonempty({ message: "You must select at least one tag." }).optional(),
+    tagIds: z.array(z.uuid("Định dạng ID thẻ không hợp lệ")).nonempty({ message: "Bạn phải chọn ít nhất một thẻ." }).optional(),
   }),
   params: z.object({
     flashcardDeckId:z.uuid({
-      message: 'Deck ID must be a valid UUID'
+      message: 'ID bộ thẻ phải là UUID hợp lệ'
     })
   })
 });
@@ -28,7 +28,7 @@ export const updateFlashcardDeckDTO = z.object({
 export const deleteFlashcardDeckDTO = z.object({
   params: z.object({
     flashcardDeckId:z.uuid({
-      message: 'Deck ID must be a valid UUID'
+      message: 'ID bộ thẻ phải là UUID hợp lệ'
     })
   })
 });

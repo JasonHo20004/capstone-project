@@ -4,7 +4,7 @@ import z from "zod";
 export const startSessionDTO = z.object({
   body: z.object({
     testId: z.uuid({
-      message: "Test ID must be a valid UUID",
+      message: "ID bài kiểm tra phải là UUID hợp lệ",
     }),
     sectionIds: z.array(z.uuid()).optional(),
   }),
@@ -12,18 +12,18 @@ export const startSessionDTO = z.object({
 
 export const answerQuestionDTO = z.object({
   body: z.object({
-    questionId: z.uuid({ message: "Question ID must be a valid UUID" }),
+    questionId: z.uuid({ message: "ID câu hỏi phải là UUID hợp lệ" }),
     selectedOptionIndex: z.number().int().nullable().optional(),
     answerText: z.string().nullable().optional(),
   }),
   params: z.object({
-    sessionId: z.uuid({ message: "Session ID must be a valid UUID" }),
+    sessionId: z.uuid({ message: "ID phiên làm bài phải là UUID hợp lệ" }),
   }),
 });
 
 export const submitDTO = z.object({
   params: z.object({
-    sessionId: z.uuid({ message: "Session ID must be a valid UUID" }),
+    sessionId: z.uuid({ message: "ID phiên làm bài phải là UUID hợp lệ" }),
   }),
 });
 

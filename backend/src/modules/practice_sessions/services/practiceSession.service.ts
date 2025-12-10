@@ -41,12 +41,12 @@ export class PracticeSessionService {
     const existingUser = await this.userRepository.findUserById(userId);
 
     if (!existingUser) {
-      throw Error("User is not exist");
+      throw Error("Người dùng không tồn tại");
     }
 
     const existingTest = await this.testRepository.findById(testId);
     if (!existingTest) {
-      throw Error("Course is not exist ");
+      throw Error("Khóa học không tồn tại ");
     }
 
     const existingSession =
@@ -55,7 +55,7 @@ export class PracticeSessionService {
         testId,
       });
     if (existingSession) {
-      throw Error("This session is ongoing!");
+      throw Error("Phiên làm bài đang diễn ra!");
     }
     if (sectionIds && sectionIds.length > 0) {
       const sectionsInTest =
@@ -65,7 +65,7 @@ export class PracticeSessionService {
         );
 
       if (sectionsInTest.length !== sectionIds.length) {
-        throw Error("Having some section is not available in test");
+        throw Error("Một số phần không có trong bài kiểm tra");
       }
 
       sectionsToPractice = sectionIds;
@@ -96,7 +96,7 @@ export class PracticeSessionService {
     const { questionId, selectedOptionIndex, answerText, sessionId } = data;
 
     if (!existingUser) {
-      throw Error("User is not exist");
+      throw Error("Người dùng không tồn tại");
     }
     const existingSession =
       await this.practiceSessionRepository.findOnGoingSessionById({
@@ -105,7 +105,7 @@ export class PracticeSessionService {
       });
 
     if (!existingSession) {
-      throw Error("This session is not existence or ongoing!");
+      throw Error("Phiên làm bài không tồn tại hoặc đang diễn ra!");
     }
     const saveAnswer = await this.userAnswerRepository.upsertAnswer({
       userId,
@@ -128,14 +128,14 @@ export class PracticeSessionService {
       }
     );
     if (!session) {
-      throw Error("Session is not exist or not ONGOING");
+      throw Error("Phiên làm bài không tồn tại hoặc không ở trạng thái ĐANG DIỄN RA");
     }
     const userAnswers = await this.userAnswerRepository.findUserAnswers({
       userId,
       sessionId,
     });
     if (!userAnswers) {
-      throw Error("User does not answer any question");
+      throw Error("Người dùng chưa trả lời câu hỏi nào");
     }
     const sectionsInSession =
       await this.sectionRepository.findSectionsInSession(
@@ -244,7 +244,7 @@ export class PracticeSessionService {
         );
       });
     } catch (error: any) {
-      throw Error("Fail to submit", error);
+      throw Error("Nộp bài thất bại", error);
     }
   }
 }

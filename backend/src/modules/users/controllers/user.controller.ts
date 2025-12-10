@@ -21,13 +21,13 @@ export class UserController {
       const userData = await this.userService.getUserInformation(userId);
       res.status(200).json({
         success: true,
-        message: "Get user Information successfully",
+        message: "Lấy thông tin người dùng thành công",
         data: userData,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to get user information",
+        message: "Lấy thông tin người dùng thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -42,13 +42,13 @@ export class UserController {
       const newUser = await this.userService.createUser(userData);
       res.status(200).json({
         success: true,
-        message: "Register user successfully",
+        message: "Đăng ký người dùng thành công",
         data: newUser,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to register user",
+        message: "Đăng ký người dùng thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -79,18 +79,18 @@ export class UserController {
 
       res.status(200).json({
         success: true,
-        message: "User profile updated successfully",
+        message: "Cập nhật thông tin người dùng thành công",
         data: updatedUser,
       });
     } catch (error) {
-      if (error instanceof Error && error.message.includes("not found")) {
+      if (error instanceof Error && error.message.includes("không tồn tại")) {
         res.status(404).json({ success: false, message: error.message });
         // 404 Not Found
         return;
       }
       res.status(500).json({
         success: false,
-        message: "Failed to update user profile",
+        message: "Cập nhật thông tin người dùng thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -114,7 +114,7 @@ export class UserController {
       // Return ngay lập tức nếu thiếu ảnh chứng chỉ (Validation)
       res.status(400).json({ 
         success: false, 
-        message: "Certification images are required." 
+        message: "Chứng chỉ ảnh là bắt buộc." 
       });
       return; 
     }
@@ -139,7 +139,7 @@ export class UserController {
     // 4. Response Success
     res.status(200).json({
       success: true,
-      message: "Create Course Seller profile successfully",
+      message: "Tạo hồ sơ bán khóa học thành công",
       data: updatedUser,
     });
 
@@ -147,17 +147,17 @@ export class UserController {
     // 5. Error Handling tập trung
     if (error instanceof Error) {
         // Xử lý các lỗi business logic cụ thể nếu cần
-        if (error.message.includes("not found")) {
-            res.status(404).json({ success: false, message: error.message });
+        if (error.message.includes("không tồn tại")) {
+            res.status(404).json({ success: false, message: "Người dùng không tồn tại." });
             return;
         }
     }
 
-    console.error("Error creating seller application:", error); // Log lỗi để debug
+  
     res.status(500).json({
       success: false,
-      message: "Failed to Create Course Seller profile",
-      error: error instanceof Error ? error.message : "Internal Server Error",
+      message: "Tạo hồ sơ bán khóa học thất bại",
+      error: error instanceof Error ? error.message : "Lỗi máy chủ",
     });
   }
 };

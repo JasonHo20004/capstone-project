@@ -99,22 +99,22 @@ export class StudentService {
     // Verify enrollment
     const isEnrolled = await this.studentRepository.isEnrolled(userId, courseId);
     if (!isEnrolled) {
-      throw new Error("Not enrolled in this course");
+      throw new Error("Bạn chưa đăng ký khóa học này");
     }
-
+  
     // Verify lesson belongs to course
     const belongsToCourse = await this.studentRepository.verifyLessonBelongsToCourse(
       lessonId,
       courseId
     );
     if (!belongsToCourse) {
-      throw new Error("Lesson does not belong to this course");
+      throw new Error("Bài học không thuộc khóa học này");
     }
-
+  
     // Get lesson with media assets
     const lesson = await this.studentRepository.getLessonWithMedia(lessonId);
     if (!lesson) {
-      throw new Error("Lesson not found");
+      throw new Error("Bài học không tồn tại");
     }
 
     // Mark lesson as viewed/started (optional tracking)
@@ -159,7 +159,7 @@ export class StudentService {
     const lessons = await this.studentRepository.getCourseSyllabus(courseId);
     
     if (lessons.length === 0) {
-      throw new Error("Course not found or has no lessons");
+      throw new Error("Khóa học không tồn tại hoặc không có bài học");
     }
 
     // Get completed lessons if enrolled
@@ -193,12 +193,12 @@ export class StudentService {
     // Verify enrollment
     const isEnrolled = await this.studentRepository.isEnrolled(userId, courseId);
     if (!isEnrolled) {
-      throw new Error("Not enrolled in this course");
+      throw new Error("Bạn chưa đăng ký khóa học này");
     }
-
+  
     const course = await this.studentRepository.getCourseById(courseId);
     if (!course) {
-      throw new Error("Course not found");
+      throw new Error("Khóa học không tồn tại");
     }
 
     const syllabus = await this.studentRepository.getCourseSyllabus(courseId);
@@ -258,16 +258,16 @@ export class StudentService {
     // Verify enrollment
     const isEnrolled = await this.studentRepository.isEnrolled(userId, courseId);
     if (!isEnrolled) {
-      throw new Error("Not enrolled in this course");
+      throw new Error("Bạn chưa đăng ký khóa học này");
     }
-
+  
     // Verify lesson belongs to course
     const belongsToCourse = await this.studentRepository.verifyLessonBelongsToCourse(
       lessonId,
       courseId
     );
     if (!belongsToCourse) {
-      throw new Error("Lesson does not belong to this course");
+      throw new Error("Bài học không thuộc khóa học này");
     }
 
     const { comments, total } = await this.studentRepository.getLessonComments(
@@ -307,20 +307,20 @@ export class StudentService {
     // Verify enrollment
     const isEnrolled = await this.studentRepository.isEnrolled(userId, courseId);
     if (!isEnrolled) {
-      throw new Error("Not enrolled in this course");
+      throw new Error("Bạn chưa đăng ký khóa học này");
     }
-
+  
     // Verify lesson belongs to course
     const belongsToCourse = await this.studentRepository.verifyLessonBelongsToCourse(
       lessonId,
       courseId
     );
     if (!belongsToCourse) {
-      throw new Error("Lesson does not belong to this course");
+      throw new Error("Bài học không thuộc khóa học này");
     }
-
+  
     if (!content || content.trim().length === 0) {
-      throw new Error("Comment content is required");
+      throw new Error("Nội dung bình luận là bắt buộc");
     }
 
     const createData: {
@@ -403,18 +403,18 @@ export class StudentService {
     // Verify purchase (enrollment)
     const isEnrolled = await this.studentRepository.isEnrolled(userId, courseId);
     if (!isEnrolled) {
-      throw new Error("You must purchase this course to rate it");
+      throw new Error("Bạn cần mua khóa học này để đánh giá");
     }
-
+  
     // Check if already rated
     const hasRated = await this.studentRepository.hasUserRatedCourse(userId, courseId);
     if (hasRated) {
-      throw new Error("You have already rated this course");
+      throw new Error("Bạn đã đánh giá khóa học này rồi");
     }
-
+  
     // Validate score
     if (score < 1 || score > 5) {
-      throw new Error("Rating score must be between 1 and 5");
+      throw new Error("Điểm đánh giá phải từ 1 đến 5");
     }
 
     const createData: {
@@ -482,24 +482,23 @@ export class StudentService {
     // Verify enrollment
     const isEnrolled = await this.studentRepository.isEnrolled(userId, courseId);
     if (!isEnrolled) {
-      throw new Error("Not enrolled in this course");
+      throw new Error("Bạn chưa đăng ký khóa học này");
     }
-
+  
     // Verify lesson belongs to course
     const belongsToCourse = await this.studentRepository.verifyLessonBelongsToCourse(
       lessonId,
       courseId
     );
     if (!belongsToCourse) {
-      throw new Error("Lesson does not belong to this course");
+      throw new Error("Bài học không thuộc khóa học này");
     }
-
+  
     await this.studentRepository.markLessonCompleted(userId, lessonId);
-
+  
     return {
       success: true,
-      message: "Lesson marked as completed",
+      message: "Đánh dấu bài học hoàn thành",
     };
   }
 }
-

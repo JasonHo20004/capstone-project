@@ -39,7 +39,7 @@ export class TransactionManagementService {
     const transaction = await this.repository.getTransactionById(id);
 
     if (!transaction) {
-      throw new Error("Transaction not found");
+      throw new Error("Giao dịch không tồn tại");
     }
 
     return {

@@ -22,13 +22,13 @@ export class TopupOrderController {
       );
       res.status(200).json({
         success: true,
-        message: "Create topup order successfully",
+        message: "Tạo đơn hàng nạp tiền thành công",
         data: { orderId: order.id, payUrl },
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to Create topup order",
+        message: "Tạo đơn hàng nạp tiền thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -49,13 +49,13 @@ export class TopupOrderController {
 
       res.status(200).json({
         success: true,
-        message: "Topup successfully!",
+        message: "Nạp tiền thành công",
         data: updatedWallet,
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: "Failed to Topup",
+        message: "Nạp tiền thất bại",
         error: error instanceof Error ? error.message : String(error),
       });
     }

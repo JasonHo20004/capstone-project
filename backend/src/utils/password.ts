@@ -20,13 +20,13 @@ const MEDIUM_PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{6,}$/;
  */
 export async function hashPassword(password: string): Promise<string> {
   if (!password || typeof password !== 'string') {
-    throw new Error('Password must be a non-empty string');
+    throw new Error('Mật khẩu phải là một chuỗi không rỗng');
   }
 
   try {
     return await bcrypt.hash(password, SALT_ROUNDS);
   } catch (error) {
-    throw new Error('Failed to hash password');
+    throw new Error('Lỗi khi mã hóa mật khẩu');
   }
 }
 
@@ -44,7 +44,7 @@ export async function comparePassword(password: string, hash: string): Promise<b
   try {
     return await bcrypt.compare(password, hash);
   } catch (error) {
-    throw new Error('Failed to compare passwords');
+    throw new Error('Lỗi khi so sánh mật khẩu');
   }
 }
 
@@ -57,7 +57,7 @@ export function validatePassword(password: string): PasswordValidationResult {
   const errors: string[] = [];
 
   if (!password || typeof password !== 'string') {
-    errors.push('Password is required');
+    errors.push('Mật khẩu là bắt buộc');
     return {
       isValid: false,
       errors,
@@ -69,24 +69,24 @@ export function validatePassword(password: string): PasswordValidationResult {
 
   // Basic length check
   if (trimmedPassword.length < 6) {
-    errors.push('Password must be at least 6 characters long');
+    errors.push('Mật khẩu phải có ít nhất 6 ký tự');
   }
 
   if (trimmedPassword.length > 128) {
-    errors.push('Password must be no more than 128 characters long');
+    errors.push('Mật khẩu phải có tối đa 128 ký tự');
   }
 
   // Character requirements
   if (!/[a-z]/.test(trimmedPassword)) {
-    errors.push('Password must contain at least one lowercase letter');
+    errors.push('Mật khẩu phải chứa ít nhất một chữ thường');
   }
 
   if (!/[A-Z]/.test(trimmedPassword)) {
-    errors.push('Password must contain at least one uppercase letter');
+    errors.push('Mật khẩu phải chứa ít nhất một chữ hoa');
   }
 
   if (!/\d/.test(trimmedPassword)) {
-    errors.push('Password must contain at least one number');
+    errors.push('Mật khẩu phải chứa ít nhất một số');
   }
 
   // Determine strength
@@ -102,7 +102,7 @@ export function validatePassword(password: string): PasswordValidationResult {
   if (strength === 'strong') {
     // Check for special characters
     if (!/[@$!%*?&]/.test(trimmedPassword)) {
-      errors.push('Strong passwords should contain at least one special character (@$!%*?&)');
+      errors.push('Mật khẩu mạnh phải chứa ít nhất một ký tự đặc biệt (@$!%*?&)');
     }
   }
 
@@ -121,12 +121,12 @@ export function validatePassword(password: string): PasswordValidationResult {
   ];
 
   if (commonPasswords.includes(trimmedPassword.toLowerCase())) {
-    errors.push('Password is too common, please choose a more unique password');
+    errors.push('Mật khẩu quá phổ biến, vui lòng chọn mật khẩu khác');
   }
 
   // Sequential character check
   if (/(.)\1{2,}/.test(trimmedPassword)) {
-    errors.push('Password should not contain repeated characters');
+    errors.push('Mật khẩu không thể chứa ký tự lặp lại');
   }
 
   return {
@@ -144,7 +144,7 @@ export function validatePassword(password: string): PasswordValidationResult {
  */
 export function generatePassword(length: number = 12, includeSpecialChars: boolean = true): string {
   if (length < 6 || length > 128) {
-    throw new Error('Password length must be between 6 and 128 characters');
+    throw new Error('Mật khẩu phải có độ dài từ 6 đến 128 ký tự');
   }
 
   const lowercase = 'abcdefghijklmnopqrstuvwxyz';
