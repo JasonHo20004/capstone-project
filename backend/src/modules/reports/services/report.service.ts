@@ -2,7 +2,7 @@ import { ReportRepository } from "@/modules/reports/repositories/report.reposito
 import { UserRepository } from "@/modules/users/repositories/user.repository";
 import { CourseRepository } from "@/modules/courses/repositories/course.repository";
 import { UserActivityRepository } from "@/modules/users/repositories/userActivity.repository";
-import type { EReasonType } from "@/../generated/prisma";
+import type { EReasonType } from "@prisma/client";
 import type { CreateReportResponse ,GetReportResponse} from "@/modules/reports/dtos/report.dto";
 
 export class ReportService {
@@ -20,31 +20,31 @@ export class ReportService {
   ): Promise<CreateReportResponse> {
     const existingUser = await this.userRepository.findUserById(userId);
     if (!existingUser) {
-      throw Error("User is not exist");
+      throw Error("Người dùng không tồn tại");
     }
 
     const existingCourse = await this.courseRepository.findCourseAvailableById(
       dataReport.courseId
     );
     if (!existingCourse) {
-      throw Error("Course is not exist and is PENDING");
+      throw Error("Khóa học không tồn tại hoặc đang chờ duyệt");
     }
     const isUserActivity = await this.userActivityRepository.findActivity(
       userId,
       dataReport.courseId
     );
     if (!isUserActivity) {
-      throw Error("This user does not buy this course ");
+      throw Error("Người dùng chưa mua khóa học này");
     }
     if ((existingCourse.courseSellerId === userId)) {
-      throw Error("You can not report your course");
+      throw Error("Bạn không thể báo cáo khóa học của chính mình");
     }
     const existingReport = await this.reportRepository.findCourseReportByUser(
       userId,
       dataReport.courseId
     );
     if (existingReport) {
-      throw Error(`You reported this course ${existingCourse.title}`);
+      throw Error(`Bạn đã báo cáo khóa học này: ${existingCourse.title}`);
     }
 
     const newReport = await this.reportRepository.createReportCourse({
@@ -61,7 +61,7 @@ export class ReportService {
   public async getDetailReport(reportId:string):Promise<GetReportResponse>{
     const report= await this.reportRepository.getReportById(reportId)
     if(!report){
-      throw Error ("Report is not existence")
+      throw Error ("Báo cáo không tồn tại")
     }
     return report
   }

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { RatingController } from '@/modules/courses/controllers/rating.controller';
 import { validate } from '@/middlewares/validations.middleware';
 import { replyToRatingDTO, reportRatingDTO } from '@/modules/courses/dtos/rating.dto';
-import { UserRole } from '@/../generated/prisma';
+import { UserRole } from '@prisma/client';
 import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
 
 const router = Router();

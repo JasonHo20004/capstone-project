@@ -17,13 +17,13 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'Notification types retrieved successfully',
+        message: 'Lấy tất cả loại thông báo thành công',
         data: notificationTypes
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve notification types',
+        message: 'Lấy tất cả loại thông báo thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -39,13 +39,13 @@ export class NotificationController {
       
       res.status(201).json({
         success: true,
-        message: 'Notification type created successfully',
+        message: 'Tạo loại thông báo thành công',
         data: newNotificationType
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to create notification type',
+        message: 'Tạo loại thông báo thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -59,7 +59,7 @@ export class NotificationController {
       if (!id) {
         res.status(400).json({
           success: false,
-          message: 'Notification type ID is required'
+          message: 'ID loại thông báo là bắt buộc'
         });
         return;
       }
@@ -71,13 +71,13 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'Notification type updated successfully',
+        message: 'Cập nhật loại thông báo thành công',
         data: updatedNotificationType
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to update notification type',
+        message: 'Cập nhật loại thông báo thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -90,7 +90,7 @@ export class NotificationController {
       if (!id) {
         res.status(400).json({
           success: false,
-          message: 'Notification type ID is required'
+          message: 'ID loại thông báo là bắt buộc'
         });
         return;
       }
@@ -99,12 +99,12 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'Notification type deleted successfully'
+        message: 'Xóa loại thông báo thành công'
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to delete notification type',
+        message: 'Xóa loại thông báo thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -117,7 +117,7 @@ export class NotificationController {
       if (!id) {
         res.status(400).json({
           success: false,
-          message: 'Notification type ID is required'
+          message: 'ID loại thông báo là bắt buộc'
         });
         return;
       }
@@ -126,13 +126,13 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'Notification type locked successfully',
+        message: 'Khoá loại thông báo thành công',
         data: updatedNotificationType
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to lock notification type',
+        message: 'Khoá loại thông báo thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -145,7 +145,7 @@ export class NotificationController {
       if (!id) {
         res.status(400).json({
           success: false,
-          message: 'Notification type ID is required'
+          message: 'ID loại thông báo là bắt buộc'
         });
         return;
       }
@@ -154,13 +154,13 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'Notification type unlocked successfully',
+        message: 'Mở khoá loại thông báo thành công',
         data: updatedNotificationType
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to unlock notification type',
+        message: 'Mở khoá loại thông báo thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -183,13 +183,13 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'Notifications retrieved successfully',
+        message: 'Lấy danh sách thông báo thành công',
         data: result
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve notifications',
+        message: 'Lấy danh sách thông báo thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -202,7 +202,7 @@ export class NotificationController {
       if (!id) {
         res.status(400).json({
           success: false,
-          message: 'Notification ID is required'
+          message: 'ID thông báo là bắt buộc'
         });
         return;
       }
@@ -213,20 +213,20 @@ export class NotificationController {
       if (!notification) {
         res.status(404).json({
           success: false,
-          message: 'Notification not found'
+          message: 'Thông báo không tồn tại'
         });
         return;
       }
       
       res.status(200).json({
         success: true,
-        message: 'Notification retrieved successfully',
+        message: 'Lấy thông báo thành công',
         data: notification
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve notification',
+        message: 'Lấy thông báo thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -244,13 +244,13 @@ export class NotificationController {
       
       res.status(201).json({
         success: true,
-        message: 'Notification created successfully',
+        message: 'Tạo thông báo thành công',
         data: newNotification
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to create notification',
+        message: 'Tạo thông báo thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -263,7 +263,7 @@ export class NotificationController {
       if (!id) {
         res.status(400).json({
           success: false,
-          message: 'Notification ID is required'
+          message: 'ID thông báo là bắt buộc'
         });
         return;
       }
@@ -278,13 +278,13 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'Notification updated successfully',
+        message: 'Cập nhật thông báo thành công',
         data: updatedNotification
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to update notification',
+        message: 'Cập nhật thông báo thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -297,7 +297,7 @@ export class NotificationController {
       if (!id) {
         res.status(400).json({
           success: false,
-          message: 'Notification ID is required'
+          message: 'ID thông báo là bắt buộc'
         });
         return;
       }
@@ -306,12 +306,12 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'Notification deleted successfully'
+        message: 'Xóa thông báo thành công'
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to delete notification',
+        message: 'Xóa thông báo thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -324,7 +324,7 @@ export class NotificationController {
       if (!notificationTypeId) {
         res.status(400).json({
           success: false,
-          message: 'Notification type ID is required'
+          message: 'ID loại thông báo là bắt buộc'
         });
         return;
       }
@@ -339,13 +339,13 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'Notifications by type retrieved successfully',
+        message: 'Lấy thông báo theo loại thành công',
         data: result
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve notifications by type',
+        message: 'Lấy thông báo theo loại thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -358,7 +358,7 @@ export class NotificationController {
       if (!userId) {
         res.status(400).json({
           success: false,
-          message: 'User ID is required'
+          message: 'ID người dùng là bắt buộc'
         });
         return;
       }
@@ -375,13 +375,13 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'Notifications by user retrieved successfully',
+        message: 'Lấy thông báo theo người dùng thành công',
         data: result
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve notifications by user',
+        message: 'Lấy thông báo theo người dùng thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -394,7 +394,7 @@ export class NotificationController {
       if (!notificationId || !userId) {
         res.status(400).json({
           success: false,
-          message: 'Notification ID and User ID are required'
+          message: 'ID thông báo và ID người dùng là bắt buộc'
         });
         return;
       }
@@ -403,12 +403,12 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'Notification marked as seen successfully'
+        message: 'Đánh dấu thông báo đã đọc thành công'
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to mark notification as seen',
+        message: 'Đánh dấu thông báo đã đọc thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -421,7 +421,7 @@ export class NotificationController {
       if (!notificationId) {
         res.status(400).json({
           success: false,
-          message: 'Notification ID is required'
+          message: 'ID thông báo là bắt buộc'
         });
         return;
       }
@@ -431,12 +431,12 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'Notification added to users successfully'
+        message: 'Thêm thông báo vào người dùng thành công'
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to add notification to users',
+        message: 'Thêm thông báo vào người dùng thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -449,7 +449,7 @@ export class NotificationController {
       if (!notificationId) {
         res.status(400).json({
           success: false,
-          message: 'Notification ID is required'
+          message: 'ID thông báo là bắt buộc'
         });
         return;
       }
@@ -459,12 +459,12 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'Notification removed from users successfully'
+        message: 'Xóa thông báo khỏi người dùng thành công'
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to remove notification from users',
+        message: 'Xóa thông báo khỏi người dùng thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -476,13 +476,13 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'Notification statistics retrieved successfully',
+        message: 'Thống kê thông báo được lấy thành công',
         data: stats
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve notification statistics',
+        message: 'Lấy thống kê thông báo thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -496,7 +496,7 @@ export class NotificationController {
       if (!userId) {
         res.status(400).json({
           success: false,
-          message: 'User ID is required'
+          message: 'ID người dùng là bắt buộc'
         });
         return;
       }
@@ -515,13 +515,13 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'User notifications retrieved successfully',
+        message: 'Lấy thông báo theo người dùng thành công',
         data: result
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve user notifications',
+        message: 'Lấy thông báo theo người dùng thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -534,7 +534,7 @@ export class NotificationController {
       if (!notificationId) {
         res.status(400).json({
           success: false,
-          message: 'Notification ID is required'
+          message: 'ID thông báo là bắt buộc'
         });
         return;
       }
@@ -543,12 +543,12 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'Notification marked as read successfully'
+        message: 'Thông báo đã được đánh dấu là đã đọc thành công'
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to mark notification as read',
+        message: 'Đánh dấu thông báo đã đọc thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -561,7 +561,7 @@ export class NotificationController {
       if (!userId) {
         res.status(400).json({
           success: false,
-          message: 'User ID is required'
+          message: 'ID người dùng là bắt buộc'
         });
         return;
       }
@@ -570,13 +570,13 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'All notifications marked as read successfully',
+        message: 'Tất cả thông báo đã được đánh dấu là đã đọc thành công',
         data: result
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to mark all notifications as read',
+        message: 'Đánh dấu tất cả thông báo đã đọc thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -589,7 +589,7 @@ export class NotificationController {
       if (!notificationId) {
         res.status(400).json({
           success: false,
-          message: 'Notification ID is required'
+          message: 'ID thông báo là bắt buộc'
         });
         return;
       }
@@ -598,12 +598,12 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'Notification archived successfully'
+        message: 'Thông báo đã được lưu trữ thành công'
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to archive notification',
+        message: 'Lưu trữ thông báo thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -616,7 +616,7 @@ export class NotificationController {
       if (!userId) {
         res.status(400).json({
           success: false,
-          message: 'User ID is required'
+          message: 'ID người dùng là bắt buộc'
         });
         return;
       }
@@ -625,13 +625,13 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'User notification statistics retrieved successfully',
+        message: 'Thống kê thông báo theo người dùng được lấy thành công',
         data: stats
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve user notification statistics',
+        message: 'Lấy thống kê thông báo theo người dùng thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -644,13 +644,13 @@ export class NotificationController {
       
       res.status(200).json({
         success: true,
-        message: 'Old notifications cleaned up successfully',
+        message: 'Công việc xóa thông báo cũ đã hoàn thành thành công',
         data: result
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to cleanup old notifications',
+        message: 'Xóa thông báo cũ thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -665,12 +665,12 @@ export class NotificationController {
       const token = (req.query.token as string) || '';
 
       if (!token) {
-        res.status(401).json({ success: false, message: 'Missing access token' });
+        res.status(401).json({ success: false, message: 'Thiếu access token' });
         return;
       }
 
       if (!process.env.ACCESS_TOKEN_SECRET) {
-        res.status(500).json({ success: false, message: 'JWT secret is not configured' });
+        res.status(500).json({ success: false, message: 'JWT secret không được cấu hình' });
         return;
       }
 
@@ -678,13 +678,13 @@ export class NotificationController {
       try {
         decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
       } catch (err) {
-        res.status(401).json({ success: false, message: 'Invalid or expired token' });
+        res.status(401).json({ success: false, message: 'Token không hợp lệ hoặc đã hết hạn' });
         return;
       }
 
       const userId = decoded?.userId as string | undefined;
       if (!userId) {
-        res.status(401).json({ success: false, message: 'Invalid token payload' });
+        res.status(401).json({ success: false, message: 'Token không có userId' });
         return;
       }
 
@@ -731,7 +731,7 @@ export class NotificationController {
       if (!title || !content || title.trim() === '' || content.trim() === '') {
         res.status(400).json({
           success: false,
-          message: 'Please fill in all notification information',
+          message: 'Vui lòng nhập đầy đủ thông tin cập nhật khóa học',
         });
         return;
       }
@@ -745,7 +745,7 @@ export class NotificationController {
       if (result.failedCount > 0 && result.sentCount > 0) {
         res.status(207).json({
           success: true,
-          message: 'Notification delivery was incomplete, please check the logs',
+          message: 'Gửi thông báo cập nhật khóa học không hoàn toàn thành công, vui lòng kiểm tra logs',
           data: {
             sentCount: result.sentCount,
             failedCount: result.failedCount,
@@ -757,7 +757,7 @@ export class NotificationController {
 
       res.status(200).json({
         success: true,
-        message: 'Notification has been sent successfully',
+        message: 'Thông báo cập nhật khóa học đã được gửi thành công',
         data: {
           sentCount: result.sentCount,
           failedCount: result.failedCount,
@@ -765,17 +765,17 @@ export class NotificationController {
       });
     } catch (error) {
       if (error instanceof Error) {
-        if (error.message === 'Course not found') {
+        if (error.message === 'Khóa học không tồn tại') {
           res.status(404).json({
             success: false,
-            message: 'Course not found',
+            message: 'Không tìm thấy khóa học',
           });
           return;
         }
-        if (error.message === 'No students enrolled') {
+        if (error.message === 'Không có học viên đăng ký') {
           res.status(404).json({
             success: false,
-            message: 'No students to send notification to',
+            message: 'Không có người dùng nào đăng ký khóa học này',
           });
           return;
         }

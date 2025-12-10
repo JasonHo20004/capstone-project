@@ -1,5 +1,5 @@
 import { FlashcardReviewRepository } from "@/modules/flashcards/repositories/flashcardReview.repository";
-import type {  UserFlashcardProgress } from "@/../generated/prisma";
+import type {  UserFlashcardProgress } from "@prisma/client";
 
 const NEW_CARDS_PER_DAY = 20;
 const REVIEW_CARDS_MAX = 100;

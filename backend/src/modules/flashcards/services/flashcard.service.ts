@@ -1,6 +1,6 @@
 import { FlashcardRepository } from "@/modules/flashcards/repositories/flashcard.repository";
 import { FlashcardDeckRepository } from "../repositories/flashcardDeck.repository";
-import type { Flashcard } from "@/../generated/prisma";
+import type { Flashcard } from "@prisma/client";
 import axios from "axios";
 import * as fs from "fs";
 import * as path from "path";
@@ -58,17 +58,17 @@ export class FlashcardService {
   public async getAllFlashcards(userId:string, deckId:string):Promise<Flashcard[]>{
     const existingDeck = await this.flashcardDeckRepository.findFlashcardDeckById(deckId)
     if(!existingDeck || existingDeck.userId!==userId){
-      throw Error("This deck is not belong to user")
+      throw Error("Bộ thẻ này không thuộc về người dùng")
     }
     return this.flashcardRepository.findFlashCardByDeck({deckId})
   }
+
   public async createFlashcard(
     userId: string,
     flashcardData: {
       frontContent: string;
       backContent: string;
       exampleSentence?: string;
-
       deckId: string;
     }
   ): Promise<Flashcard> {
@@ -77,10 +77,10 @@ export class FlashcardService {
         flashcardData.deckId
       );
     if (!flashcardDeck) {
-      throw Error("Flashcard Deck is not exitence!");
+      throw Error("Bộ thẻ không tồn tại!");
     }
     if (flashcardDeck.userId !== userId) {
-      throw Error("Flashcard Deck does not belong to User!");
+      throw Error("Bộ thẻ không thuộc về người dùng!");
     }
     let audioUrlToSave;
     const wordToCheck = flashcardData.frontContent?.toLowerCase().trim();
@@ -123,14 +123,14 @@ export class FlashcardService {
       flashcardId
     );
     if (!flashcard) {
-      throw Error("Flashcard is not exitence!");
+      throw Error("Thẻ không tồn tại!");
     }
     const flashcardDeck =
       await this.flashcardDeckRepository.findFlashcardDeckById(
         flashcard.deckId
       );
     if (flashcardDeck?.userId !== userId) {
-      throw Error("Flashcard does not belong to user!");
+      throw Error("Thẻ không thuộc về người dùng!");
     }
     let audioUrlToSave;
 
@@ -174,21 +174,21 @@ export class FlashcardService {
     try {
       const flashcard = await this.flashcardRepository.findFlashcardById(id);
       if (!flashcard) {
-        throw Error("Flashcard is not exitence!");
+        throw Error("Thẻ không tồn tại!");
       }
       const flashcardDeck =
         await this.flashcardDeckRepository.findFlashcardDeckById(
           flashcard.deckId
         );
       if (flashcardDeck?.userId !== userId) {
-        throw Error("Flashcard does not belong to user!");
+        throw Error("Thẻ không thuộc về người dùng!");
       }
 
       await this.flashcardRepository.deleteFlashcard(id);
     } catch (error: any) {
       if (error.code === "P2025") {
         throw new Error(
-          "Flashcard deck not found or user does not have permission."
+          "Không tìm thấy bộ thẻ hoặc người dùng không có quyền."
         );
       }
       throw error;

@@ -1,5 +1,5 @@
 import { databaseService } from "@/services/database.service";
-import type { Question } from "@/../generated/prisma";
+import type { Question } from "@prisma/client";
 
 export class QuestionRepository {
   private prisma = databaseService.getClient();
@@ -20,20 +20,18 @@ export class QuestionRepository {
     // Validate question type requirements
     if (data.questionType === "MULTIPLE_CHOICE") {
       if (!data.options || data.options.length === 0) {
-        throw new Error("MULTIPLE_CHOICE questions must have options");
+        throw new Error("Câu hỏi MULTIPLE_CHOICE phải có danh sách lựa chọn");
       }
       if (data.correctAnswerIndex === undefined) {
-        throw new Error(
-          "MULTIPLE_CHOICE questions must have correctAnswerIndex"
-        );
+        throw new Error("Câu hỏi MULTIPLE_CHOICE phải có correctAnswerIndex");
       }
     } else if (data.questionType === "ESSAY") {
       if (!data.wordLimit) {
-        throw new Error("ESSAY questions must have wordLimit");
+        throw new Error("Câu hỏi ESSAY phải có giới hạn từ (wordLimit)");
       }
     } else if (data.questionType === "FILL_IN_THE_BLANK") {
       if (!data.correctAnswer) {
-        throw new Error("FILL_IN_THE_BLANK questions must have correctAnswer");
+        throw new Error("Câu hỏi FILL_IN_THE_BLANK phải có đáp án đúng");
       }
     }
 

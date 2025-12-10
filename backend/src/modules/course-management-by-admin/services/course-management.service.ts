@@ -18,7 +18,7 @@ export class CourseManagementService {
     const course: any = await this.courseRepository.findCourseById(id);
 
     if (!course) {
-      throw new Error("Course not found");
+      throw new Error("Khóa học không tồn tại");
     }
 
     return {
@@ -33,7 +33,7 @@ export class CourseManagementService {
     const course: any = await this.courseRepository.findCourseLessons(id);
 
     if (!course) {
-      throw new Error("Course not found");
+      throw new Error("Khóa học không tồn tại");
     }
 
     return {
@@ -46,7 +46,7 @@ export class CourseManagementService {
     const course: any = await this.courseRepository.findCourseRatings(id);
 
     if (!course) {
-      throw new Error("Course not found");
+      throw new Error("Khóa học không tồn tại");
     }
 
     return {
@@ -59,16 +59,16 @@ export class CourseManagementService {
   public async getSpecificLesson(courseId: string, lessonId: string) {
     const course = await this.courseRepository.findCourseById(courseId);
     if (!course) {
-      throw new Error("Course not found");
+      throw new Error("Khóa học không tồn tại");
     }
 
     const lesson = await this.courseRepository.findLessonById(lessonId);
     if (!lesson) {
-      throw new Error("Lesson not found");
+      throw new Error("Bài giảng không tồn tại");
     }
 
     if (lesson.courseId !== courseId) {
-      throw new Error("Lesson not found");
+      throw new Error("Bài giảng không tồn tại");
     }
 
     return lesson;
@@ -77,16 +77,16 @@ export class CourseManagementService {
   public async updateLesson(courseId: string, lessonId: string, data: any) {
     const course = await this.courseRepository.findCourseById(courseId);
     if (!course) {
-      throw new Error("Course not found");
+      throw new Error("Khóa học không tồn tại");
     }
 
     const existingLesson = await this.courseRepository.findLessonById(lessonId);
     if (!existingLesson) {
-      throw new Error("Lesson not found");
+      throw new Error("Bài giảng không tồn tại");
     }
 
     if (existingLesson.courseId !== courseId) {
-      throw new Error("Lesson not found");
+      throw new Error("Bài giảng không tồn tại");
     }
 
     const { mediaAssets, ...lessonData } = data;
@@ -102,16 +102,16 @@ export class CourseManagementService {
   public async deleteLesson(courseId: string, lessonId: string) {
     const course = await this.courseRepository.findCourseById(courseId);
     if (!course) {
-      throw new Error("Course not found");
+      throw new Error("Khóa học không tồn tại");
     }
 
     const existingLesson = await this.courseRepository.findLessonById(lessonId);
     if (!existingLesson) {
-      throw new Error("Lesson not found!");
+      throw new Error("Bài giảng không tồn tại");
     }
 
     if (existingLesson.courseId !== courseId) {
-      throw new Error("Lesson not found");
+      throw new Error("Bài giảng không tồn tại");
     }
 
     // Delete the lesson
@@ -123,28 +123,27 @@ export class CourseManagementService {
     lessonId: string,
     commentId: string
   ) {
-    // First verify the course exists
     const course = await this.courseRepository.findCourseById(courseId);
     if (!course) {
-      throw new Error("Course not found");
+      throw new Error("Khóa học không tồn tại");
     }
 
     const lesson = await this.courseRepository.findLessonById(lessonId);
     if (!lesson) {
-      throw new Error("Lesson not found");
+      throw new Error("Bài giảng không tồn tại");
     }
 
     if (lesson.courseId !== courseId) {
-      throw new Error("Lesson not found");
+      throw new Error("Bài giảng không tồn tại");
     }
 
     const comment = await this.courseRepository.findCommentById(commentId);
     if (!comment) {
-      throw new Error("Comment not found");
+      throw new Error("Bình luận không tồn tại");
     }
 
     if (comment.lessonId !== lessonId) {
-      throw new Error("Comment not found");
+      throw new Error("Bình luận không tồn tại");
     }
 
     await this.courseRepository.deleteComment(commentId);
@@ -153,7 +152,7 @@ export class CourseManagementService {
   public async updateCourse(id: string, data: any) {
     const existingCourse = await this.courseRepository.findCourseById(id);
     if (!existingCourse) {
-      throw new Error("Course not found");
+      throw new Error("Khóa học không tồn tại");
     }
 
     const updatedCourse = await this.courseRepository.updateCourse(id, data);
@@ -166,7 +165,7 @@ export class CourseManagementService {
   public async deleteCourse(id: string) {
     const existingCourse = await this.courseRepository.findCourseById(id);
     if (!existingCourse) {
-      throw new Error("Course not found");
+      throw new Error("Khóa học không tồn tại");
     }
 
     await this.courseRepository.deleteCourse(id);
@@ -179,16 +178,16 @@ export class CourseManagementService {
   ) {
     const course = await this.courseRepository.findCourseById(courseId);
     if (!course) {
-      throw new Error("Course not found");
+      throw new Error("Khóa học không tồn tại");
     }
 
     const lesson = await this.courseRepository.findLessonById(lessonId);
     if (!lesson) {
-      throw new Error("Lesson not found");
+      throw new Error("Bài giảng không tồn tại");
     }
 
     if (lesson.courseId !== courseId) {
-      throw new Error("Lesson not found");
+      throw new Error("Bài giảng không tồn tại");
     }
 
     const existingVideo = lesson.mediaAssets?.find(

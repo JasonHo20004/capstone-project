@@ -13,7 +13,7 @@ import {
   getQuestionsBySectionIdDTO,
   getQuestionByIdDTO,
 } from '@/modules/tests/dtos/test.dto';
-import { UserRole } from '@/../generated/prisma';
+import { UserRole } from '@prisma/client';
 import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
 
 const router = Router();

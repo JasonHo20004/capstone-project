@@ -4,14 +4,14 @@ import { z } from "zod";
 export const getReviewQueueDTO = z.object({
   params: z.object({
     deckId: z.uuid({
-      message: "Deck ID must be a valid UUID",
+      message: "ID bộ thẻ phải là UUID hợp lệ",
     }),
   }),
 });
 export const submitReviewDTO = z.object({
   params: z.object({
     flashcardId: z.uuid({
-      message: "Flashcard ID must be a valid UUID",
+      message: "ID thẻ flashcard phải là UUID hợp lệ",
     }),
   }),
   body: z.object({

@@ -1,5 +1,5 @@
 import { databaseService } from "@/services/database.service";
-import type { Tag } from "@/../generated/prisma";
+import type { Tag } from "@prisma/client";
 import type { CreateTagInput } from "@/modules/flashcards/dtos/tag.dto";
 export class TagRepository {
   private prisma = databaseService.getClient();

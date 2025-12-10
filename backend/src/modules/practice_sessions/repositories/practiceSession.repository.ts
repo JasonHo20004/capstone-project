@@ -1,5 +1,5 @@
 import { databaseService } from "@/services/database.service";
-import type { PracticeSession } from "@/../generated/prisma";
+import type { PracticeSession } from "@prisma/client";
 import type { PrismaTx } from "@/services/database.service";
 import type {
   CreateSessionResponse,

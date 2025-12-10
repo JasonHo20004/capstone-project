@@ -3,7 +3,7 @@ import { z } from "zod";
 export const getAllFlashcardDTO =z.object({
   params:z.object({
     deckId:z.uuid({
-      message: 'Flashcard ID must be a valid UUID'
+      message: 'ID bộ thẻ phải là UUID hợp lệ'
     })
   })
 })
@@ -11,14 +11,14 @@ export const createFlashcardDTO = z.object({
   body: z.object({
     frontContent: z.string({
       error: (issue) =>
-        issue.input === undefined ? "This field is required" : "Invalid frontContent",
+        issue.input === undefined ? "Trường này là bắt buộc" : "Nội dung mặt trước không hợp lệ",
     }).nonempty(),
     backContent: z.string({
       error: (issue) =>
-        issue.input === undefined ? "This field is required" : "Invalid frontContent",
+        issue.input === undefined ? "Trường này là bắt buộc" : "Nội dung mặt sau không hợp lệ",
     }).nonempty(),
     exampleSentence: z.string().optional(),
-    deckId:z.uuid("Invalid Deck ID format")
+    deckId:z.uuid("Định dạng ID bộ thẻ không hợp lệ")
   }),
 });
 
@@ -30,14 +30,14 @@ export const updateFlashcardDTO = z.object({
    }),
    params: z.object({
     flashcardId:z.uuid({
-      message: 'Flashcard ID must be a valid UUID'
+      message: 'ID thẻ flashcard phải là UUID hợp lệ'
     })
   })
 });
 export const deleteFlashcardDTO = z.object({
    params: z.object({
     flashcardId:z.uuid({
-      message: 'Flashcard ID must be a valid UUID'
+      message: 'ID thẻ flashcard phải là UUID hợp lệ'
     })
   })
 });

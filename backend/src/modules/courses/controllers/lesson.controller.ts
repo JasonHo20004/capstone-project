@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { LessonService } from '@/modules/courses/services/lesson.service';
 import { CourseRepository } from '@/modules/courses/repositories/course.repository';
-import { UserRole } from '@/../generated/prisma';
+import { UserRole } from '@prisma/client';
 import type {
   CreateLessonInput,
   UpdateLessonInput,
@@ -29,7 +29,7 @@ export class LessonController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: 'Unauthorized',
+          message: 'Chưa có quyền truy cập',
         });
         return;
       }
@@ -39,7 +39,7 @@ export class LessonController {
       if (!course) {
         res.status(404).json({
           success: false,
-          message: 'Course not found',
+          message: 'Khoá học không tồn tại',
         });
         return;
       }
@@ -48,7 +48,7 @@ export class LessonController {
       if (userRole !== UserRole.ADMINISTRATOR && course.courseSellerId !== userId) {
         res.status(403).json({
           success: false,
-          message: 'Forbidden: You do not own this course',
+          message: 'Bạn không có quyền tạo bài giảng cho khoá học này',
         });
         return;
       }
@@ -82,7 +82,7 @@ export class LessonController {
 
       res.status(201).json({
         success: true,
-        message: 'Lesson created successfully',
+        message: 'Bài giảng đã được tạo thành công',
         data: newLesson,
       });
     } catch (error) {
@@ -170,7 +170,7 @@ export class LessonController {
 
       res.status(200).json({
         success: true,
-        message: 'Lesson updated successfully',
+        message: 'Bài giảng đã được cập nhật thành công',
         data: updatedLesson,
       });
     } catch (error) {
@@ -191,14 +191,14 @@ export class LessonController {
       if (!lesson) {
         res.status(404).json({
           success: false,
-          message: 'Lesson not found',
+          message: 'Bài giảng không tồn tại',
         });
         return;
       }
 
       res.status(200).json({
         success: true,
-        message: 'Lesson retrieved successfully',
+        message: 'Bài giảng đã được lấy thành công',
         data: lesson,
       });
     } catch (error) {
@@ -218,7 +218,7 @@ export class LessonController {
 
       res.status(200).json({
         success: true,
-        message: 'Lessons retrieved successfully',
+        message: 'Danh sách bài giảng đã được lấy thành công',
         data: lessons,
         count: lessons.length,
       });

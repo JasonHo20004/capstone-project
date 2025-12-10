@@ -1,6 +1,6 @@
 import { databaseService } from "@/services/database.service";
 
-import type { ScoreConversion } from "@/../generated/prisma";
+import type { ScoreConversion } from "@prisma/client";
 export class ScoreConversionRepository {
   private prisma = databaseService.getClient();
 

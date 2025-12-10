@@ -9,7 +9,7 @@ import type {
   GetCoursesBySellerInput,
   GetCoursesInput,
 } from "../dtos/course.dto";
-import { UserRole } from "@/../generated/prisma";
+import { UserRole } from "@prisma/client";
 import type { AuthenticatedRequest } from "@/middlewares/auth.middleware";
 
 export class CourseController {
@@ -26,16 +26,11 @@ export class CourseController {
       const courseSellerId = (req as any).user?.userId;
       const file = (req as any).file;
       
-      // Debug: log request info
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Create Course - Body:', courseData);
-        console.log('Create Course - File:', file);
-      }
 
       if (!courseSellerId) {
         res.status(401).json({
           success: false,
-          message: "Unauthorized",
+          message: "Chưa có quyền truy cập",
         });
         return;
       }
@@ -69,7 +64,7 @@ export class CourseController {
 
       res.status(201).json({
         success: true,
-        message: "Course created successfully",
+        message: "Khoá học đã được tạo thành công",
         data: newCourse,
       });
     } catch (error) {
@@ -127,14 +122,14 @@ export class CourseController {
       } catch (err) {
         // Do not block course update if notification delivery fails or no students enrolled
         console.warn(
-          "Course update notifications failed or were skipped:",
+          "Cập nhật thông báo khoá học thất bại hoặc bị bỏ qua:",
           err instanceof Error ? err.message : String(err)
         );
       }
 
       res.status(200).json({
         success: true,
-        message: "Course updated successfully",
+        message: "Khoá học đã được cập nhật thành công",
         data: updatedCourse,
       });
     } catch (error) {
@@ -154,7 +149,7 @@ export class CourseController {
 
       res.status(200).json({
         success: true,
-        message: "Course published successfully",
+        message: "Khoá học đã được công khai thành công",
         data: publishedCourse,
       });
     } catch (error) {
@@ -175,14 +170,14 @@ export class CourseController {
       if (!course) {
         res.status(404).json({
           success: false,
-          message: "Course not found",
+          message: "Khoá học không tồn tại",
         });
         return;
       }
 
       res.status(200).json({
         success: true,
-        message: "Course retrieved successfully",
+        message: "Khoá học đã được lấy thành công",
         data: course,
       });
     } catch (error) {
@@ -257,7 +252,7 @@ export class CourseController {
         const totalPages = Math.ceil(total / params.limit);
         res.status(200).json({
           success: true,
-          message: "Courses retrieved successfully",
+          message: "Khoá học đã được lấy thành công",
           data: {
             data: courses,
             pagination: {
@@ -272,7 +267,7 @@ export class CourseController {
         // Không có pagination - trả về tất cả nhưng vẫn có pagination object để frontend không lỗi
         res.status(200).json({
           success: true,
-          message: "Courses retrieved successfully",
+          message: "Khoá học đã được lấy thành công",
           data: {
             data: courses,
             pagination: {
@@ -311,7 +306,7 @@ export class CourseController {
 
       res.status(200).json({
         success: true,
-        message: "Courses retrieved successfully",
+        message: "Khoá học đã được lấy thành công",
         data: {
           data: filteredCourses,
           count: filteredCourses.length,
@@ -332,7 +327,7 @@ export class CourseController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          message: "Unauthorized",
+          message: "Chưa có quyền truy cập",
         });
         return;
       }
@@ -347,7 +342,7 @@ export class CourseController {
 
       res.status(200).json({
         success: true,
-        message: "Courses retrieved successfully",
+        message: "Khoá học đã được lấy thành công",
         data: {
           data: filteredCourses,
           count: filteredCourses.length,

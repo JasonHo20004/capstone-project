@@ -1,5 +1,5 @@
 import { z } from "zod";
-import  {EReasonType} from "@/../generated/prisma";
+import  {EReasonType} from "@prisma/client";
 
 
 // request
@@ -7,16 +7,16 @@ export const createReportCourseDTO = z.object({
   body: z.object({
     reasonType:z.enum(EReasonType,{
       error:(issue) =>
-        issue.input === undefined ? "This field is required" : "Invalid reason type",
+        issue.input === undefined ? "Trường này là bắt buộc" : "Loại lý do không hợp lệ",
     }),
     content:z.string({
       error: (issue) =>
-        issue.input === undefined ? "This field is required" : "Invalid content",
+        issue.input === undefined ? "Trường này là bắt buộc" : "Nội dung không hợp lệ",
     }),
   }),
   params: z.object({
     courseId: z.uuid({
-      message: "Course ID must be a valid UUID",
+      message: "ID khóa học phải là UUID hợp lệ",
     }),
   }),
 });
@@ -24,7 +24,7 @@ export const createReportCourseDTO = z.object({
 export const getDetailReportDTO = z.object({
   params: z.object({
     reportId: z.uuid({
-      message: "Report ID must be a valid UUID",
+      message: "ID báo cáo phải là UUID hợp lệ",
     }),
   }),
 })

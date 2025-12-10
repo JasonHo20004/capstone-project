@@ -26,11 +26,11 @@ import cookieParser from 'cookie-parser'; // Import cookie-parser
 
 // Create Express app instance
 const app = express();
-
+app.set("trust proxy", 1);
 // Middleware
 app.use(
   cors({
-    origin: ["http://localhost:8080"],
+    origin: ["http://localhost:8080", "https://skillboostenglish.netlify.app"],
     credentials: true,
   })
 );

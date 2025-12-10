@@ -1,22 +1,22 @@
 import { z } from "zod";
-import { UserRole } from "@/../generated/prisma";
+import { UserRole } from "@prisma/client";
 
-import type { User } from "@/../generated/prisma";
+import type { User } from "@prisma/client";
 
 export const loginDTO = z.object({
   body: z.object({
     email: z.email({
       error: (issue) =>
-        issue.input === undefined ? "This field is required" : "Invalid Email",
+        issue.input === undefined ? "Trường này là bắt buộc" : "Email không hợp lệ",
     }),
     password: z
       .string({
         error: (issue) =>
           issue.input === undefined
-            ? "This field is required"
-            : "Invalid Password",
+            ? "Trường này là bắt buộc"
+            : "Mật khẩu không hợp lệ",
       })
-      .min(8, "Password must be at least 8 characters long")
+      .min(8, "Mật khẩu phải có ít nhất 8 ký tự")
       .max(255),
   }),
 });

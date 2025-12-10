@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { SellerController } from '../controllers/seller.controller';
 import { authMiddleware, checkRole } from '@/middlewares/auth.middleware';
-import { UserRole } from '@/../generated/prisma';
+import { UserRole } from '@prisma/client';
 
 const router = Router();
 const sellerController = new SellerController();

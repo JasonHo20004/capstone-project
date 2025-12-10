@@ -1,6 +1,6 @@
 //import { databaseService } from "@/services/database.service";
 import type { PrismaTx } from "@/services/database.service";
-import type { Transaction } from "@/../generated/prisma"
+import type { Transaction } from "@prisma/client"
 
 export class TransactionRepository {
  

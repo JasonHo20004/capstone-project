@@ -16,14 +16,14 @@ export class FlashcardDeckController {
       
       res.status(200).json({
         success: true,
-        message: 'Create flashcard deck successfully',
+        message: 'Lấy tất cả flashcard deck thành công',
         data: flashcardDecks,
       });
 
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to create flashcard deck',
+        message: 'Lấy tất cả flashcard deck thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -36,14 +36,14 @@ export class FlashcardDeckController {
       
       res.status(200).json({
         success: true,
-        message: 'Create flashcard deck successfully',
+        message: 'Tạo flashcard deck thành công',
         data: newFlashcardDeck,
       });
 
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to create flashcard deck',
+        message: 'Tạo flashcard deck thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -57,14 +57,14 @@ export class FlashcardDeckController {
       
       res.status(200).json({
         success: true,
-        message: 'Update flashcard deck successfully',
+        message: 'Cập nhật flashcard deck thành công',
         data: updatedFlashcardDeck,
       });
 
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to update flashcard deck',
+        message: 'Cập nhật flashcard deck thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -79,13 +79,13 @@ export class FlashcardDeckController {
       
       res.status(200).json({
         success: true,
-        message: 'Delete flashcard deck successfully',
+        message: 'Xóa flashcard deck thành công',
       });
 
     } catch (error) {
       res.status(500).json({
         success: false,
-        message: 'Failed to delete flashcard deck',
+        message: 'Xóa flashcard deck thất bại',
         error: error instanceof Error ? error.message : String(error)
       });
     }

@@ -1,5 +1,5 @@
 import { CourseRepository } from '@/modules/courses/repositories/course.repository';
-import type { Course, CourseLevel, CourseStatus } from '@/../generated/prisma';
+import type { Course, CourseLevel, CourseStatus } from '@prisma/client';
 import { calculateAverageRating } from '@/utils/admin';
 
 export class CourseService {
@@ -21,14 +21,14 @@ export class CourseService {
     // Find the course
     const course = await this.courseRepository.findById(courseId);
     if (!course) {
-      throw new Error('Course not found');
+      throw new Error('Khóa học không tồn tại');
     }
 
     // Check if a test with TestType.FINAL exists for this course
     const hasFinalTest = await this.courseRepository.checkHasFinalTest(courseId);
     
     if (!hasFinalTest) {
-      throw new Error('Course content is incomplete for publication. A final test is required.');
+      throw new Error('Nội dung khóa học chưa đầy đủ để xuất bản. Cần có bài kiểm tra cuối khóa.');
     }
 
     // Update course status to PUBLISHED
@@ -125,4 +125,3 @@ export class CourseService {
     return this.courseRepository.findAllWithPagination(params);
   }
 }
-

@@ -19,6 +19,7 @@ services:
       timeout: 5s
       retries: 5
 
+  # 2. Redis Service
   redis:
     image: redis:7-alpine
     container_name: capstone-redis
@@ -38,27 +39,20 @@ services:
   # 3. Backend Service
   backend:
     build:
-      context: ./backend
+      context: ./backend  # Chắc chắn code nằm trong thư mục backend
       dockerfile: Dockerfile
     container_name: capstone-backend
     environment:
-      NODE_ENV: development
+      # Sửa thành production để code chạy đúng mode
+      NODE_ENV: production 
       PORT: 3000
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/capstone_dev
-      REDIS_URL: redis://redis:6379 
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
+      # Dùng tên service để kết nối
+      DATABASE_URL: postgresql://postgres_dev:7Y9Cb8ARpD0UC6lXjNpoEsvgNu89Csnh@dpg-d4r2nhkhg0os738jf5ig-a/capstone_dev_yy4c
+      REDIS_URL: rediss://default:AbGFAAIncDI4MDE3ZDVjMmZlM2Q0ODRmODQxYzdiZmJkODA4MThjOXAyNDU0NDU@funky-molly-45445.upstash.io:6379
+      # Thêm các biến khác từ .env vào đây nếu cần
     ports:
       - "3000:3000"
-    volumes:
-      - ./backend/src:/app/src
-      - ./backend/prisma:/app/prisma
-      - ./backend/package.json:/app/package.json
-      - ./backend/package-lock.json:/app/package-lock.json
-      - ./backend/tsconfig.json:/app/tsconfig.json
-      - ./backend/.env:/app/.env
-      - backend_node_modules:/app/node_modules
+    # Đã XÓA phần volumes để tránh conflict code
     depends_on:
       postgres:
         condition: service_healthy
@@ -66,11 +60,12 @@ services:
         condition: service_healthy
     networks:
       - capstone-network
-    command: sh -c "npx prisma migrate deploy && npm run dev"
+    # Chạy migrate rồi mới start server
+    command: sh -c "npx prisma migrate deploy && node dist/server.js"
 
 volumes:
   postgres_data:
-  backend_node_modules:
+  # Xóa backend_node_modules vì không dùng volume nữa
 
 networks:
   capstone-network:

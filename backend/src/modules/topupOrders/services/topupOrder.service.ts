@@ -2,7 +2,7 @@ import { UserRepository } from "@/modules/users/repositories/user.repository";
 
 import { databaseService } from "@/services/database.service";
 import { WalletRepository } from "@/modules/users/repositories/wallet.repository";
-import type { TopupOrder, Wallet } from "@/../generated/prisma";
+import type { TopupOrder, Wallet } from "@prisma/client";
 import { TopupOrderRepository } from "@/modules/topupOrders/repositories/topupOrder.repository";
 import { TransactionRepository } from "@/modules/transactions/repositories/transaction.repository";
 
@@ -21,7 +21,7 @@ export class TopupOrderService {
   ): Promise<{ order: TopupOrder; payUrl: string }> {
     const existingUser = await this.userRepository.findUserById(userId);
     if (!existingUser) {
-      throw new Error("User is not existence");
+      throw new Error("Người dùng không tồn tại");
     }
 
     // const existingPendingTopupOrder =
@@ -46,12 +46,12 @@ export class TopupOrderService {
     );
 
     if (!paymentData || !paymentData.payUrl) {
-      throw new Error("Failed to get payment URL from Momo");
+      throw new Error("Không thể lấy URL thanh toán từ Momo");
     }
 
     return { order, payUrl: paymentData.payUrl };
   }
-public async confirmPayment(momoParams: any): Promise<Wallet> {
+  public async confirmPayment(momoParams: any): Promise<Wallet> {
     const { orderId, resultCode } = momoParams;
 
     // ---------------------------------------------------------
@@ -60,14 +60,14 @@ public async confirmPayment(momoParams: any): Promise<Wallet> {
     // Kiểm tra xem request này có đúng là từ MoMo gửi về không
     const isValidSignature = verifyMomoSignature(momoParams);
     if (!isValidSignature) {
-      throw new Error("Invalid signature: Request integrity check failed.");
+      throw new Error("Chữ ký không hợp lệ: Kiểm tra tính toàn vẹn thất bại.");
     }
 
     // Kiểm tra xem giao dịch có thành công không (resultCode = 0)
     // Lưu ý: MoMo trả về số nhưng có thể ở dạng string hoặc number tùy SDK
     if (Number(resultCode) !== 0) {
       // Nếu thất bại, có thể update status order thành FAILED tại đây nếu muốn
-      throw new Error(`Payment failed with resultCode: ${resultCode}`);
+      throw new Error(`Thanh toán thất bại với mã kết quả: ${resultCode}`);
     }
 
     // ---------------------------------------------------------
@@ -77,16 +77,14 @@ public async confirmPayment(momoParams: any): Promise<Wallet> {
     const existingOrder = await this.topupOrderRepository.findById(orderId);
     
     if (!existingOrder) {
-      throw new Error("Order not found in database.");
+      throw new Error("Không tìm thấy đơn nạp trong cơ sở dữ liệu.");
     }
 
     // Nếu đơn hàng đã SUCCESS trước đó rồi -> Trả về ví ngay, không cộng tiền thêm
     if (existingOrder.status === "SUCCESS") {
       const wallet = await this.walletRepository.findWalletById(existingOrder.userId);
-      
-      // Fix lỗi TypeScript "Type null is not assignable to Wallet"
       if (!wallet) {
-        throw new Error("Critical Data Error: Wallet not found for existing user.");
+        throw new Error("Lỗi dữ liệu nghiêm trọng: Không tìm thấy ví của người dùng hiện hữu.");
       }
       return wallet;
     }

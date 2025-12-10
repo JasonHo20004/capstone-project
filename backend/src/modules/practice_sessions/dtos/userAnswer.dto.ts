@@ -1,5 +1,5 @@
 import z from 'zod'
-import { QuestionType } from "@/../generated/prisma";
+import { QuestionType } from "@prisma/client";
 const includedUserDTO = z.object({
   fullName: z.string(),
   email: z.email(),

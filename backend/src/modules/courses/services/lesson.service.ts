@@ -1,7 +1,7 @@
 import { LessonRepository } from '@/modules/courses/repositories/lesson.repository';
 import { MediaAssetRepository } from '@/modules/courses/repositories/media-asset.repository';
 import { CourseRepository } from '@/modules/courses/repositories/course.repository';
-import type { Lesson, MediaType } from '@/../generated/prisma';
+import type { Lesson, MediaType } from '@prisma/client';
 
 export class LessonService {
   private lessonRepository = new LessonRepository();
@@ -19,7 +19,7 @@ export class LessonService {
     // Check if course exists
     const course = await this.courseRepository.findById(data.courseId);
     if (!course) {
-      throw new Error('Course not found');
+      throw new Error('Khóa học không tồn tại');
     }
 
     // Create lesson
@@ -95,4 +95,3 @@ export class LessonService {
     await this.lessonRepository.delete(lessonId);
   }
 }
-

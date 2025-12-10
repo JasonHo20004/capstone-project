@@ -1,6 +1,6 @@
 import type { Response, NextFunction, Request } from "express";
 import jwt from "jsonwebtoken";
-import type { UserRole } from "@/../generated/prisma";
+import type { UserRole } from "@prisma/client";
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -19,13 +19,13 @@ export const authMiddleware = (
 
   if (!token) {
     
-    res.status(401).json({ message: "Unauthorized: No token provided" });
+    res.status(401).json({ message: "Chưa xác thực!" });
     return;
   }
 
   if (!process.env.ACCESS_TOKEN_SECRET) {
-    console.error("JWT Access Token Secret is not defined.");
-    res.status(500).json({ message: "Internal Server Error" });
+    console.error("JWT Access Token Secret không được cấu hình!");
+    res.status(500).json({ message: "Lỗi máy chủ!" });
     return;
   }
 
@@ -33,11 +33,11 @@ export const authMiddleware = (
      if (err) {
       if (err instanceof jwt.TokenExpiredError) {
         res.status(401).json({
-          message: "Unauthorized: Token has expired",
+          message: "Token hết hạn!",
           code: "TOKEN_EXPIRED", 
         });
       } else {
-        res.status(403).json({ message: "Forbidden: Invalid token" });
+        res.status(403).json({ message: "Token không hợp lệ!" });
       }
     } else {
       req.user = decoded as { userId: string; role: UserRole };
@@ -54,14 +54,14 @@ export const checkRole = (allowedRoles: UserRole[]) => {
     next: NextFunction
   ): void => { 
     if (!req.user || !req.user.role) {
-      res.status(403).json({ message: "Forbidden: User role not found" });
+      res.status(403).json({ message: "Chưa xác thực!" });
       return;
     }
 
     const hasPermission = allowedRoles.includes(req.user.role);
 
     if (!hasPermission) {
-      res.status(403).json({ message: "Forbidden: Insufficient permissions" });
+      res.status(403).json({ message: "Quyền truy cập không đủ!" });
       return;
     }
 

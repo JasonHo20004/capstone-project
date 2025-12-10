@@ -6,10 +6,10 @@ export const verifyEmailDTO = z.object({
       .string({
         error: (issue) =>
           issue.input === undefined
-            ? "Verification token is required"
-            : "Invalid verification token",
+            ? "Mã xác minh là bắt buộc"
+            : "Mã xác minh không hợp lệ",
       })
-      .min(32, "Invalid verification token"),
+      .min(32, "Mã xác minh không hợp lệ"),
   }),
 });
 

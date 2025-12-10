@@ -1,5 +1,5 @@
 import { databaseService } from '@/services/database.service';
-import type { MediaAsset, MediaType } from '@/../generated/prisma';
+import type { MediaAsset, MediaType } from '@prisma/client';
 
 export class MediaAssetRepository {
   private prisma = databaseService.getClient();

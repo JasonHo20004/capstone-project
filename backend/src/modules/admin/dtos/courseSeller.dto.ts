@@ -7,8 +7,8 @@ export const approveCourseSellerApplicationDTO = z.object({
     message: z.string().optional(),
   }),
   params: z.object({
-    applicationId: z.uuid({ error: 'User ID is not correct' }),
-    status: z.enum(['APPROVED', 'REJECTED'], { error: 'Status must be either APPROVED or REJECTED' }),
+    applicationId: z.uuid({ error: 'ID người dùng không đúng' }),
+    status: z.enum(['APPROVED', 'REJECTED'], { error: 'Trạng thái phải là APPROVED hoặc REJECTED' }),
   }),
 
 });

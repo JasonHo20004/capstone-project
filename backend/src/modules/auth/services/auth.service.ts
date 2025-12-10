@@ -1,7 +1,7 @@
-import { PrismaClient } from "@/../generated/prisma";
+import { PrismaClient } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
-import type { UserRole, RefreshToken } from "@/../generated/prisma";
+import type { UserRole, RefreshToken } from "@prisma/client";
 const prisma = new PrismaClient();
 import { createHash } from "crypto";
 import { AuthRepository } from "../repositories/auth.repository";
@@ -23,7 +23,7 @@ export class AuthService {
     role: UserRole | null;
   }): Promise<ITokens> {
     if (!process.env.ACCESS_TOKEN_SECRET || !process.env.REFRESH_TOKEN_SECRET) {
-      throw new Error("JWT Secret keys not defined in environment variables.");
+      throw new Error("JWT Secret keys không được định nghĩa trong môi trường.");
     }
 
     const accessTokenSecret: string = process.env.ACCESS_TOKEN_SECRET;
@@ -64,7 +64,7 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new Error("User not found");
+      throw new Error("Người dùng không tồn tại!");
     }
 
     if (user.isEmailVerified) {
@@ -108,16 +108,16 @@ export class AuthService {
   public async login(email: string, password: string): Promise<LoginResponse> {
     const user = await this.userRepository.findUserByEmail(email);
     if (!user) {
-      throw new Error("Invalid email or password");
+      throw new Error("Email hoặc mật khẩu không đúng!");
     }
-
+    
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      throw new Error("Invalid email or password");
+      throw new Error("Email hoặc mật khẩu không đúng!.");
     }
 
     if (!user.isEmailVerified) {
-      throw new Error("Email address is not verified");
+      throw new Error("Email chưa được xác minh!");
     }
 
     const { accessToken, refreshToken } = await this.generateTokens({
@@ -144,7 +144,7 @@ export class AuthService {
         process.env.REFRESH_TOKEN_SECRET!
       ) as { userId: string; role: UserRole; iat: number; exp: number };
     } catch (error) {
-      throw new Error("Invalid refresh token");
+      throw new Error("Token không hợp lệ!");
     }
 
     const hashedToken = createHash("sha256")
@@ -154,14 +154,14 @@ export class AuthService {
     const dbToken = await this.authRepository.findRefreshToken(hashedToken)
 
     if (!dbToken || dbToken.revoked) {
-      throw new Error("Refresh token not found or revoked");
+      throw new Error("Refresh token không hợp lệ!");
     }
 
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
     });
     if (!user) {
-      throw new Error("User not found");
+      throw new Error("Người dùng không tồn tại!");
     }
 
     

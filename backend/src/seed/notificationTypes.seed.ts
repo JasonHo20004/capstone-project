@@ -37,11 +37,11 @@ export async function seedNotificationTypes() {
       await prisma.notificationType.create({
         data: type
       });
-      console.log(`Created notification type: ${type.name}`);
+      console.log(`Tạo loại thông báo: ${type.name}`);
     } else {
-      console.log(`Notification type already exists: ${type.name}`);
+      console.log(`Loại thông báo đã tồn tại: ${type.name}`);
     }
   }
   
-  console.log('Notification types seeding completed!');
+  console.log('Quá trình seed loại thông báo hoàn tất!');
 }

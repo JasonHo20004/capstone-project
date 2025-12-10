@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch --clear-screen=false src/server.ts",
     "build": "tsc && tsc-alias",
-    "build:esbuild": "esbuild src/server.ts --bundle --platform=node --target=node20 --format=esm --outdir=dist --external:@prisma/client --external=prisma",
+   "build:esbuild": "esbuild src/server.ts --bundle --platform=node --target=node20 --format=esm --outdir=dist --packages=external",
     "start": "node dist/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

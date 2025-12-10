@@ -1,5 +1,5 @@
 import { CartRepository } from "@/modules/cart/repositories/cart.repository";
-import type { CartItem, Order } from "@/../generated/prisma";
+import type { CartItem, Order } from "@prisma/client";
 import { CourseRepository } from "@/modules/courses/repositories/course.repository";
 import { WalletRepository } from "@/modules/users/repositories/wallet.repository";
 import { databaseService } from "@/services/database.service";
@@ -23,13 +23,13 @@ export class CartService {
       cartItemData.courseId
     );
     if (!existingCourse) {
-      throw Error("Course is not exist or is Pending");
+      throw Error("Khóa học không tồn tại hoặc đang ở trạng thái Chờ duyệt");
     }
     
     // Check if course has lessons
     const hasLessons = await this.courseRepository.hasLessons(cartItemData.courseId);
     if (!hasLessons) {
-      throw new Error("Cannot enroll in a course with no lessons");
+      throw new Error("Không thể đăng ký khóa học không có bài giảng");
     }
     
     const existingActivity = await this.userActivityRepository.findActivity(
@@ -38,7 +38,7 @@ export class CartService {
     );
     if (existingActivity) {
       throw new Error(
-        `You have already possessed course ${existingCourse.title}.`
+        `Bạn đã sở hữu khóa học ${existingCourse.title}.`
       );
     }
     const priceAtTime = parseFloat(existingCourse.price.toString());
@@ -54,7 +54,7 @@ export class CartService {
       cartItemData.courseId
     );
     if (existingItem) {
-      throw Error("Course have already been in Cart");
+      throw Error("Khóa học đã có trong giỏ hàng");
     }
 
     const newCartItem = await this.cartRepository.createCartItem({
@@ -68,11 +68,11 @@ export class CartService {
   public async checkoutCart(userId: string): Promise<Order> {
     const exitsingCart = await this.cartRepository.findCartWithItems(userId);
     if (!exitsingCart) {
-      throw Error("Cart is not exist");
+      throw Error("Giỏ hàng không tồn tại");
     }
     if (exitsingCart.cartItems.length === 0) {
       //create cart
-      throw new Error("Your cart is empty");
+      throw new Error("Giỏ hàng của bạn đang trống");
     }
     
     for (const item of exitsingCart.cartItems) {
@@ -80,7 +80,7 @@ export class CartService {
       if (!hasLessons) {
         const course = await this.courseRepository.findById(item.courseId);
         const courseTitle = course?.title || item.courseId;
-        throw new Error(`Cannot enroll in course "${courseTitle}" - course has no lessons`);
+        throw new Error(`Không thể đăng ký khóa học "${courseTitle}" - khóa học không có bài giảng`);
       }
     }
 
@@ -90,7 +90,7 @@ export class CartService {
       0
     );
     if (!wallet || parseFloat(wallet.allowance.toString()) < totalAmount) {
-      throw Error("Your allowance is not enough.");
+      throw Error("Số dư ví của bạn không đủ.");
     }
 
     try {
@@ -139,7 +139,7 @@ export class CartService {
         return order;
       });
     } catch (error: any) {
-      throw Error("Fail to Check out ", error);
+      throw new Error(`Thanh toán thất bại: ${error.message}`);
     }
   }
   public async directBuyCourse(
@@ -150,13 +150,13 @@ export class CartService {
       courseId
     );
     if (!existingCourse) {
-      throw Error("Course is not exist");
+      throw Error("Khóa học không tồn tại");
     }
 
     // Check if course has lessons
     const hasLessons = await this.courseRepository.hasLessons(courseId);
     if (!hasLessons) {
-      throw new Error("Cannot enroll in a course with no lessons");
+      throw new Error("Không thể đăng ký khóa học không có bài giảng");
     }
 
     const existingActivity = await this.userActivityRepository.findActivity(
@@ -165,18 +165,18 @@ export class CartService {
     );
     if (existingActivity) {
       throw new Error(
-        `You have already possessed course ${existingCourse.title}.`
+        `Bạn đã sở hữu khóa học ${existingCourse.title}.`
       );
     }
     const wallet = await this.walletRepository.findWalletById(userId);
     if (!wallet ||wallet.allowance.lessThan(existingCourse.price)) {
-      throw Error("Your allowance is not enough");
+      throw Error("Số dư ví của bạn không đủ");
     }
 
     const coursePrice = parseFloat(existingCourse.price.toString());
     const exitsingCart = await this.cartRepository.findCartByUserId(userId);
     if (!exitsingCart) {
-      throw Error("Cart is not exist");
+      throw Error("Giỏ hàng không tồn tại");
     }
     try {
       return databaseService.transaction(async (tx) => {
@@ -231,7 +231,7 @@ export class CartService {
         return newOrder;
       });
     } catch (error: any) {
-      throw Error("Fail to Check out ", error);
+      throw new Error(`Thanh toán thất bại: ${error.message}`);
     }
   }
 
@@ -252,7 +252,7 @@ export class CartService {
     // Validate length
 
     if (itemsToCheckout.length !== cartItemIds.length) {
-      throw Error("Having some item is not available in cart");
+      throw Error("Một số sản phẩm không khả dụng trong giỏ hàng");
     }
 
     for (const item of itemsToCheckout) {
@@ -260,7 +260,7 @@ export class CartService {
       if (!hasLessons) {
         const course = await this.courseRepository.findById(item.courseId);
         const courseTitle = course?.title || item.courseId;
-        throw new Error(`Cannot enroll in course "${courseTitle}" - course has no lessons`);
+        throw new Error(`Không thể đăng ký khóa học "${courseTitle}" - khóa học không có bài giảng`);
       }
     }
 
@@ -274,7 +274,7 @@ export class CartService {
     // Check wallet
     const wallet = await this.walletRepository.findWalletById(userId);
     if (!wallet || parseFloat(wallet.allowance.toString()) < totalAmountFloat) {
-      throw Error("Your allowance is not enough");
+      throw Error("Số dư ví của bạn không đủ");
     }
     try {
       return databaseService.transaction(async (tx) => {
@@ -327,7 +327,7 @@ export class CartService {
     let cart = await this.cartRepository.findCartWithCourse(userId);
 
     if (!cart) {
-      throw Error("Cart is not exist");
+      throw Error("Giỏ hàng không tồn tại");
     }
 
     const totalAmount = (cart.cartItems || []).reduce(

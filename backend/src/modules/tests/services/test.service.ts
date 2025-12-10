@@ -2,7 +2,7 @@ import { TestRepository } from '@/modules/tests/repositories/test.repository';
 import { SectionRepository } from '@/modules/tests/repositories/section.repository';
 import { QuestionRepository } from '@/modules/tests/repositories/question.repository';
 import { CourseRepository } from '@/modules/courses/repositories/course.repository';
-import type { Test, Question } from '@/../generated/prisma';
+import type { Test, Question } from '@prisma/client';
 
 export class TestService {
   private testRepository = new TestRepository();
@@ -20,11 +20,11 @@ export class TestService {
     // Check if course exists
     const course = await this.courseRepository.findById(data.courseId);
     if (!course) {
-      throw new Error('Course not found');
+      throw new Error('Khóa học không tồn tại');
     }
 
     if (course.finalTestId) {
-      throw new Error('Course already has a final test');
+      throw new Error('Khóa học đã có bài kiểm tra cuối kỳ');
     }
 
     const createData: {
@@ -74,7 +74,7 @@ export class TestService {
       if (error instanceof Error) {
         throw error;
       }
-      throw new Error('Could not save question, please try again');
+      throw new Error('Không thể lưu câu hỏi, vui lòng thử lại');
     }
   }
 
@@ -98,7 +98,7 @@ export class TestService {
     // Verify test exists
     const test = await this.testRepository.findById(data.testId);
     if (!test) {
-      throw new Error('Test not found');
+      throw new Error('Bài kiểm tra không tồn tại');
     }
 
     return this.sectionRepository.create(data);
@@ -121,7 +121,7 @@ export class TestService {
     // Verify section exists
     const section = await this.sectionRepository.findById(data.sectionId);
     if (!section) {
-      throw new Error('Section not found');
+      throw new Error('Phần không tồn tại');
     }
 
     return this.sectionRepository.addPassage(data.sectionId, data);
@@ -144,4 +144,3 @@ export class TestService {
     return this.questionRepository.findById(questionId);
   }
 }
-
