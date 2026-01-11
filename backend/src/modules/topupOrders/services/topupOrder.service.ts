@@ -65,10 +65,10 @@ export class TopupOrderService {
 
     // Kiểm tra xem giao dịch có thành công không (resultCode = 0)
     // Lưu ý: MoMo trả về số nhưng có thể ở dạng string hoặc number tùy SDK
-    if (Number(resultCode) !== 0) {
-      // Nếu thất bại, có thể update status order thành FAILED tại đây nếu muốn
-      throw new Error(`Thanh toán thất bại với mã kết quả: ${resultCode}`);
-    }
+    // if (Number(resultCode) !== 0) {
+    //   // Nếu thất bại, có thể update status order thành FAILED tại đây nếu muốn
+    //   throw new Error(`Thanh toán thất bại với mã kết quả: ${resultCode}`);
+    // }
 
     // ---------------------------------------------------------
     // BƯỚC 2: Kiểm tra Idempotency (Tránh xử lý lặp lại)
