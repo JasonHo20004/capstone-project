@@ -45,7 +45,13 @@ COPY --from=builder /app/dist ./dist
 # Copy thư mục prisma schema (cần thiết nếu bạn muốn chạy migrate lúc deploy)
 COPY prisma ./prisma
 
+# Copy migration script if it exists
+COPY scripts ./scripts
+
+# Make script executable
+RUN chmod +x scripts/migrate-and-start.sh 2>/dev/null || true
+
 EXPOSE 3000
 
-# Lệnh chạy server
+# Lệnh chạy server (sẽ được override bởi docker-compose command)
 CMD ["node", "dist/server.js"]

@@ -42,12 +42,15 @@ services:
       context: ./backend  # Chắc chắn code nằm trong thư mục backend
       dockerfile: Dockerfile
     container_name: capstone-backend
+    # Load environment variables from .env file in backend directory
+    env_file:
+      - ./backend/.env
     environment:
       # Sửa thành production để code chạy đúng mode
       NODE_ENV: production 
       PORT: 3000
       # Dùng tên service để kết nối
-      DATABASE_URL: postgresql://postgres_dev:7Y9Cb8ARpD0UC6lXjNpoEsvgNu89Csnh@dpg-d4r2nhkhg0os738jf5ig-a/capstone_dev_yy4c
+      DATABASE_URL: postgresql://postgres_dev:7Y9Cb8ARpD0UC6lXjNpoEsvgNu89Csnh@dpg-d4r2nhkhg0os738jf5ig-a.singapore-postgres.render.com/capstone_dev_yy4c
       REDIS_URL: rediss://default:AbGFAAIncDI4MDE3ZDVjMmZlM2Q0ODRmODQxYzdiZmJkODA4MThjOXAyNDU0NDU@funky-molly-45445.upstash.io:6379
       # Thêm các biến khác từ .env vào đây nếu cần
     ports:
@@ -61,7 +64,8 @@ services:
     networks:
       - capstone-network
     # Chạy migrate rồi mới start server
-    command: sh -c "npx prisma migrate deploy && node dist/server.js"
+    # Tự động fix lỗi migration trước khi deploy
+    command: sh -c "for m in 20251008152755_init 20251013094436_add_is_locked_to_notification_type 20251025145930_dev_1 20251125161859_ 20251127143426_add_is_email_verified; do npx prisma migrate resolve --rolled-back \$m 2>/dev/null || true; done; npx prisma migrate deploy && node dist/server.js"
 
 volumes:
   postgres_data:
