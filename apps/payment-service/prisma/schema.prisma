@@ -1,0 +1,146 @@
+// =============================================================================
+// Payment Service - Prisma Schema
+// Tables: Wallet, Transaction, TopupOrder, Cart, CartItem, Order, 
+//         SubscriptionContract, SubscriptionPlan
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("PAYMENT_DATABASE_URL")
+}
+
+model Wallet {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  allowance    Decimal       @default(0.00) @db.Decimal(12, 2)
+  userId       String        @unique @map("user_id") @db.Uuid
+  transactions Transaction[]
+
+  @@map("wallets")
+}
+
+model Transaction {
+  id                     String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  amount                 Decimal               @db.Decimal(12, 2)
+  status                 TransactionStatus
+  createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  description            String?
+  walletId               String                @map("wallet_id") @db.Uuid
+  transactionType        TransactionType       @map("transaction_type")
+  topupOrderId           String?               @map("topup_order_id") @db.Uuid
+  subscriptionContractId String?               @map("subscription_contract_id") @db.Uuid
+  orderId                String?               @unique @map("order_id") @db.Uuid
+  
+  order                  Order?                @relation(fields: [orderId], references: [id])
+  subscriptionContract   SubscriptionContract? @relation(fields: [subscriptionContractId], references: [id])
+  topupOrder             TopupOrder?           @relation(fields: [topupOrderId], references: [id])
+  wallet                 Wallet                @relation(fields: [walletId], references: [id])
+
+  @@map("transactions")
+}
+
+model TopupOrder {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String        @map("user_id") @db.Uuid
+  realMoney     Decimal       @map("real_money") @db.Decimal(12, 2)
+  realAmount    Decimal?      @map("real_amount") @db.Decimal(12, 2)
+  currency      String        @default("VND") @db.VarChar(10)
+  paymentMethod PaymentMethod @map("payment_method")
+  status        OrderStatus
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  transactions  Transaction[]
+
+  @@map("topup_orders")
+}
+
+model Cart {
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String?    @unique @map("user_id") @db.Uuid
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  cartItems CartItem[]
+  orders    Order[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  courseId    String   @map("course_id") @db.Uuid
+  addedAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  priceAtTime Float    @map("price_at_time")
+  cartId      String   @map("cart_id") @db.Uuid
+  cart        Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  @@map("cart_items")
+}
+
+model Order {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String       @map("user_id") @db.Uuid
+  totalAmount Float        @map("total_amount")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  cartId      String       @map("cart_id") @db.Uuid
+  cart        Cart         @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  transaction Transaction?
+
+  @@map("orders")
+}
+
+model SubscriptionPlan {
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String                 @unique @db.VarChar(255)
+  description           String?
+  maxCourses            Int                    @map("max_courses")
+  monthlyFee            Decimal                @map("monthly_fee") @db.Decimal(10, 2)
+  subscriptionContracts SubscriptionContract[]
+
+  @@map("subscription_plans")
+}
+
+model SubscriptionContract {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  courseSellerId     String           @map("course_seller_id") @db.Uuid
+  status             Boolean          @default(true)
+  subscriptionPlanId String           @map("subscription_plan_id") @db.Uuid
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt          DateTime         @map("expires_at") @db.Timestamptz(6)
+  updatedAt          DateTime?        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  renewalCount       Int              @default(0) @map("renewal_count")
+  lastRenewalAt      DateTime?        @map("last_renewal_at") @db.Timestamptz(6)
+  notes              String?
+  lastNotificationAt DateTime?        @map("last_notification_at") @db.Timestamptz(6)
+  subscriptionPlan   SubscriptionPlan @relation(fields: [subscriptionPlanId], references: [id])
+  transactions       Transaction[]
+
+  @@map("subscription_contracts")
+}
+
+enum PaymentMethod {
+  MOMO
+  ZALOPAY
+  BANKING
+  APPLEPAY
+}
+
+enum OrderStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum TransactionType {
+  DEPOSIT
+  PAYMENT
+  MONTHLYFEE
+  WITHDRAW
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}

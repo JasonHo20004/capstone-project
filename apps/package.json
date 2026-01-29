@@ -1,0 +1,34 @@
+{
+  "name": "capstone-microservices",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "libs/*"
+  ],
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "dev:gateway": "pnpm --filter @capstone/api-gateway run dev",
+    "dev:identity": "pnpm --filter @capstone/identity-service run dev",
+    "dev:course": "pnpm --filter @capstone/course-service run dev",
+    "dev:assessment": "pnpm --filter @capstone/assessment-service run dev",
+    "dev:flashcard": "pnpm --filter @capstone/flashcard-service run dev",
+    "dev:payment": "pnpm --filter @capstone/payment-service run dev",
+    "dev:notification": "pnpm --filter @capstone/notification-service run dev",
+    "build": "pnpm -r run build",
+    "build:common": "pnpm --filter @capstone/common run build",
+    "prisma:generate": "pnpm -r run prisma:generate",
+    "prisma:migrate": "pnpm -r run prisma:migrate",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

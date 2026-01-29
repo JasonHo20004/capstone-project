@@ -1,0 +1,215 @@
+# =============================================================================
+# Docker Compose - Microservices Orchestration
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # =============================================================================
+  # Infrastructure Services
+  # =============================================================================
+  
+  postgres:
+    image: postgres:16-alpine
+    container_name: capstone-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: capstone
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: capstone-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: capstone-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # =============================================================================
+  # Application Services
+  # =============================================================================
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+    container_name: capstone-api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - GATEWAY_PORT=3000
+      - IDENTITY_SERVICE_URL=http://identity-service:3001
+      - COURSE_SERVICE_URL=http://course-service:3002
+      - ASSESSMENT_SERVICE_URL=http://assessment-service:3003
+      - FLASHCARD_SERVICE_URL=http://flashcard-service:3004
+      - PAYMENT_SERVICE_URL=http://payment-service:3005
+      - NOTIFICATION_SERVICE_URL=http://notification-service:3006
+    depends_on:
+      - identity-service
+      - course-service
+      - payment-service
+
+  identity-service:
+    build:
+      context: .
+      dockerfile: apps/identity-service/Dockerfile
+    container_name: capstone-identity-service
+    ports:
+      - "3001:3001"
+    environment:
+      - IDENTITY_SERVICE_PORT=3001
+      - IDENTITY_DATABASE_URL=postgresql://postgres:postgres@postgres:5432/identity_db?schema=public
+      - REDIS_URL=redis://redis:6379
+      - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET}
+      - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET}
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  course-service:
+    build:
+      context: .
+      dockerfile: apps/course-service/Dockerfile
+    container_name: capstone-course-service
+    ports:
+      - "3002:3002"
+    environment:
+      - COURSE_SERVICE_PORT=3002
+      - COURSE_DATABASE_URL=postgresql://postgres:postgres@postgres:5432/course_db?schema=public
+      - REDIS_URL=redis://redis:6379
+      - IDENTITY_SERVICE_URL=http://identity-service:3001
+      - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET}
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  assessment-service:
+    build:
+      context: .
+      dockerfile: apps/assessment-service/Dockerfile
+    container_name: capstone-assessment-service
+    ports:
+      - "3003:3003"
+    environment:
+      - ASSESSMENT_SERVICE_PORT=3003
+      - ASSESSMENT_DATABASE_URL=postgresql://postgres:postgres@postgres:5432/assessment_db?schema=public
+      - REDIS_URL=redis://redis:6379
+      - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET}
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  flashcard-service:
+    build:
+      context: .
+      dockerfile: apps/flashcard-service/Dockerfile
+    container_name: capstone-flashcard-service
+    ports:
+      - "3004:3004"
+    environment:
+      - FLASHCARD_SERVICE_PORT=3004
+      - FLASHCARD_DATABASE_URL=postgresql://postgres:postgres@postgres:5432/flashcard_db?schema=public
+      - REDIS_URL=redis://redis:6379
+      - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET}
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: apps/payment-service/Dockerfile
+    container_name: capstone-payment-service
+    ports:
+      - "3005:3005"
+    environment:
+      - PAYMENT_SERVICE_PORT=3005
+      - PAYMENT_DATABASE_URL=postgresql://postgres:postgres@postgres:5432/payment_db?schema=public
+      - REDIS_URL=redis://redis:6379
+      - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET}
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: apps/notification-service/Dockerfile
+    container_name: capstone-notification-service
+    ports:
+      - "3006:3006"
+    environment:
+      - NOTIFICATION_SERVICE_PORT=3006
+      - NOTIFICATION_DATABASE_URL=postgresql://postgres:postgres@postgres:5432/notification_db?schema=public
+      - REDIS_URL=redis://redis:6379
+      - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET}
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+
+networks:
+  default:
+    name: capstone-network
