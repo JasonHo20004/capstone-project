@@ -1,0 +1,177 @@
+// =============================================================================
+// Assessment Service - Prisma Schema
+// Tables: Test, Section, Passage, Question, PracticeSession, UserAnswer,
+//         EnglishTestType, ScoreConversion, CourseTest
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("ASSESSMENT_DATABASE_URL")
+}
+
+model EnglishTestType {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String            @db.VarChar(100)
+  scoreConversions ScoreConversion[]
+  tests            Test[]
+
+  @@map("english_test_types")
+}
+
+model Test {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title             String            @db.VarChar(100)
+  durationInMinutes Int?              @map("duration_in_minutes")
+  totalScore        Float?            @map("total_score")
+  passingScore      Float?            @map("passing_score")
+  englishTestTypeId String            @map("english_test_type_id") @db.Uuid
+  practiceCount     Int?              @map("practice_count")
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  maxAttempts       Int?              @map("max_attempts")
+  testType          TestType?         @map("test_type")
+  updatedAt         DateTime?         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  courseTests       CourseTest[]
+  practiceSessions  PracticeSession[]
+  questions         Question[]
+  sections          Section[]
+  testSkills        TestSkill[]
+  englishTestType   EnglishTestType   @relation(fields: [englishTestTypeId], references: [id])
+
+  @@map("tests")
+}
+
+model CourseTest {
+  courseId String @map("course_id") @db.Uuid
+  testId   String @map("test_id") @db.Uuid
+  test     Test   @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, testId])
+  @@map("course_tests")
+}
+
+model Section {
+  id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title             String     @db.VarChar(100)
+  testId            String?    @map("test_id") @db.Uuid
+  skill             SkillType?
+  durationInSeconds Float?     @map("duration_in_seconds")
+  totalQuestions    Int?       @map("total_questions")
+  totalScore        Float?     @map("total_score")
+  passages          Passage[]
+  questions         Question[]
+  test              Test?      @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@map("sections")
+}
+
+model Passage {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sectionId    String     @map("section_id") @db.Uuid
+  content      String
+  passageOrder Int?       @map("passage_order")
+  section      Section    @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  questions    Question[]
+
+  @@unique([sectionId, passageOrder])
+  @@map("passages")
+}
+
+model Question {
+  id                 String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sectionId          String?      @map("section_id") @db.Uuid
+  questionText       String?      @map("question_text")
+  imageUrl           String?      @map("image_url")
+  questionType       QuestionType @map("question_type")
+  options            String[]
+  correctAnswerIndex Int?         @map("correct_answer_index")
+  wordLimit          Int?         @map("word_limit")
+  correctAnswer      String?      @map("correct_answer")
+  passageId          String?      @map("passage_id") @db.Uuid
+  questionOrder      Int?         @map("question_order")
+  testId             String?      @map("test_id") @db.Uuid
+  passage            Passage?     @relation(fields: [passageId], references: [id], onDelete: Cascade)
+  section            Section?     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  test               Test?        @relation(fields: [testId], references: [id], onDelete: Cascade)
+  userAnswers        UserAnswer[]
+
+  @@map("questions")
+}
+
+model PracticeSession {
+  id                 String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String        @map("user_id") @db.Uuid
+  testId             String        @map("test_id") @db.Uuid
+  selectedSections   String[]      @map("selected_sections")
+  status             SessionStatus
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt        DateTime?     @map("completed_at") @db.Timestamptz(6)
+  overallScaledScore Float?        @map("overall_scaled_score")
+  rawScoresBySkill   Json?         @map("raw_scores_by_skill")
+  scoresBySkill      Json?         @map("scores_by_skill")
+  test               Test          @relation(fields: [testId], references: [id], onDelete: Cascade)
+  userAnswers        UserAnswer[]
+
+  @@map("practice_sessions")
+}
+
+model UserAnswer {
+  id                  String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  practiceSessionId   String          @map("practice_session_id") @db.Uuid
+  questionId          String          @map("question_id") @db.Uuid
+  userId              String          @map("user_id") @db.Uuid
+  answerText          String?         @map("answer_text")
+  selectedOptionIndex Int?            @map("selected_option_index")
+  isCorrect           Boolean?        @map("is_correct")
+  practiceSession     PracticeSession @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
+  question            Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([practiceSessionId, questionId, userId])
+  @@map("user_answers")
+}
+
+model ScoreConversion {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  englishTestTypeId String          @map("english_test_type_id") @db.Uuid
+  skill             SkillType
+  rawScore          Int             @map("raw_score")
+  scaledScore       Float           @map("scaled_score")
+  englishTestType   EnglishTestType @relation(fields: [englishTestTypeId], references: [id])
+
+  @@map("score_conversions")
+}
+
+model TestSkill {
+  testId String    @map("test_id") @db.Uuid
+  skill  SkillType
+  test   Test      @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  @@id([testId, skill])
+  @@map("test_skills")
+}
+
+enum SessionStatus {
+  ONGOING
+  COMPLETED
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  ESSAY
+  FILL_IN_THE_BLANK
+}
+
+enum SkillType {
+  READING
+  LISTENING
+  WRITING
+  SPEAKING
+}
+
+enum TestType {
+  FINAL
+}

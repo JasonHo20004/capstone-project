@@ -2,15 +2,16 @@
 // Event Bus Service - RabbitMQ Implementation
 // =============================================================================
 
-import amqp, { Connection, Channel, ConsumeMessage } from "amqplib";
+import amqp from "amqplib";
 import { v4 as uuidv4 } from "uuid";
+import type { EventNames, DomainEvent } from "../events/index.js";
 
 export type EventHandler<T = any> = (event: DomainEvent<T>) => Promise<void>;
 
 export class EventBusService {
   private static instance: EventBusService;
-  private connection: Connection | null = null;
-  private channel: Channel | null = null;
+  private connection: amqp.ChannelModel | null = null;
+  private channel: amqp.Channel | null = null;
   private handlers: Map<string, EventHandler[]> = new Map();
   private serviceName: string;
   private exchangeName = "capstone_events";
@@ -60,7 +61,7 @@ export class EventBusService {
         this.handleDisconnect();
       });
 
-      this.connection.on("error", (err) => {
+      this.connection.on("error", (err: Error) => {
         console.error(`❌ [${this.serviceName}] RabbitMQ connection error:`, err);
         this.isConnected = false;
         this.handleDisconnect();
@@ -152,7 +153,7 @@ export class EventBusService {
 
     await this.channel.consume(
       queueName,
-      async (msg: ConsumeMessage | null) => {
+      async (msg: amqp.ConsumeMessage | null) => {
         if (!msg) return;
 
         try {
@@ -171,7 +172,6 @@ export class EventBusService {
           } else {
             // If no handlers but we received it, it might be a misconfiguration or intended ignore
             // We ack it to remove from queue so it doesn't block
-            // console.debug(`[${this.serviceName}] No handler for ${event.eventName}, ignoring.`);
             this.channel!.ack(msg); 
           }
         } catch (error) {

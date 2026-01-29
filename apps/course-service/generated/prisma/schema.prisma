@@ -1,0 +1,158 @@
+// =============================================================================
+// Course Service - Prisma Schema
+// Tables: Course, Lesson, MediaAsset, Comment, Rating, Report, UserLesson
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("COURSE_DATABASE_URL")
+}
+
+model Course {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title          String       @db.VarChar(100)
+  description    String?
+  price          Decimal      @db.Decimal(10, 2)
+  courseLevel    CourseLevel? @map("course_level")
+  courseSellerId String       @map("course_seller_id") @db.Uuid
+  finalTestId    String?      @map("final_test_id") @db.Uuid
+  ratingCount    Int?         @map("rating_count")
+  status         CourseStatus @default(PENDING)
+  category       String?      @db.VarChar(100)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  thumbnailUrl   String?      @map("thumbnail_url")
+
+  lessons        Lesson[]
+  ratings        Rating[]
+  reports        Report[]
+  userActivities UserActivity[]
+
+  @@map("courses")
+}
+
+model Lesson {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title             String   @db.VarChar(100)
+  description       String?
+  durationInSeconds Float?   @map("duration_in_seconds")
+  lessonOrder       Int?     @map("lesson_order")
+  materials         String[]
+  commentCount      Int?     @map("comment_count")
+  courseId          String   @map("course_id") @db.Uuid
+
+  comments    Comment[]
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  mediaAssets MediaAsset[]
+  userLessons UserLesson[]
+
+  @@map("lessons")
+}
+
+model MediaAsset {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assetType MediaType @map("asset_type")
+  assetUrl  String    @unique @map("asset_url")
+  lessonId  String    @map("lesson_id") @db.Uuid
+  lesson    Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@map("media_assets")
+}
+
+model Comment {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  content         String
+  userId          String   @map("user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  parentCommentId String?  @map("parent_comment_id") @db.Uuid
+  lessonId        String   @map("lesson_id") @db.Uuid
+  lesson          Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@map("comments")
+}
+
+model Rating {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  score        Float
+  userId       String    @map("user_id") @db.Uuid
+  courseId     String    @map("course_id") @db.Uuid
+  content      String?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  isReported   Boolean   @default(false) @map("is_reported")
+  repliedAt    DateTime? @map("replied_at") @db.Timestamptz(6)
+  replyContent String?   @map("reply_content")
+  course       Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@map("ratings")
+}
+
+model Report {
+  content    String
+  reasonType EReasonType @map("reason_type")
+  userId     String      @map("user_id") @db.Uuid
+  courseId   String      @map("course_id") @db.Uuid
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  course     Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
+}
+
+model UserLesson {
+  lessonId String @map("lesson_id") @db.Uuid
+  userId   String @map("user_id") @db.Uuid
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@id([lessonId, userId])
+  @@map("user_lessons")
+}
+
+model UserActivity {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  transactionId String    @map("transaction_id") @db.Uuid
+  courseId      String    @map("course_id") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt     DateTime? @map("expires_at") @db.Timestamptz(6)
+  course        Course    @relation(fields: [courseId], references: [id])
+
+  @@map("user_activities")
+}
+
+enum CourseStatus {
+  PENDING
+  ACTIVE
+  REFUSE
+  INACTIVE
+  DELETE
+  DRAFT
+  PUBLISHED
+}
+
+enum CourseLevel {
+  A1
+  A2
+  B1
+  B2
+  C1
+  C2
+}
+
+enum MediaType {
+  AUDIO
+  IMAGE
+  VIDEO
+}
+
+enum EReasonType {
+  INAPPROPRIATE_CONTENT
+  COPYRIGHT_VIOLATION
+  NOT_AS_DESCRIBED
+  UNRESPONSIVE_INSTRUCTOR
+  INCOMPLETE_CONTENT
+}

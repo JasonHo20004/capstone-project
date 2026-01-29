@@ -2,8 +2,8 @@
 // Validation Middleware using Zod
 // =============================================================================
 
-import { Request, Response, NextFunction } from "express";
-import { z, ZodError, ZodSchema } from "zod";
+import { Request, Response, NextFunction, RequestHandler } from "express";
+import { z, ZodError, ZodSchema, ZodIssue } from "zod";
 
 export interface ValidationSchema {
   body?: ZodSchema;
@@ -14,22 +14,25 @@ export interface ValidationSchema {
 /**
  * Validate request against Zod schemas
  */
-export const validate = (schema: ValidationSchema) => {
+export const validate = (schema: ValidationSchema): RequestHandler => {
   return (req: Request, res: Response, next: NextFunction): void => {
     try {
       if (schema.body) {
         req.body = schema.body.parse(req.body);
       }
       if (schema.params) {
-        req.params = schema.params.parse(req.params);
+        const parsed = schema.params.parse(req.params);
+        Object.assign(req.params, parsed);
       }
       if (schema.query) {
-        req.query = schema.query.parse(req.query);
+        const parsed = schema.query.parse(req.query);
+        Object.assign(req.query, parsed);
       }
       next();
     } catch (error) {
       if (error instanceof ZodError) {
-        const errors = error.errors.map((e) => ({
+        const zodError = error as ZodError;
+        const errors = zodError.issues.map((e: ZodIssue) => ({
           field: e.path.join("."),
           message: e.message,
         }));

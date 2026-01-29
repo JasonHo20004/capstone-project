@@ -10,6 +10,8 @@ import { errorHandler } from "@capstone/common";
 // Import routes
 import authRouter from "./modules/auth/routes/auth.route.js";
 import userRouter from "./modules/users/routes/user.route.js";
+import sellerRouter from "./modules/seller/routes/seller.route.js";
+import adminRouter from "./modules/admin/routes/admin.route.js";
 
 const app = express();
 
@@ -44,8 +46,11 @@ app.get("/health", (_req, res) => {
 // API Routes
 app.use("/api/auth", authRouter);
 app.use("/api/users", userRouter);
+app.use("/api/seller", sellerRouter);
+app.use("/api/admin", adminRouter);
 
 // Error handling
 app.use(errorHandler);
 
 export default app;
+

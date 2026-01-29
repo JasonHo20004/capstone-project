@@ -1,0 +1,63 @@
+// =============================================================================
+// Notification Service - Prisma Schema
+// Tables: NotificationType, Notification, InAppNotification, UserNotification
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("NOTIFICATION_DATABASE_URL")
+}
+
+model NotificationType {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String         @unique @db.VarChar(50)
+  isLocked      Boolean        @default(false) @map("is_locked")
+  notifications Notification[]
+
+  @@map("notification_types")
+}
+
+model Notification {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title              String             @db.VarChar(255)
+  content            String
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  seen               Boolean            @default(false)
+  notificationTypeId String             @map("notification_type_id") @db.Uuid
+  notificationType   NotificationType   @relation(fields: [notificationTypeId], references: [id], onDelete: Cascade)
+  userNotifications  UserNotification[]
+
+  @@map("notifications")
+}
+
+model InAppNotification {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  title      String    @db.VarChar(255)
+  content    String
+  type       String    @db.VarChar(50)
+  isRead     Boolean   @default(false) @map("is_read")
+  isArchived Boolean   @default(false) @map("is_archived")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  readAt     DateTime? @map("read_at") @db.Timestamptz(6)
+  archivedAt DateTime? @map("archived_at") @db.Timestamptz(6)
+  contractId String?   @map("contract_id") @db.Uuid
+  courseId   String?   @map("course_id") @db.Uuid
+  metadata   Json?
+
+  @@map("in_app_notifications")
+}
+
+model UserNotification {
+  notificationId String       @map("notification_id") @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@id([notificationId, userId])
+  @@map("user_notifications")
+}

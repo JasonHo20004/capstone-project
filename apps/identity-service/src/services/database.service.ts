@@ -2,7 +2,7 @@
 // Identity Service - Database Service
 // =============================================================================
 
-import { PrismaClient, Prisma } from "../generated/prisma/index.js";
+import { PrismaClient, Prisma } from "../../generated/prisma/index.js";
 
 class DatabaseService {
   private static instance: DatabaseService;

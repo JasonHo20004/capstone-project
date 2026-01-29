@@ -1,0 +1,78 @@
+// =============================================================================
+// Flashcard Service - Prisma Schema
+// Tables: FlashcardDeck, Flashcard, DeckTag, Tag, UserFlashcardProgress
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("FLASHCARD_DATABASE_URL")
+}
+
+model Tag {
+  id       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name     String    @unique @db.VarChar(100)
+  deckTags DeckTag[]
+
+  @@map("tags")
+}
+
+model FlashcardDeck {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String      @db.VarChar(100)
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  description String?
+  isPublic    Boolean     @default(true) @map("is_public")
+  userId      String      @map("user_id") @db.Uuid
+  deckTags    DeckTag[]
+  flashcards  Flashcard[]
+
+  @@map("flashcard_decks")
+}
+
+model Flashcard {
+  id              String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  frontContent    String                  @map("front_content")
+  backContent     String                  @map("back_content")
+  exampleSentence String?                 @map("example_sentence")
+  audioUrl        String?                 @map("audio_url")
+  deckId          String                  @map("deck_id") @db.Uuid
+  deck            FlashcardDeck           @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  userProgress    UserFlashcardProgress[]
+
+  @@map("flashcards")
+}
+
+model DeckTag {
+  tagId  String        @map("tag_id") @db.Uuid
+  deckId String        @map("deck_id") @db.Uuid
+  deck   FlashcardDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  tag    Tag           @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([tagId, deckId])
+  @@map("deck_tags")
+}
+
+model UserFlashcardProgress {
+  userId       String          @map("user_id") @db.Uuid
+  flashcardId  String          @map("flash_card_id") @db.Uuid
+  status       FlashcardStatus @default(LEARNING)
+  nextReviewAt DateTime        @default(now()) @map("next_review_at") @db.Timestamptz(6)
+  repetitions  Int             @default(0)
+  easeFactor   Float           @default(2.5) @map("ease_factor")
+  interval     Int             @default(0)
+  learningStep Int             @default(0) @map("learning_step")
+  flashcard    Flashcard       @relation(fields: [flashcardId], references: [id], onDelete: Cascade)
+
+  @@id([userId, flashcardId])
+  @@map("user_flashcard_progress")
+}
+
+enum FlashcardStatus {
+  LEARNING
+  REVIEW
+}

@@ -1,76 +1,72 @@
+# =============================================================================
+# Docker Compose - Infrastructure Only (for local development)
+# =============================================================================
+# Use this file to start only the infrastructure services (PostgreSQL, Redis, RabbitMQ)
+# Run your microservices locally with: pnpm dev
+
 services:
-  # 1. PostgreSQL Database
+  # =============================================================================
+  # Database - PostgreSQL
+  # =============================================================================
   postgres:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
     container_name: capstone-postgres
     environment:
-      POSTGRES_DB: capstone_dev
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: capstone
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - capstone-network
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  # 2. Redis Service
+  # =============================================================================
+  # Cache - Redis
+  # =============================================================================
   redis:
     image: redis:7-alpine
     container_name: capstone-redis
     ports:
       - "6379:6379"
-    networks:
-      - capstone-network
-    command: ["redis-server", "--appendonly", "yes"]
     volumes:
-      - ./redis-data:/data
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
-      timeout: 3s
-      retries: 3
+      timeout: 5s
+      retries: 5
 
-  # 3. Backend Service
-  backend:
-    build:
-      context: ./backend  # Chắc chắn code nằm trong thư mục backend
-      dockerfile: Dockerfile
-    container_name: capstone-backend
-    # Load environment variables from .env file in backend directory
-    env_file:
-      - ./backend/.env
-    environment:
-      # Sửa thành production để code chạy đúng mode
-      NODE_ENV: production 
-      PORT: 3000
-      # Dùng tên service để kết nối
-      DATABASE_URL: 
-      REDIS_URL: 
-      # Thêm các biến khác từ .env vào đây nếu cần
+  # =============================================================================
+  # Message Broker - RabbitMQ
+  # =============================================================================
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: capstone-rabbitmq
     ports:
-      - "3000:3000"
-    # Đã XÓA phần volumes để tránh conflict code
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - capstone-network
-    # Chạy migrate rồi mới start server
-    # Tự động fix lỗi migration trước khi deploy
-    command: sh -c "for m in 20251008152755_init 20251013094436_add_is_locked_to_notification_type 20251025145930_dev_1 20251125161859_ 20251127143426_add_is_email_verified; do npx prisma migrate resolve --rolled-back \$m 2>/dev/null || true; done; npx prisma migrate deploy && node dist/server.js"
+      - "5672:5672"      # AMQP protocol
+      - "15672:15672"    # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
-  # Xóa backend_node_modules vì không dùng volume nữa
+  redis_data:
+  rabbitmq_data:
 
 networks:
-  capstone-network:
-    driver: bridge
+  default:
+    name: capstone-network

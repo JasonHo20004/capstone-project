@@ -1,0 +1,10 @@
+﻿prisma:info Starting a postgresql pool with 9 connections.
+Γ£à [Identity Service] Database connected successfully
+≡ƒôí [Identity Service] Redis connecting...
+Γ£à [Identity Service] Redis connected successfully
+≡ƒöî [identity-service] Connecting to RabbitMQ at amqp://guest:guest@localhost:5672...
+Γ£à [identity-service] Connected to RabbitMQ
+≡ƒÜÇ [identity-service] Server is running on port 3001
+≡ƒöù Health check: http://localhost:3001/health
+≡ƒöù Auth API: http://localhost:3001/api/auth
+≡ƒöù Users API: http://localhost:3001/api/users
