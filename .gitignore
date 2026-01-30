@@ -32,3 +32,5 @@ Thumbs.db
 
 # Documentation
 coverage/
+#agent
+.agent/
