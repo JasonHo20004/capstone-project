@@ -10,8 +10,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("ASSESSMENT_DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("ASSESSMENT_DATABASE_URL")
+  directUrl = env("ASSESSMENT_DIRECT_URL")
 }
 
 model EnglishTestType {
@@ -92,6 +93,7 @@ model Question {
   wordLimit          Int?         @map("word_limit")
   correctAnswer      String?      @map("correct_answer")
   passageId          String?      @map("passage_id") @db.Uuid
+  mediaId            String?      @map("media_id") @db.Uuid
   questionOrder      Int?         @map("question_order")
   testId             String?      @map("test_id") @db.Uuid
   passage            Passage?     @relation(fields: [passageId], references: [id], onDelete: Cascade)
