@@ -10,7 +10,7 @@ interface SendMailOptions {
   html: string;
 }
 
-class EmailService {
+export class EmailService {
   private static instance: EmailService;
   private transporter: nodemailer.Transporter;
 

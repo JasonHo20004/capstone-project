@@ -7,17 +7,23 @@ import bcrypt from "bcrypt";
 import { createHash, randomBytes } from "crypto";
 import { AuthRepository } from "../repositories/auth.repository.js";
 import { UserRepository } from "../../users/repositories/user.repository.js";
-import { redisService, emailService } from "../../../services/index.js";
+import { RedisService } from "../../../services/redis.service.js";
+import { EmailService } from "../../../services/email.service.js";
 import type { LoginResponse, TokenPair, RegisterInput } from "../dtos/auth.dto.js";
 import type { UserRole } from "../../../../generated/prisma/index.js";
+import { BadRequestError, UnauthorizedError, NotFoundError, ConflictError } from "@capstone/common";
 
 export class AuthService {
-  private authRepository = new AuthRepository();
-  private userRepository = new UserRepository();
+  constructor(
+    private readonly authRepository: AuthRepository,
+    private readonly userRepository: UserRepository,
+    private readonly redisService: RedisService,
+    private readonly emailService: EmailService
+  ) {}
 
   async generateTokens(payload: { userId: string; role: UserRole | null }): Promise<TokenPair> {
     if (!process.env.ACCESS_TOKEN_SECRET || !process.env.REFRESH_TOKEN_SECRET) {
-      throw new Error("JWT Secret keys are not defined");
+      throw new Error("JWT Secret keys are not defined"); // System error, keeping generic Error for now or could be InternalServerError
     }
 
     const accessToken = jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, {
@@ -31,7 +37,7 @@ export class AuthService {
   }
 
   async generateEmailVerificationToken(userId: string): Promise<string> {
-    const client = redisService.getClient();
+    const client = this.redisService.getClient();
     const token = randomBytes(32).toString("hex");
     const key = `verify:${token}`;
     const ttlSeconds = 15 * 60; // 15 minutes
@@ -41,7 +47,7 @@ export class AuthService {
   }
 
   async verifyEmailToken(token: string): Promise<string | null> {
-    const client = redisService.getClient();
+    const client = this.redisService.getClient();
     const key = `verify:${token}`;
     const userId = await client.get(key);
     
@@ -56,7 +62,7 @@ export class AuthService {
     const user = await this.userRepository.findById(userId);
 
     if (!user) {
-      throw new Error("User not found");
+      throw new NotFoundError("User not found");
     }
 
     if (user.isEmailVerified) {
@@ -76,7 +82,7 @@ export class AuthService {
       <p>If you did not create an account, you can safely ignore this email.</p>
     `;
 
-    await emailService.sendMail({
+    await this.emailService.sendMail({
       to: user.email,
       subject: "Verify your email address",
       html,
@@ -94,7 +100,7 @@ export class AuthService {
   async register(input: RegisterInput): Promise<{ userId: string }> {
     const existingUser = await this.userRepository.findByEmail(input.email);
     if (existingUser) {
-      throw new Error("Email already registered");
+      throw new ConflictError("Email already registered");
     }
 
     const hashedPassword = await bcrypt.hash(input.password, 10);
@@ -113,16 +119,16 @@ export class AuthService {
   async login(email: string, password: string): Promise<LoginResponse> {
     const user = await this.userRepository.findByEmail(email);
     if (!user) {
-      throw new Error("Invalid email or password");
+      throw new UnauthorizedError("Invalid email or password");
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      throw new Error("Invalid email or password");
+      throw new UnauthorizedError("Invalid email or password");
     }
 
     if (!user.isEmailVerified) {
-      throw new Error("Email not verified");
+      throw new UnauthorizedError("Email not verified");
     }
 
     const { accessToken, refreshToken } = await this.generateTokens({
@@ -151,19 +157,19 @@ export class AuthService {
         process.env.REFRESH_TOKEN_SECRET!
       ) as { userId: string; role: UserRole };
     } catch {
-      throw new Error("Invalid token");
+      throw new UnauthorizedError("Invalid token");
     }
 
     const hashedToken = createHash("sha256").update(sentRefreshToken).digest("hex");
     const dbToken = await this.authRepository.findRefreshToken(hashedToken);
 
     if (!dbToken || dbToken.revoked) {
-      throw new Error("Invalid refresh token");
+      throw new UnauthorizedError("Invalid refresh token");
     }
 
     const user = await this.userRepository.findById(payload.userId);
     if (!user) {
-      throw new Error("User not found");
+      throw new NotFoundError("User not found");
     }
 
     await this.authRepository.deleteRefreshToken(dbToken.id);
@@ -190,7 +196,7 @@ export class AuthService {
     const userId = await this.verifyEmailToken(token);
     
     if (!userId) {
-      throw new Error("Invalid or expired verification token");
+      throw new BadRequestError("Invalid or expired verification token");
     }
 
     await this.userRepository.updateEmailVerified(userId, true);

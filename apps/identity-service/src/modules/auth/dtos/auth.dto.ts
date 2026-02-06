@@ -4,14 +4,14 @@
 
 import { z } from "zod";
 
-export const loginSchema = z.object({
+export const loginSchema = {
   body: z.object({
     email: z.string().email("Invalid email format"),
     password: z.string().min(1, "Password is required"),
   }),
-});
+};
 
-export const registerSchema = z.object({
+export const registerSchema = {
   body: z.object({
     email: z.string().email("Invalid email format"),
     password: z.string().min(8, "Password must be at least 8 characters"),
@@ -19,23 +19,23 @@ export const registerSchema = z.object({
     dateOfBirth: z.string().transform((str) => new Date(str)),
     phoneNumber: z.string().optional(),
   }),
-});
+};
 
-export const refreshTokenSchema = z.object({
+export const refreshTokenSchema = {
   body: z.object({
     refreshToken: z.string().min(1, "Refresh token is required"),
   }),
-});
+};
 
-export const verifyEmailSchema = z.object({
+export const verifyEmailSchema = {
   query: z.object({
     token: z.string().min(1, "Verification token is required"),
   }),
-});
+};
 
-export type LoginInput = z.infer<typeof loginSchema>["body"];
-export type RegisterInput = z.infer<typeof registerSchema>["body"];
-export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>["body"];
+export type LoginInput = z.infer<typeof loginSchema.body>;
+export type RegisterInput = z.infer<typeof registerSchema.body>;
+export type RefreshTokenInput = z.infer<typeof refreshTokenSchema.body>;
 
 export interface LoginResponse {
   accessToken: string;

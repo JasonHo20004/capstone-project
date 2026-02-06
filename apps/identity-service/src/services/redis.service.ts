@@ -4,7 +4,7 @@
 
 import { createClient, RedisClientType } from "redis";
 
-class RedisService {
+export class RedisService {
   private static instance: RedisService;
   private client: RedisClientType;
   private isConnected: boolean = false;

@@ -6,6 +6,9 @@ import express, { Express } from "express";
 import cors from "cors";
 import { errorHandler } from "@capstone/common";
 
+// Import routes
+import notificationRouter from "./modules/notifications/routes/notification.route.js";
+
 const app: Express = express();
 
 app.set("trust proxy", 1);
@@ -32,8 +35,8 @@ app.get("/health", (_req, res) => {
   });
 });
 
-// API Routes (to be added)
-// app.use("/api/notifications", notificationRouter);
+// API Routes
+app.use("/api/notifications", notificationRouter);
 
 // Error handling
 app.use(errorHandler);

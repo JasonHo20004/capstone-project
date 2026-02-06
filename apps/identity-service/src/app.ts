@@ -13,7 +13,7 @@ import userRouter from "./modules/users/routes/user.route.js";
 import sellerRouter from "./modules/seller/routes/seller.route.js";
 import adminRouter from "./modules/admin/routes/admin.route.js";
 
-const app = express();
+const app: express.Application = express();
 
 // Trust proxy for proper IP detection behind reverse proxy
 app.set("trust proxy", 1);

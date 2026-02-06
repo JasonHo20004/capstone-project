@@ -7,7 +7,7 @@ import { AuthController } from "../controllers/auth.controller.js";
 import { validate } from "@capstone/common";
 import { loginSchema, registerSchema, verifyEmailSchema, refreshTokenSchema } from "../dtos/auth.dto.js";
 
-const router = Router();
+const router: Router = Router();
 const authController = new AuthController();
 
 // Public routes

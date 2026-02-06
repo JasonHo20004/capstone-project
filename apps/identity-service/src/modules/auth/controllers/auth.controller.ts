@@ -6,8 +6,21 @@ import { Request, Response, NextFunction } from "express";
 import { AuthService } from "../services/auth.service.js";
 import { asyncHandler } from "@capstone/common";
 
+import { AuthRepository } from "../repositories/auth.repository.js";
+import { UserRepository } from "../../users/repositories/user.repository.js";
+import { redisService, emailService } from "../../../services/index.js";
+
 export class AuthController {
-  private authService = new AuthService();
+  private authService: AuthService;
+
+  constructor() {
+    this.authService = new AuthService(
+      new AuthRepository(),
+      new UserRepository(),
+      redisService,
+      emailService
+    );
+  }
 
   login = asyncHandler(async (req: Request, res: Response) => {
     const { email, password } = req.body;

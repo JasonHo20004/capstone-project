@@ -5,6 +5,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { JwtPayload, UserRole } from "../types/index.js";
+import { UnauthorizedError, ForbiddenError, AppError } from "./error.middleware.js";
 
 // Extend Express Request to include user data
 declare global {
@@ -27,14 +28,12 @@ export const authenticateToken = (
   const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
-    res.status(401).json({ success: false, error: "Access token required" });
-    return;
+    return next(new UnauthorizedError("Access token required"));
   }
 
   const accessTokenSecret = process.env.ACCESS_TOKEN_SECRET;
   if (!accessTokenSecret) {
-    res.status(500).json({ success: false, error: "Server configuration error" });
-    return;
+    return next(new AppError("Server configuration error: ACCESS_TOKEN_SECRET not defined", 500));
   }
 
   try {
@@ -42,7 +41,7 @@ export const authenticateToken = (
     req.user = decoded;
     next();
   } catch (error) {
-    res.status(403).json({ success: false, error: "Invalid or expired token" });
+    return next(new UnauthorizedError("Invalid or expired token"));
   }
 };
 
@@ -52,13 +51,11 @@ export const authenticateToken = (
 export const requireRole = (...roles: (UserRole | null)[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
-      res.status(401).json({ success: false, error: "Authentication required" });
-      return;
+      return next(new UnauthorizedError("Authentication required"));
     }
 
     if (!roles.includes(req.user.role)) {
-      res.status(403).json({ success: false, error: "Insufficient permissions" });
-      return;
+      return next(new ForbiddenError("Insufficient permissions"));
     }
 
     next();
@@ -87,14 +84,12 @@ export const optionalAuth = (
   const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
-    next();
-    return;
+    return next();
   }
 
   const accessTokenSecret = process.env.ACCESS_TOKEN_SECRET;
   if (!accessTokenSecret) {
-    next();
-    return;
+    return next();
   }
 
   try {

@@ -22,7 +22,7 @@ export class UserController {
 
   getById = asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const user = await this.userService.getById(id);
+    const user = await this.userService.getById(id as string);
 
     if (!user) {
       throw new NotFoundError("User not found");
@@ -34,7 +34,7 @@ export class UserController {
   // Internal endpoint for other services to get basic user info
   getBasicInfo = asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    const user = await this.userService.getBasicInfo(id);
+    const user = await this.userService.getBasicInfo(id as string);
 
     if (!user) {
       throw new NotFoundError("User not found");
@@ -64,7 +64,7 @@ export class UserController {
 
   deleteUser = asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
-    await this.userService.delete(id);
+    await this.userService.delete(id as string);
     
     res.json({ success: true, message: "User deleted successfully" });
   });

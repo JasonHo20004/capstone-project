@@ -6,6 +6,9 @@ import express, { Express } from "express";
 import cors from "cors";
 import { errorHandler } from "@capstone/common";
 
+// Import routes
+import flashcardRouter from "./modules/flashcards/routes/flashcard.route.js";
+
 const app: Express = express();
 
 app.set("trust proxy", 1);
@@ -32,8 +35,8 @@ app.get("/health", (_req, res) => {
   });
 });
 
-// API Routes (to be added)
-// app.use("/api/flashcards", flashcardRouter);
+// API Routes
+app.use("/api/decks", flashcardRouter);
 
 // Error handling
 app.use(errorHandler);

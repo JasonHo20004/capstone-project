@@ -1,6 +1,5 @@
-import type { Request, Response } from "express";
+import { Request, Response } from "express";
 import { SellerService } from "../services/seller.service";
-import type { AuthenticatedRequest } from "@capstone/common";
 
 export class SellerController {
   private service = new SellerService();
@@ -9,7 +8,7 @@ export class SellerController {
    * Apply to become a course seller
    * POST /api/seller/apply
    */
-  applyForSeller = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    applyForSeller = async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user?.userId;
       if (!userId) {
@@ -35,7 +34,7 @@ export class SellerController {
    * Get my application status
    * GET /api/seller/application
    */
-  getMyApplication = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  getMyApplication = async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user?.userId;
       if (!userId) {
@@ -68,7 +67,7 @@ export class SellerController {
    * Get my seller profile
    * GET /api/seller/profile
    */
-  getMyProfile = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  getMyProfile = async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user?.userId;
       if (!userId) {
@@ -101,7 +100,7 @@ export class SellerController {
    * Update my seller profile
    * PUT /api/seller/profile
    */
-  updateMyProfile = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  updateMyProfile = async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user?.userId;
       if (!userId) {
@@ -153,7 +152,7 @@ export class SellerController {
    */
   updateApplicationStatus = async (req: Request, res: Response): Promise<void> => {
     try {
-      const applicationId = req.params.id;
+      const applicationId = req.params.id as string;
       const result = await this.service.updateApplicationStatus(applicationId, req.body);
       res.status(200).json({
         success: true,
