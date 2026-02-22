@@ -12,6 +12,7 @@
     "dev:flashcard": "pnpm --filter @capstone/flashcard-service run dev",
     "dev:payment": "pnpm --filter @capstone/payment-service run dev",
     "dev:notification": "pnpm --filter @capstone/notification-service run dev",
+    "dev:practice": "pnpm --filter @capstone/practice-service run dev",
     "build": "pnpm -r run build",
     "build:common": "pnpm --filter @capstone/common run build",
     "prisma:generate": "pnpm -r run prisma:generate",
@@ -22,6 +23,7 @@
     "prisma:migrate:flashcard": "pnpm --filter @capstone/flashcard-service run prisma:migrate",
     "prisma:migrate:payment": "pnpm --filter @capstone/payment-service run prisma:migrate",
     "prisma:migrate:notification": "pnpm --filter @capstone/notification-service run prisma:migrate",
+    "prisma:migrate:practice": "pnpm --filter @capstone/practice-service run prisma:migrate",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f"

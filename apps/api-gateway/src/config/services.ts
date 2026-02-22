@@ -84,6 +84,11 @@ export const services: ServiceConfig[] = [
     url: process.env.NOTIFICATION_SERVICE_URL || "http://localhost:3006",
     prefix: "/api/notifications",
   },
+  {
+    name: "practice-service",
+    url: process.env.PRACTICE_SERVICE_URL || "http://localhost:3008",
+    prefix: "/api/practice",
+  },
 ];
 
 export function getServiceByPrefix(prefix: string): ServiceConfig | undefined {
