@@ -8,7 +8,7 @@ import { createProxyMiddleware, Options } from "http-proxy-middleware";
 import { services } from "./config/services.js";
 import { errorHandler } from "@capstone/common";
 
-const app = express();
+const app: express.Express = express();
 
 // Trust proxy
 app.set("trust proxy", 1);
@@ -47,12 +47,10 @@ for (const service of services) {
   const proxyOptions: Options = {
     target: service.url,
     changeOrigin: true,
-    pathRewrite: {
-      [`^${service.prefix}`]: service.prefix,
-    },
+    pathFilter: service.prefix,
     on: {
       proxyReq: (proxyReq, req, _res) => {
-        console.log(`➡️ [Gateway] ${req.method} ${req.url} -> ${service.name}`);
+        console.log(`➡️ [Gateway] ${req.method} ${req.url} -> ${service.url}${proxyReq.path} (${service.name})`);
       },
       proxyRes: (proxyRes, req, _res) => {
         console.log(`⬅️ [Gateway] ${proxyRes.statusCode} ${req.method} ${req.url}`);
@@ -72,7 +70,7 @@ for (const service of services) {
     },
   };
 
-  app.use(service.prefix, createProxyMiddleware(proxyOptions));
+  app.use(createProxyMiddleware(proxyOptions));
 }
 
 // 404 handler
