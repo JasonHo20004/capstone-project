@@ -22,7 +22,7 @@ export const CreatePracticeTestSchema = z.object({
               orderIndex: z.number().int(),
               questions: z.array(
                 z.object({
-                  type: z.enum(["MULTIPLE_CHOICE", "GAP_FILL", "MATCHING", "TRUE_FALSE_NOT_GIVEN"]),
+                  type: z.enum(["MULTIPLE_CHOICE", "GAP_FILL", "MATCHING", "TRUE_FALSE_NOT_GIVEN", "TOEIC_SINGLE_CHOICE", "TOEIC_TEXT_COMPLETION"]),
                   content: z.record(z.string(), z.any()), // JSON
                   answer: z.record(z.string(), z.any()),   // JSON
                   explanation: z.string().optional(),
