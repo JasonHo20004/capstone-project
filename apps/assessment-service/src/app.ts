@@ -5,6 +5,8 @@
 import express, { Express } from "express";
 import cors from "cors";
 import { errorHandler } from "@capstone/common";
+import testRouter from "./modules/tests/test.route.js";
+import sessionRouter from "./modules/sessions/session.route.js";
 
 const app: Express = express();
 
@@ -32,8 +34,9 @@ app.get("/health", (_req, res) => {
   });
 });
 
-// API Routes (to be added)
-// app.use("/api/assessments", assessmentRouter);
+// API Routes
+app.use("/api/tests", testRouter);
+app.use("/api/sessions", sessionRouter);
 
 // Error handling
 app.use(errorHandler);

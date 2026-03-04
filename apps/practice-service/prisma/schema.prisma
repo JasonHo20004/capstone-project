@@ -24,6 +24,8 @@ enum QuestionType {
   GAP_FILL
   MATCHING
   TRUE_FALSE_NOT_GIVEN
+  TOEIC_SINGLE_CHOICE
+  TOEIC_TEXT_COMPLETION
 }
 
 model PracticeTest {

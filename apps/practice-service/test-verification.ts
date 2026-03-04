@@ -1,40 +1,50 @@
 
 
+
 async function runTests() {
-  console.log("🚀 Starting verification tests for Practice API...");
+  console.log("🚀 Starting verification tests for Practice API (TOEIC)...");
   
   const baseUrl = "http://localhost:3008/api/practice";
 
-  // 1. Create a Practice Test
-  console.log("1️⃣ Creating Practice Test...");
+  // 1. Create a TOEIC Practice Test
+  console.log("1️⃣ Creating TOEIC Practice Test...");
   const createRes = await fetch(baseUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      title: "Cambridge IELTS 18 - Test 1",
+      title: "ETS TOEIC Practice Test 1",
       duration: 120,
-      examType: "IELTS",
+      examType: "TOEIC",
       sections: [{
         name: "Reading",
         orderIndex: 1,
         parts: [{
-          name: "Passage 1",
-          content: "This is a test passage about urban farming.",
+          name: "Part 5: Incomplete Sentences",
           orderIndex: 1,
           questionGroups: [{
-            instructions: "Complete the summary below. Choose NO MORE THAN TWO WORDS.",
+            instructions: "Select the best answer to complete the sentence.",
             orderIndex: 1,
             questions: [{
-              type: "GAP_FILL",
-              orderIndex: 1,
-              content: { text: "Urban farming improves {{1}} and {{2}}." },
-              answer: { "1": ["food security", "security"], "2": ["air quality"] },
-              explanation: "Paragraph 1 mentions both food security and air quality."
-            }, {
-              type: "MULTIPLE_CHOICE",
-              orderIndex: 2,
-              content: { question: "What is the main advantage?", options: ["A: Cost", "B: Health", "C: Unknown"] },
-              answer: { correctOptions: ["A: Cost"] }
+              type: "TOEIC_SINGLE_CHOICE",
+              orderIndex: 101,
+              content: { question: "Customers are asked to examine their receipts carefully before ------- the store.", options: ["A) leave", "B) left", "C) leaving", "D) to leave"] },
+              answer: { correctOption: "C" },
+              explanation: "Before must be followed by a gerund (-ing form)."
+            }]
+          }]
+        },
+        {
+          name: "Part 6: Text Completion",
+          orderIndex: 2,
+          questionGroups: [{
+            instructions: "Read the email and complete the sentences.",
+            orderIndex: 1,
+            questions: [{
+              type: "TOEIC_TEXT_COMPLETION",
+              orderIndex: 131,
+              content: { text: "We are pleased to announce that our new CEO, Ms. Cho, will officially {{131}} her duties on May 1." },
+              answer: { "131": ["assume", "begin", "start"] },
+              explanation: "Any of these verbs correctly collocate with 'duties'."
             }]
           }]
         }]
@@ -47,9 +57,9 @@ async function runTests() {
   const testId = createData.data.id;
   console.log("✅ Created Test ID:", testId);
 
-  // Extract Question IDs to test the grading algorithm
-  const gapFillId = createData.data.sections[0].parts[0].questionGroups[0].questions[0].id;
-  const multiChoiceId = createData.data.sections[0].parts[0].questionGroups[0].questions[1].id;
+  // Extract Question IDs
+  const singleChoiceId = createData.data.sections[0].parts[0].questionGroups[0].questions[0].id;
+  const textCompletionId = createData.data.sections[0].parts[1].questionGroups[0].questions[0].id;
 
   // 2. Submit Test Answers
   console.log("\n2️⃣ Submitting Answers for Grading...");
@@ -58,8 +68,8 @@ async function runTests() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       submissions: {
-        [gapFillId]: { "1": "food security", "2": "wrong answer" }, // 1 correct, 1 wrong = 1 point
-        [multiChoiceId]: "A: Cost" // 1 correct = 1 point
+        [singleChoiceId]: "C", // Should be correct (1 pt)
+        [textCompletionId]: { "131": "assume" }  // Should be correct (1 pt)
       }
     })
   });
