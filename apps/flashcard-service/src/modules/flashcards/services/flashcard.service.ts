@@ -18,6 +18,12 @@ import type {
 export class FlashcardService {
   constructor(private readonly repository: FlashcardRepository) {}
 
+  // ============== Tag Operations ==============
+
+  async listTags(search?: string) {
+    return await this.repository.listTags(search);
+  }
+
   // ============== Deck Operations ==============
 
   async createDeck(userId: string, input: CreateDeckInput): Promise<DeckResponse> {

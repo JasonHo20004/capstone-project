@@ -14,6 +14,15 @@ export class FlashcardController {
     this.service = new FlashcardService(new FlashcardRepository());
   }
 
+  // ============== Tag Endpoints ==============
+
+  listTags = asyncHandler(async (req: Request, res: Response) => {
+    const search = req.query.search as string | undefined;
+    const tags = await this.service.listTags(search);
+
+    res.json({ success: true, data: tags });
+  });
+
   // ============== Deck Endpoints ==============
 
   createDeck = asyncHandler(async (req: Request, res: Response) => {

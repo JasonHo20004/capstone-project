@@ -70,11 +70,14 @@ export class FlashcardRepository {
       where.title = { contains: options.search, mode: "insensitive" };
     }
 
+    const page = options.page ?? 1;
+    const limit = options.limit ?? 10;
+
     const [decks, total] = await Promise.all([
       this.prisma.flashcardDeck.findMany({
         where,
-        skip: (options.page - 1) * options.limit,
-        take: options.limit,
+        skip: (page - 1) * limit,
+        take: limit,
         orderBy: { createdAt: "desc" },
         include: {
           deckTags: { include: { tag: true } },
@@ -86,9 +89,9 @@ export class FlashcardRepository {
     return {
       data: decks,
       total,
-      page: options.page,
-      limit: options.limit,
-      totalPages: Math.ceil(total / options.limit),
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
     };
   }
 
@@ -133,11 +136,13 @@ export class FlashcardRepository {
   }
 
   async findFlashcardsByDeckId(deckId: string, options: { page: number; limit: number }) {
+    const page = options.page ?? 1;
+    const limit = options.limit ?? 20;
     const [flashcards, total] = await Promise.all([
       this.prisma.flashcard.findMany({
         where: { deckId },
-        skip: (options.page - 1) * options.limit,
-        take: options.limit,
+        skip: (page - 1) * limit,
+        take: limit,
       }),
       this.prisma.flashcard.count({ where: { deckId } }),
     ]);
@@ -145,9 +150,9 @@ export class FlashcardRepository {
     return {
       data: flashcards,
       total,
-      page: options.page,
-      limit: options.limit,
-      totalPages: Math.ceil(total / options.limit),
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
     };
   }
 
@@ -170,6 +175,20 @@ export class FlashcardRepository {
   }
 
   // ============== Tag Operations ==============
+
+  async listTags(search?: string) {
+    const where = search
+      ? { name: { contains: search, mode: "insensitive" as const } }
+      : {};
+    return await this.prisma.tag.findMany({
+      where,
+      orderBy: { name: "asc" },
+    });
+  }
+
+  async findTagByName(name: string) {
+    return await this.prisma.tag.findUnique({ where: { name } });
+  }
 
   async findOrCreateTags(tagNames: string[]) {
     const tags = await Promise.all(
