@@ -7,7 +7,7 @@ import cors from "cors";
 import { errorHandler } from "@capstone/common";
 
 // Import routes
-import { deckRouter, reviewRouter } from "./modules/flashcards/routes/flashcard.route.js";
+import { deckRouter, reviewRouter, tagRouter } from "./modules/flashcards/routes/flashcard.route.js";
 
 const app: Express = express();
 
@@ -37,6 +37,7 @@ app.get("/health", (_req, res) => {
 
 // API Routes - aligned with API Gateway prefixes
 app.use("/api/flashcard-decks", deckRouter);    // Deck CRUD + nested cards
+app.use("/api/tags", tagRouter);                // Tag browsing
 app.use("/api/flashcard-review", reviewRouter); // Spaced repetition review
 
 // Error handling

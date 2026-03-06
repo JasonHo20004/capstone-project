@@ -3,6 +3,7 @@
 // =============================================================================
 
 import { Router } from "express";
+import { z } from "zod";
 import { FlashcardController } from "../controllers/flashcard.controller.js";
 import { authenticateToken, optionalAuth, validate } from "@capstone/common";
 import {
@@ -29,12 +30,17 @@ deckRouter.post("/", authenticateToken, validate(createDeckSchema), controller.c
 deckRouter.patch("/:id", authenticateToken, validate(updateDeckSchema), controller.updateDeck);
 deckRouter.delete("/:id", authenticateToken, validate(getDeckSchema), controller.deleteDeck);
 
-// Cards nested under a deck: GET/POST /api/flashcard-decks/:deckId/cards
+// Cards nested under a deck: /api/flashcard-decks/:deckId/cards
 deckRouter.get("/:deckId/cards", optionalAuth, validate(listFlashcardsSchema), controller.listFlashcards);
 deckRouter.get("/:deckId/cards/:id", optionalAuth, validate(getFlashcardSchema), controller.getFlashcard);
 deckRouter.post("/:deckId/cards", authenticateToken, validate(createFlashcardSchema), controller.createFlashcard);
 deckRouter.patch("/:deckId/cards/:id", authenticateToken, validate(updateFlashcardSchema), controller.updateFlashcard);
 deckRouter.delete("/:deckId/cards/:id", authenticateToken, validate(getFlashcardSchema), controller.deleteFlashcard);
+
+// ============== Tag Router (mounted at /api/tags) ==============
+export const tagRouter: Router = Router();
+
+tagRouter.get("/", validate({ query: z.object({ search: z.string().optional() }) }), controller.listTags);
 
 // ============== Review Router (mounted at /api/flashcard-review) ==============
 export const reviewRouter: Router = Router();
