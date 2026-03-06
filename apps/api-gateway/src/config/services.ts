@@ -6,9 +6,31 @@ export interface ServiceConfig {
   name: string;
   url: string;
   prefix: string;
+  /** Optional: use array for multiple path prefixes (e.g. seller routes split across services) */
+  pathFilter?: string | string[];
 }
 
 export const services: ServiceConfig[] = [
+  // Seller routes - identity-service (apply, application, profile)
+  {
+    name: "identity-service",
+    url: process.env.IDENTITY_SERVICE_URL || "http://localhost:3001",
+    prefix: "/api/seller",
+    pathFilter: ["/api/seller/apply", "/api/seller/application", "/api/seller/profile"],
+  },
+  // Seller routes - course-service (dashboard, learners, comments, courses, fees)
+  {
+    name: "course-service",
+    url: process.env.COURSE_SERVICE_URL || "http://localhost:3002",
+    prefix: "/api/seller",
+    pathFilter: [
+      "/api/seller/dashboard",
+      "/api/seller/learners",
+      "/api/seller/comments",
+      "/api/seller/courses",
+      "/api/seller/fees",
+    ],
+  },
   {
     name: "identity-service",
     url: process.env.IDENTITY_SERVICE_URL || "http://localhost:3001",

@@ -104,4 +104,21 @@ export class SellerStatsService {
       },
     };
   }
+
+  /**
+   * Get seller's monthly subscription fees (placeholder - fee data lives in payment-service)
+   */
+  async getMonthlyFees(sellerId: string, page: number = 1, limit: number = 10) {
+    // Placeholder: returns empty fees. Full implementation would integrate with payment-service
+    // to fetch subscription contract payments for the seller.
+    return {
+      fees: [],
+      pagination: {
+        total: 0,
+        page,
+        limit,
+        totalPages: 0,
+      },
+    };
+  }
 }

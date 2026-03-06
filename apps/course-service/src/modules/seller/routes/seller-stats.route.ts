@@ -19,4 +19,7 @@ router.get("/comments", authenticateToken, requireSeller, controller.getComments
 // Get seller's courses with stats
 router.get("/courses", authenticateToken, requireSeller, controller.getMyCourses);
 
+// Get seller's monthly fees (subscription payments)
+router.get("/fees", authenticateToken, requireSeller, controller.getMonthlyFees);
+
 export default router;

@@ -125,4 +125,35 @@ export class SellerStatsController {
       });
     }
   };
+
+  /**
+   * Get seller's monthly fees
+   * GET /api/seller/fees
+   */
+  getMonthlyFees = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const sellerId = req.user?.userId;
+      if (!sellerId) {
+        res.status(401).json({ success: false, error: "Authentication required" });
+        return;
+      }
+
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+
+      const result = await this.service.getMonthlyFees(sellerId, page, limit);
+      res.status(200).json({
+        success: true,
+        data: {
+          fees: result.fees,
+          pagination: result.pagination,
+        },
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to get monthly fees",
+      });
+    }
+  };
 }

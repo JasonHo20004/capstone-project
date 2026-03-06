@@ -47,7 +47,7 @@ for (const service of services) {
   const proxyOptions: Options = {
     target: service.url,
     changeOrigin: true,
-    pathFilter: service.prefix,
+    pathFilter: service.pathFilter ?? service.prefix,
     on: {
       proxyReq: (proxyReq, req, _res) => {
         console.log(`➡️ [Gateway] ${req.method} ${req.url} -> ${service.url}${proxyReq.path} (${service.name})`);
