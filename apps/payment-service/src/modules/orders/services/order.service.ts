@@ -98,6 +98,52 @@ export class OrderService {
     };
   }
 
+  async payOrderPartial(
+    userId: string,
+    orderId: string,
+    courseIds: string[],
+    cartItemIdsToRemove: string[]
+  ) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { transaction: true },
+    });
+
+    if (!order || order.userId !== userId) {
+      throw new Error("Order not found");
+    }
+
+    if (order.transaction) {
+      throw new Error("Order already paid");
+    }
+
+    await this.walletService.deduct(
+      userId,
+      order.totalAmount,
+      `Payment for order ${orderId}`,
+      orderId
+    );
+
+    await this.eventBus.publish(EventNames.ORDER_PAID, {
+      userId,
+      orderId,
+      courseIds,
+      totalAmount: order.totalAmount,
+    });
+
+    await this.prisma.cartItem.deleteMany({
+      where: { id: { in: cartItemIdsToRemove } },
+    });
+
+    return {
+      id: order.id,
+      userId: order.userId,
+      totalAmount: order.totalAmount,
+      status: "PAID",
+      courseIds,
+    };
+  }
+
   async getOrderHistory(userId: string, page: number = 1, limit: number = 10) {
     const [orders, total] = await Promise.all([
       this.prisma.order.findMany({
