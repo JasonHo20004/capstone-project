@@ -14,8 +14,10 @@ const courseController = new CourseController();
 router.get("/published", optionalAuth, validate(getCoursesQuerySchema), courseController.getPublished);
 router.get("/:id", optionalAuth, courseController.getById);
 
-// Seller routes
+// Seller routes - must be before /:id to avoid "seller" matching as id
 router.get("/seller/my-courses", authenticateToken, requireSeller, courseController.getMyCourses);
+router.get("/seller/me", authenticateToken, requireSeller, courseController.getMyCourses);
+router.get("/seller/:sellerId", optionalAuth, validate(getCoursesQuerySchema), courseController.getBySellerId);
 router.post("/", authenticateToken, requireSeller, validate(createCourseSchema), courseController.create);
 router.patch("/:id", authenticateToken, requireSeller, validate(updateCourseSchema), courseController.update);
 router.post("/:id/publish", authenticateToken, requireSeller, courseController.publish);

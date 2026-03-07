@@ -58,6 +58,23 @@ export class CourseController {
     res.json({ success: true, ...result });
   });
 
+  /** Get courses by seller ID (public - returns published courses only) */
+  getBySellerId = asyncHandler(async (req: Request, res: Response) => {
+    const { sellerId } = req.params;
+    const query = req.query as any;
+    const result = await this.courseService.getMany({
+      page: parseInt(query.page) || 1,
+      limit: parseInt(query.limit) || 10,
+      search: query.search,
+      category: query.category,
+      level: query.level,
+      sellerId,
+      status: "PUBLISHED",
+    });
+
+    res.json({ success: true, ...result });
+  });
+
   create = asyncHandler(async (req: Request, res: Response) => {
     const sellerId = req.user!.userId;
     const course = await this.courseService.create(sellerId, req.body);
