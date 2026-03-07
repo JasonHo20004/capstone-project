@@ -58,6 +58,16 @@ export const createFlashcardSchema = {
   }),
 };
 
+export const createFlashcardFromBodySchema = {
+  body: z.object({
+    deckId: z.string().uuid(),
+    frontContent: z.string().min(1, "Front content is required"),
+    backContent: z.string().min(1, "Back content is required"),
+    exampleSentence: z.string().optional(),
+    audioUrl: z.string().url().optional(),
+  }),
+};
+
 export const updateFlashcardSchema = {
   body: z.object({
     frontContent: z.string().min(1).optional(),
@@ -74,6 +84,12 @@ export const updateFlashcardSchema = {
 export const getFlashcardSchema = {
   params: z.object({
     deckId: z.string().uuid(),
+    id: z.string().uuid(),
+  }),
+};
+
+export const flashcardIdParamSchema = {
+  params: z.object({
     id: z.string().uuid(),
   }),
 };
@@ -102,6 +118,15 @@ export const updateProgressSchema = {
 export const getReviewCardsSchema = {
   query: z.object({
     limit: z.coerce.number().int().positive().max(50).default(20),
+  }),
+};
+
+export const getReviewQueueSchema = {
+  params: z.object({
+    deckId: z.string().uuid(),
+  }),
+  query: z.object({
+    limit: z.coerce.number().int().positive().max(50).default(50),
   }),
 };
 

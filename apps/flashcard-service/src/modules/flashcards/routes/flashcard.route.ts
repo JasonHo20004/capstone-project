@@ -12,11 +12,14 @@ import {
   getDeckSchema,
   listDecksSchema,
   createFlashcardSchema,
+  createFlashcardFromBodySchema,
   updateFlashcardSchema,
   getFlashcardSchema,
+  flashcardIdParamSchema,
   listFlashcardsSchema,
   updateProgressSchema,
   getReviewCardsSchema,
+  getReviewQueueSchema,
 } from "../dtos/flashcard.dto.js";
 
 const controller = new FlashcardController();
@@ -27,8 +30,11 @@ export const deckRouter: Router = Router();
 deckRouter.get("/", optionalAuth, validate(listDecksSchema), controller.listDecks);
 deckRouter.get("/:id", optionalAuth, validate(getDeckSchema), controller.getDeck);
 deckRouter.post("/", authenticateToken, validate(createDeckSchema), controller.createDeck);
+deckRouter.post("/create", authenticateToken, validate(createDeckSchema), controller.createDeck);
 deckRouter.patch("/:id", authenticateToken, validate(updateDeckSchema), controller.updateDeck);
+deckRouter.put("/update/:id", authenticateToken, validate(updateDeckSchema), controller.updateDeck);
 deckRouter.delete("/:id", authenticateToken, validate(getDeckSchema), controller.deleteDeck);
+deckRouter.delete("/delete/:id", authenticateToken, validate(getDeckSchema), controller.deleteDeck);
 
 // Cards nested under a deck: /api/flashcard-decks/:deckId/cards
 deckRouter.get("/:deckId/cards", optionalAuth, validate(listFlashcardsSchema), controller.listFlashcards);
@@ -42,8 +48,19 @@ export const tagRouter: Router = Router();
 
 tagRouter.get("/", validate({ query: z.object({ search: z.string().optional() }) }), controller.listTags);
 
+// ============== Flashcards Router (mounted at /api/flashcards) ==============
+// Alias for frontend: GET /api/flashcards/:deckId -> list cards in deck
+export const flashcardsRouter: Router = Router();
+
+flashcardsRouter.post("/create", authenticateToken, validate(createFlashcardFromBodySchema), controller.createFlashcardFromBody);
+flashcardsRouter.put("/update/:id", authenticateToken, validate({ ...flashcardIdParamSchema, body: updateFlashcardSchema.body }), controller.updateFlashcardByCardId);
+flashcardsRouter.delete("/delete/:id", authenticateToken, validate(flashcardIdParamSchema), controller.deleteFlashcardByCardId);
+flashcardsRouter.get("/:deckId", optionalAuth, validate(listFlashcardsSchema), controller.listFlashcards);
+
 // ============== Review Router (mounted at /api/flashcard-review) ==============
 export const reviewRouter: Router = Router();
 
 reviewRouter.get("/cards", authenticateToken, validate(getReviewCardsSchema), controller.getReviewCards);
+reviewRouter.get("/queue/:deckId", authenticateToken, validate(getReviewQueueSchema), controller.getReviewQueue);
+reviewRouter.post("/submit/:flashcardId", authenticateToken, validate(updateProgressSchema), controller.updateProgress);
 reviewRouter.post("/:flashcardId", authenticateToken, validate(updateProgressSchema), controller.updateProgress);

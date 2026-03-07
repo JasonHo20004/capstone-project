@@ -142,6 +142,14 @@ export class FlashcardService {
     return flashcard;
   }
 
+  async getFlashcardByCardId(cardId: string, userId?: string): Promise<{ deckId: string } | null> {
+    const flashcard = await this.repository.findFlashcardById(cardId);
+    if (!flashcard) return null;
+    const deck = await this.repository.findDeckById(flashcard.deckId);
+    if (!deck || (!deck.isPublic && deck.userId !== userId)) return null;
+    return { deckId: flashcard.deckId };
+  }
+
   async getFlashcard(deckId: string, id: string, userId?: string): Promise<FlashcardResponse> {
     const deck = await this.repository.findDeckById(deckId);
 
@@ -290,11 +298,9 @@ export class FlashcardService {
 
   async getReviewCards(userId: string, limit: number) {
     const dueCards = await this.repository.findDueCards(userId, limit);
-    
-    // If not enough due cards, add some new cards
+
     const remaining = limit - dueCards.length;
     let newCards: any[] = [];
-    
     if (remaining > 0) {
       newCards = await this.repository.findNewCards(userId, remaining);
     }
@@ -312,6 +318,31 @@ export class FlashcardService {
       })),
       newCards,
     };
+  }
+
+  /** Get review queue for a specific deck (flat array for frontend StudyMode) */
+  async getReviewQueueByDeck(userId: string, deckId: string, limit: number = 50) {
+    const dueCards = await this.repository.findDueCards(userId, limit, deckId);
+    const remaining = limit - dueCards.length;
+    let newCards: any[] = [];
+    if (remaining > 0) {
+      newCards = await this.repository.findNewCards(userId, remaining, deckId);
+    }
+
+    const dueCardsWithProgress = dueCards.map((p) => ({
+      ...p.flashcard,
+      queueType: p.status,
+      progress: {
+        status: p.status,
+        nextReviewAt: p.nextReviewAt,
+        repetitions: p.repetitions,
+        easeFactor: p.easeFactor,
+        interval: p.interval,
+      },
+    }));
+    const newCardsWithType = newCards.map((c) => ({ ...c, queueType: "NEW" }));
+
+    return [...dueCardsWithProgress, ...newCardsWithType];
   }
 
   // ============== Helper Methods ==============

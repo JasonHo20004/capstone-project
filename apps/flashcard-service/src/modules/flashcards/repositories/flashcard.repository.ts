@@ -249,12 +249,16 @@ export class FlashcardRepository {
     });
   }
 
-  async findDueCards(userId: string, limit: number) {
+  async findDueCards(userId: string, limit: number, deckId?: string) {
+    const where: Prisma.UserFlashcardProgressWhereInput = {
+      userId,
+      nextReviewAt: { lte: new Date() },
+    };
+    if (deckId) {
+      where.flashcard = { deckId };
+    }
     return await this.prisma.userFlashcardProgress.findMany({
-      where: {
-        userId,
-        nextReviewAt: { lte: new Date() },
-      },
+      where,
       take: limit,
       orderBy: { nextReviewAt: "asc" },
       include: {
@@ -265,7 +269,7 @@ export class FlashcardRepository {
     });
   }
 
-  async findNewCards(userId: string, limit: number) {
+  async findNewCards(userId: string, limit: number, deckId?: string) {
     // Find flashcards that user hasn't started learning yet
     const existingProgressIds = await this.prisma.userFlashcardProgress.findMany({
       where: { userId },
@@ -274,11 +278,16 @@ export class FlashcardRepository {
 
     const excludeIds = existingProgressIds.map((p) => p.flashcardId);
 
+    const where: Prisma.FlashcardWhereInput = {
+      id: { notIn: excludeIds },
+      deck: { isPublic: true },
+    };
+    if (deckId) {
+      where.deckId = deckId;
+    }
+
     return await this.prisma.flashcard.findMany({
-      where: {
-        id: { notIn: excludeIds },
-        deck: { isPublic: true },
-      },
+      where,
       take: limit,
       include: { deck: true },
     });

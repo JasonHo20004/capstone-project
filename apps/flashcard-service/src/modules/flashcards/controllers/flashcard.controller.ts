@@ -121,6 +121,30 @@ export class FlashcardController {
     res.json({ success: true, message: "Flashcard deleted successfully" });
   });
 
+  createFlashcardFromBody = asyncHandler(async (req: Request, res: Response) => {
+    const { deckId, ...body } = req.body;
+    if (!deckId) throw new Error("deckId is required");
+    req.params = { deckId };
+    req.body = body;
+    return this.createFlashcard(req, res);
+  });
+
+  updateFlashcardByCardId = asyncHandler(async (req: Request, res: Response) => {
+    const { id: cardId } = req.params;
+    const flashcard = await this.service.getFlashcardByCardId(cardId as string, req.user?.userId);
+    if (!flashcard) throw new Error("Flashcard not found");
+    req.params = { deckId: flashcard.deckId, id: cardId };
+    return this.updateFlashcard(req, res);
+  });
+
+  deleteFlashcardByCardId = asyncHandler(async (req: Request, res: Response) => {
+    const { id: cardId } = req.params;
+    const flashcard = await this.service.getFlashcardByCardId(cardId as string, req.user?.userId);
+    if (!flashcard) throw new Error("Flashcard not found");
+    req.params = { deckId: flashcard.deckId, id: cardId };
+    return this.deleteFlashcard(req, res);
+  });
+
   // ============== Progress/Review Endpoints ==============
 
   updateProgress = asyncHandler(async (req: Request, res: Response) => {
@@ -142,6 +166,16 @@ export class FlashcardController {
     const limit = parseInt(req.query.limit as string) || 20;
 
     const cards = await this.service.getReviewCards(userId, limit);
+
+    res.json({ success: true, data: cards });
+  });
+
+  getReviewQueue = asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.userId;
+    const { deckId } = req.params;
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    const cards = await this.service.getReviewQueueByDeck(userId, deckId as string, limit);
 
     res.json({ success: true, data: cards });
   });
