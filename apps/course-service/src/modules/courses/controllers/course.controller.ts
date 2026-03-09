@@ -105,4 +105,10 @@ export class CourseController {
     
     res.json({ success: true, message: "Course deleted successfully" });
   });
+
+  getEnrolled = asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.userId;
+    const courses = await this.courseService.getEnrolledCourses(userId);
+    res.json({ success: true, data: courses });
+  });
 }

@@ -112,4 +112,20 @@ export class CourseRepository {
       orderBy: { createdAt: "desc" },
     });
   }
+
+  async findEnrolledByUserId(userId: string) {
+    return await this.prisma.course.findMany({
+      where: {
+        userActivities: {
+          some: { userId },
+        },
+      },
+      include: {
+        lessons: {
+          select: { id: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
 }

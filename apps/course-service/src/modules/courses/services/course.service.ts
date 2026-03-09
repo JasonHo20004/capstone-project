@@ -207,6 +207,29 @@ export class CourseService {
     return await this.getMany({ ...query, sellerId });
   }
 
+  async getEnrolledCourses(userId: string) {
+    const courses = await this.courseRepository.findEnrolledByUserId(userId);
+
+    const sellerIds = [...new Set(courses.map((c) => c.courseSellerId))];
+    const sellers = await identityClient.getUsersBasicInfo(sellerIds);
+
+    return courses.map((course) => ({
+      id: course.id,
+      title: course.title,
+      description: course.description,
+      price: Number(course.price),
+      category: course.category,
+      courseLevel: course.courseLevel,
+      courseSellerId: course.courseSellerId,
+      sellerName: sellers.get(course.courseSellerId)?.fullName,
+      thumbnailUrl: course.thumbnailUrl,
+      status: course.status,
+      ratingCount: course.ratingCount,
+      lessonCount: course.lessons.length,
+      createdAt: course.createdAt,
+    }));
+  }
+
   async grantAccess(userId: string, courseId: string, transactionId: string): Promise<void> {
     const course = await this.courseRepository.findById(courseId);
     

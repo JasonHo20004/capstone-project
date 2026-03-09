@@ -36,6 +36,7 @@ export class CartService {
             id: item.courseId,
             title: course?.title || "Unknown Course",
             price: course?.price ?? item.priceAtTime,
+            thumbnailUrl: course?.thumbnailUrl,
           },
         };
       })

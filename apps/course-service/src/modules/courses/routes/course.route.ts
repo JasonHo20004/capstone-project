@@ -12,6 +12,10 @@ const courseController = new CourseController();
 
 // Public routes
 router.get("/published", optionalAuth, validate(getCoursesQuerySchema), courseController.getPublished);
+
+// Enrolled courses - must be before /:id
+router.get("/enrolled", authenticateToken, courseController.getEnrolled);
+
 router.get("/:id", optionalAuth, courseController.getById);
 
 // Seller routes - must be before /:id to avoid "seller" matching as id

@@ -64,8 +64,8 @@ export class NotificationService {
 
   async listNotifications(userId: string, query: ListNotificationsQuery) {
     const result = await this.repository.findNotificationsByUserId(userId, {
-      page: query.page ?? 1,
-      limit: query.limit ?? 20,
+      page: Number(query.page) || 1,
+      limit: Number(query.limit) || 20,
       type: query.type,
       isRead: query.isRead,
       isArchived: query.isArchived,
