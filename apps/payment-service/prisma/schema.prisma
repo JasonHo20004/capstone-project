@@ -40,15 +40,17 @@ model Transaction {
 }
 
 model TopupOrder {
-  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId        String        @map("user_id") @db.Uuid
-  realMoney     Decimal       @map("real_money") @db.Decimal(12, 2)
-  realAmount    Decimal?      @map("real_amount") @db.Decimal(12, 2)
-  currency      String        @default("VND") @db.VarChar(10)
-  paymentMethod PaymentMethod @map("payment_method")
-  status        OrderStatus
-  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  transactions  Transaction[]
+  id                    String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String        @map("user_id") @db.Uuid
+  realMoney             Decimal       @map("real_money") @db.Decimal(12, 2)
+  realAmount            Decimal?      @map("real_amount") @db.Decimal(12, 2)
+  currency              String        @default("VND") @db.VarChar(10)
+  paymentMethod         PaymentMethod @map("payment_method")
+  status                OrderStatus
+  stripePaymentIntentId String?       @unique @map("stripe_payment_intent_id") @db.VarChar(255)
+  stripeClientSecret    String?       @map("stripe_client_secret") @db.VarChar(255)
+  createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  transactions          Transaction[]
 
   @@map("topup_orders")
 }
@@ -116,7 +118,7 @@ model SubscriptionContract {
 }
 
 enum PaymentMethod {
-  MOMO
+  STRIPE
   ZALOPAY
   BANKING
   APPLEPAY

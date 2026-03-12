@@ -29,4 +29,10 @@ export class WalletController {
     const result = await this.walletService.getTransactionHistory(userId, page, limit);
     res.json({ success: true, ...result });
   });
+
+  getSummary = asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.userId;
+    const summary = await this.walletService.getMonthlySummary(userId);
+    res.json({ success: true, data: summary });
+  });
 }

@@ -110,7 +110,7 @@ export class WalletService {
       data: transactions.map((t) => ({
         id: t.id,
         amount: Number(t.amount),
-        type: t.transactionType,
+        transactionType: t.transactionType,
         status: t.status,
         description: t.description,
         createdAt: t.createdAt,
@@ -119,6 +119,47 @@ export class WalletService {
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async getMonthlySummary(userId: string) {
+    const wallet = await this.walletRepository.findByUserId(userId);
+
+    if (!wallet) {
+      return {
+        monthlyTopupAmount: 0,
+        monthlySuccessfulTransactions: 0,
+      };
+    }
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const monthlyTransactions = await this.prisma.transaction.findMany({
+      where: {
+        walletId: wallet.id,
+        createdAt: {
+          gte: monthStart,
+          lt: nextMonthStart,
+        },
+      },
+      select: {
+        amount: true,
+        transactionType: true,
+        status: true,
+      },
+    });
+
+    const monthlyTopupAmount = monthlyTransactions
+      .filter((transaction) => transaction.transactionType === "DEPOSIT" && transaction.status === "SUCCESS")
+      .reduce((sum, transaction) => sum + Number(transaction.amount), 0);
+
+    const monthlySuccessfulTransactions = monthlyTransactions.filter((transaction) => transaction.status === "SUCCESS").length;
+
+    return {
+      monthlyTopupAmount,
+      monthlySuccessfulTransactions,
     };
   }
 }

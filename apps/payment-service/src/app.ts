@@ -1,18 +1,14 @@
-// =============================================================================
-// Payment Service - Express App Configuration
-// =============================================================================
-
 import express from "express";
+import type { Express } from "express";
 import cors from "cors";
 import { errorHandler } from "@capstone/common";
 
-// Import routes
 import walletRouter from "./modules/wallet/routes/wallet.route.js";
 import orderRouter from "./modules/orders/routes/order.route.js";
 import topupRouter from "./modules/topup/routes/topup.route.js";
 import cartRouter from "./modules/carts/routes/cart.route.js";
 
-const app = express();
+const app: Express = express();
 
 app.set("trust proxy", 1);
 
@@ -27,9 +23,13 @@ app.use(
   })
 );
 
+app.post(
+  "/api/topup-orders/webhook",
+  express.raw({ type: "application/json" }),
+  (_req, _res, next) => next()
+);
 app.use(express.json());
 
-// Health check
 app.get("/health", (_req, res) => {
   res.json({
     service: "payment-service",
@@ -38,13 +38,11 @@ app.get("/health", (_req, res) => {
   });
 });
 
-// API Routes
 app.use("/api/wallet", walletRouter);
 app.use("/api/orders", orderRouter);
 app.use("/api/topup-orders", topupRouter);
 app.use("/api/carts", cartRouter);
 
-// Error handling
 app.use(errorHandler);
 
 export default app;

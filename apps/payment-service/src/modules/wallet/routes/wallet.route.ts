@@ -10,6 +10,7 @@ const router = Router();
 const walletController = new WalletController();
 
 router.get("/", authenticateToken, walletController.getWallet);
+router.get("/summary", authenticateToken, walletController.getSummary);
 router.post("/deposit", authenticateToken, walletController.deposit);
 router.get("/transactions", authenticateToken, walletController.getTransactions);
 

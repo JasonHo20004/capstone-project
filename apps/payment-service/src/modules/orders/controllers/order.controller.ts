@@ -18,7 +18,7 @@ export class OrderController {
 
   payOrder = asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.userId;
-    const { id } = req.params;
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const result = await this.orderService.payOrder(userId, id);
     res.json({ success: true, data: result, message: "Payment successful" });
   });
