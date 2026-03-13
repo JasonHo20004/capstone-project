@@ -1,0 +1,100 @@
+// =============================================================================
+// AI Evaluation Service - Prisma Schema
+// Tables: WritingEvaluation, SpeakingEvaluation, EvaluationJob, UserSkillTree
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("AI_EVALUATION_DATABASE_URL")
+  directUrl = env("AI_EVALUATION_DIRECT_URL")
+}
+
+// ─── Writing AI Evaluation ────────────────────────────────────────────────────
+
+model WritingEvaluation {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  sessionId       String?  @map("session_id") @db.Uuid
+  questionId      String?  @map("question_id") @db.Uuid
+  essayText       String   @map("essay_text")
+  overallBand     Float?   @map("overall_band")
+  criteria        Json?    // { task_achievement, coherence, lexical, grammar } with score + feedback
+  highlightedErrors Json?  @map("highlighted_errors") // [{ original, suggestion, type }]
+  overallFeedback String?  @map("overall_feedback")
+  status          EvaluationStatus @default(PENDING)
+  jobId           String?  @unique @map("job_id")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt     DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([status])
+  @@map("writing_evaluations")
+}
+
+// ─── Speaking AI Evaluation ───────────────────────────────────────────────────
+
+model SpeakingEvaluation {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  sessionId          String?  @map("session_id") @db.Uuid
+  questionId         String?  @map("question_id") @db.Uuid
+  audioUrl           String   @map("audio_url")
+  transcript         String?
+  duration           Float?   // audio duration in seconds
+  overallBand        Float?   @map("overall_band")
+  pronunciationScore Float?   @map("pronunciation_score")
+  fluencyScore       Float?   @map("fluency_score")
+  vocabScore         Float?   @map("vocab_score")
+  grammarScore       Float?   @map("grammar_score")
+  feedback           String?
+  status             EvaluationStatus @default(PENDING)
+  jobId              String?  @unique @map("job_id")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt        DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([status])
+  @@map("speaking_evaluations")
+}
+
+// ─── User Skill Tree (Phase 3) ─────────────────────────────────────────────────
+
+model UserSkillTree {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  nodes     Json     // [{ id, label, type, status, position }]
+  edges     Json     // [{ id, source, target }]
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("user_skill_trees")
+}
+
+// ─── User Learning Goals (Phase 4) ─────────────────────────────────────────────
+
+model UserLearningGoal {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @unique @map("user_id") @db.Uuid
+  currentLevel String?  @map("current_level") @db.VarChar(20)
+  targetScore  String?  @map("target_score") @db.VarChar(50)
+  deadline     String?  @db.VarChar(50)
+  roadmap      Json?    // AI-generated learning roadmap
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("user_learning_goals")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum EvaluationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}

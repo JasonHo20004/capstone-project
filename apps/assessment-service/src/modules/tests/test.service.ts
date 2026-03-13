@@ -1,14 +1,29 @@
 import { databaseService } from "../../services/database.service.js";
 import { CreateTestDto } from "./test.schema.js";
 
+function generateSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/[\s-]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function isUUID(str: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
 export class TestService {
 
-  public async getAllTests() {
+  public async getAllTests(status?: string) {
     const prisma = databaseService.getClient();
     return await prisma.test.findMany({
+      where: status ? { status } : undefined,
       select: {
         id: true,
         title: true,
+        slug: true,
+        status: true,
         durationInMinutes: true,
         totalScore: true,
         passingScore: true,
@@ -21,16 +36,20 @@ export class TestService {
     });
   }
 
-  public async getTestById(id: string) {
+  public async getTestById(idOrSlug: string) {
     const prisma = databaseService.getClient();
-    const test = await prisma.test.findUnique({
-      where: { id },
+    const where = isUUID(idOrSlug) ? { id: idOrSlug } : { slug: idOrSlug };
+    const test = await prisma.test.findFirst({
+      where,
       include: {
         englishTestType: { select: { name: true } },
         testSkills: { select: { skill: true } },
         sections: {
+          orderBy: { orderIndex: "asc" as const },
           include: {
-            passages: true,
+            passages: {
+              orderBy: { passageOrder: "asc" as const },
+            },
             questions: {
               select: {
                 id: true,
@@ -71,10 +90,13 @@ export class TestService {
 
   public async createTest(data: CreateTestDto) {
     const prisma = databaseService.getClient();
+    const slug = generateSlug(data.title);
 
     const newTest = await prisma.test.create({
       data: {
         title: data.title,
+        slug,
+        status: (data as any).status || "DRAFT",
         durationInMinutes: data.durationInMinutes,
         totalScore: data.totalScore,
         passingScore: data.passingScore,
@@ -86,10 +108,11 @@ export class TestService {
             }
           : undefined,
         sections: {
-          create: data.sections.map((section) => ({
+          create: data.sections.map((section, idx) => ({
             title: section.title,
             skill: section.skill,
             durationInSeconds: section.durationInSeconds,
+            orderIndex: idx,
             questions: {
               create: section.questions.map((q) => ({
                 questionText: q.questionText,

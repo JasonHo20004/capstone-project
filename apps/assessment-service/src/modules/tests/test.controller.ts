@@ -5,7 +5,8 @@ import { CreateTestSchema } from "./test.schema.js";
 export class TestController {
   public async getAllTests(req: Request, res: Response, next: NextFunction) {
     try {
-      const tests = await testService.getAllTests();
+      const status = req.query.status as string | undefined;
+      const tests = await testService.getAllTests(status);
       res.status(200).json({ message: "Tests retrieved", data: tests });
     } catch (error) {
       next(error);
