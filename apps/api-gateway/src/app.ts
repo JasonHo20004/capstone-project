@@ -48,6 +48,8 @@ for (const service of services) {
     target: service.url,
     changeOrigin: true,
     pathFilter: service.pathFilter ?? service.prefix,
+    cookieDomainRewrite: "",
+    cookiePathRewrite: "/",
     on: {
       proxyReq: (proxyReq, req, _res) => {
         console.log(`➡️ [Gateway] ${req.method} ${req.url} -> ${service.url}${proxyReq.path} (${service.name})`);

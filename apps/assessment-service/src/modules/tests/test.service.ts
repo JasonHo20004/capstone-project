@@ -88,6 +88,14 @@ export class TestService {
     return test;
   }
 
+  public async getTestTypes() {
+    const prisma = databaseService.getClient();
+    return await prisma.englishTestType.findMany({
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+  }
+
   public async createTest(data: CreateTestDto) {
     const prisma = databaseService.getClient();
     const slug = generateSlug(data.title);
@@ -112,7 +120,17 @@ export class TestService {
             title: section.title,
             skill: section.skill,
             durationInSeconds: section.durationInSeconds,
+            mediaUrl: (section as any).mediaUrl || undefined,
+            imageUrl: (section as any).imageUrl || undefined,
             orderIndex: idx,
+            passages: (section as any).passageContent
+              ? {
+                  create: [{
+                    content: (section as any).passageContent,
+                    passageOrder: 1,
+                  }],
+                }
+              : undefined,
             questions: {
               create: section.questions.map((q) => ({
                 questionText: q.questionText,
@@ -122,6 +140,7 @@ export class TestService {
                 answer: q.answer as any,
                 explanation: q.explanation,
                 questionOrder: q.questionOrder,
+                imageUrl: (q as any).imageUrl || undefined,
               })),
             },
           })),
@@ -134,6 +153,183 @@ export class TestService {
     });
 
     return newTest;
+  }
+
+  public async updateTest(id: string, data: {
+    title?: string;
+    durationInMinutes?: number;
+    status?: string;
+    totalScore?: number;
+    passingScore?: number;
+    maxAttempts?: number;
+    englishTestTypeId?: string;
+    testSkills?: Array<"READING" | "LISTENING" | "WRITING" | "SPEAKING">;
+    sections?: Array<{
+      title: string;
+      skill?: string;
+      durationInSeconds?: number;
+      mediaUrl?: string;
+      imageUrl?: string;
+      passageContent?: string;
+      questions: Array<{
+        questionText?: string;
+        questionType: string;
+        options?: string[];
+        content?: any;
+        answer?: any;
+        explanation?: string;
+        questionOrder?: number;
+        imageUrl?: string;
+      }>;
+    }>;
+  }) {
+    const prisma = databaseService.getClient();
+    const { testSkills, sections, ...testData } = data;
+
+    // Update slug if title changes
+    if (testData.title) {
+      (testData as any).slug = generateSlug(testData.title);
+    }
+
+    // If sections are provided, delete old sections and recreate
+    if (sections && sections.length > 0) {
+      // Delete existing sections (cascade deletes questions)
+      await prisma.section.deleteMany({ where: { testId: id } });
+      // Also delete direct questions (not in sections)
+      await prisma.question.deleteMany({ where: { testId: id } });
+    }
+
+    const updated = await prisma.test.update({
+      where: { id },
+      data: {
+        ...testData,
+        ...(testSkills
+          ? {
+              testSkills: {
+                deleteMany: {},
+                create: testSkills.map((skill) => ({ skill })),
+              },
+            }
+          : {}),
+        ...(sections && sections.length > 0
+          ? {
+              sections: {
+                create: sections.map((section, idx) => ({
+                  title: section.title,
+                  skill: section.skill as any,
+                  durationInSeconds: section.durationInSeconds,
+                  mediaUrl: section.mediaUrl || undefined,
+                  imageUrl: section.imageUrl || undefined,
+                  orderIndex: idx,
+                  passages: section.passageContent
+                    ? {
+                        create: [{
+                          content: section.passageContent,
+                          passageOrder: 1,
+                        }],
+                      }
+                    : undefined,
+                  questions: {
+                    create: section.questions.map((q) => ({
+                      questionText: q.questionText,
+                      questionType: q.questionType as any,
+                      options: q.options || [],
+                      content: q.content as any,
+                      answer: q.answer as any,
+                      explanation: q.explanation,
+                      questionOrder: q.questionOrder,
+                      imageUrl: q.imageUrl || undefined,
+                    })),
+                  },
+                })),
+              },
+            }
+          : {}),
+      },
+      include: {
+        englishTestType: { select: { name: true } },
+        testSkills: { select: { skill: true } },
+        sections: { include: { questions: true } },
+      },
+    });
+
+    return updated;
+  }
+
+  public async deleteTest(id: string) {
+    const prisma = databaseService.getClient();
+    await prisma.test.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  public async gradeTest(testId: string, submissions: Record<string, string>) {
+    const prisma = databaseService.getClient();
+
+    // Fetch all questions with their answers (server-side only)
+    const questions = await prisma.question.findMany({
+      where: { testId },
+      select: {
+        id: true,
+        questionText: true,
+        questionType: true,
+        content: true,
+        answer: true,
+        explanation: true,
+        questionOrder: true,
+      },
+      orderBy: { questionOrder: "asc" },
+    });
+
+    if (questions.length === 0) throw new Error("No questions found for this test.");
+
+    let correct = 0;
+    const details = questions.map((q) => {
+      const userAnswer = (submissions[q.id] || "").trim();
+      const answerData = q.answer as any;
+      const contentData = q.content as any;
+      let correctAnswer = "";
+      let isCorrect = false;
+
+      if (q.questionType === "MULTIPLE_CHOICE") {
+        const options = contentData?.options || [];
+        const correctIndex = answerData?.correctIndex;
+        correctAnswer = options[correctIndex] || `Option ${correctIndex}`;
+        isCorrect = userAnswer === correctAnswer;
+      } else if (q.questionType === "GAP_FILL") {
+        const acceptedAnswers: string[] = answerData?.text || [];
+        correctAnswer = acceptedAnswers[0] || "";
+        isCorrect = acceptedAnswers.some(
+          (a: string) => a.toLowerCase().trim() === userAnswer.toLowerCase()
+        );
+      } else if (q.questionType === "TRUE_FALSE_NOT_GIVEN") {
+        correctAnswer = answerData?.correctAnswer || "";
+        isCorrect = userAnswer.toUpperCase() === correctAnswer.toUpperCase();
+      } else if (q.questionType === "MATCHING") {
+        correctAnswer = answerData?.text?.[0] || answerData?.correctAnswer || "";
+        isCorrect = userAnswer.toLowerCase() === correctAnswer.toLowerCase();
+      }
+
+      if (isCorrect) correct++;
+
+      return {
+        questionId: q.id,
+        questionOrder: q.questionOrder,
+        questionText: contentData?.text || q.questionText || "",
+        questionType: q.questionType,
+        userAnswer: userAnswer || "(no answer)",
+        correctAnswer,
+        isCorrect,
+        explanation: q.explanation || null,
+      };
+    });
+
+    const total = questions.length;
+    const percentage = total > 0 ? Math.round((correct / total) * 100) : 0;
+
+    return {
+      score: { correct, total, percentage },
+      details,
+    };
   }
 }
 

@@ -12,17 +12,20 @@
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.917.0",
     "@capstone/common": "workspace:*",
     "@prisma/client": "^6.17.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
+    "multer": "^2.0.2",
     "redis": "^5.10.0",
     "zod": "^4.1.12"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
+    "@types/multer": "^2.0.0",
     "@types/node": "^24.5.2",
     "prisma": "^6.17.0",
     "tsc-alias": "^1.8.16",
