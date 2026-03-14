@@ -13,6 +13,12 @@ node_modules
 dist/
 build/
 
+# Prisma generated client
+generated/
+
+# Local data
+redis-data/
+
 # Logs
 logs
 *.log
