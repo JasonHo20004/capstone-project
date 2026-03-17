@@ -5,6 +5,7 @@
 export enum JobType {
   GRADE_WRITING = "GRADE_WRITING",
   GRADE_SPEAKING = "GRADE_SPEAKING",
+  GRADE_SPEAKING_SESSION = "GRADE_SPEAKING_SESSION",
 }
 
 export interface WritingJobData {
@@ -14,6 +15,9 @@ export interface WritingJobData {
   essayText: string;
   questionId?: string;
   sessionId?: string;
+  taskType?: 1 | 2;      // IELTS writing task type
+  question?: string;      // The essay question/topic
+  imageUrl?: string;      // Chart/graph image URL for Task 1
 }
 
 export interface SpeakingJobData {
@@ -25,7 +29,13 @@ export interface SpeakingJobData {
   sessionId?: string;
 }
 
-export type EvaluationJobData = WritingJobData | SpeakingJobData;
+export interface SpeakingSessionJobData {
+  type: JobType.GRADE_SPEAKING_SESSION;
+  sessionId: string;
+  userId: string;
+}
+
+export type EvaluationJobData = WritingJobData | SpeakingJobData | SpeakingSessionJobData;
 
 // ─── AI Response Types ──────────────────────────────────────────────────────────
 
@@ -48,6 +58,7 @@ export interface WritingEvaluationResult {
     type: "grammar" | "vocab" | "coherence";
   }>;
   overall_feedback: string;
+  word_count?: number;
 }
 
 export interface SpeakingEvaluationResult {

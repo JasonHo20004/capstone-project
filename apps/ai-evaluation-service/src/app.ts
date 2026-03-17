@@ -12,6 +12,8 @@ import assistantRouter from "./modules/writing-assistant/assistant.route.js";
 import skillTreeRouter from "./modules/skill-tree/skill-tree.route.js";
 import learningPathRouter from "./modules/learning-path/learning-path.route.js";
 import dictationRouter from "./modules/dictation/dictation.route.js";
+import speakingSessionRouter from "./modules/speaking-session/speaking-session.route.js";
+import speakingTopicRouter from "./modules/speaking-topic/speaking-topic.route.js";
 
 const app: Express = express();
 
@@ -28,7 +30,7 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: "5mb" }));
+app.use(express.json({ limit: "25mb" }));
 
 // Health check
 app.get("/health", (_req, res) => {
@@ -47,6 +49,8 @@ app.use("/api/ai/writing-assistant", assistantRouter);
 app.use("/api/ai/skill-tree", skillTreeRouter);
 app.use("/api/ai/learning-path", learningPathRouter);
 app.use("/api/ai/dictation", dictationRouter);
+app.use("/api/ai/speaking-sessions", speakingSessionRouter);
+app.use("/api/ai/speaking-topics", speakingTopicRouter);
 
 // Error handling
 app.use(errorHandler);

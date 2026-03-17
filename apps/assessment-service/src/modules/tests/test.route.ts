@@ -8,6 +8,8 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 // Public
 router.get("/", testController.getAllTests.bind(testController));
 router.get("/types", testController.getTestTypes.bind(testController));
+router.get("/history/:userId", testController.getTestHistory.bind(testController));
+router.get("/attempts/:sessionId", testController.getAttemptDetail.bind(testController));
 router.get("/:id", testController.getTestById.bind(testController));
 
 // Admin CRUD
@@ -21,6 +23,9 @@ router.post("/upload-audio", upload.single("audio"), testController.uploadAudio.
 // Image upload for sections/questions (maps, diagrams)
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB
 router.post("/upload-image", imageUpload.single("image"), testController.uploadImage.bind(testController));
+
+// Student start session
+router.post("/:id/start", testController.startSession.bind(testController));
 
 // Student submit
 router.post("/:id/submit", testController.submitTest.bind(testController));

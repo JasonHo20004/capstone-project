@@ -90,6 +90,63 @@ model UserLearningGoal {
   @@map("user_learning_goals")
 }
 
+// ─── Speaking Topic Bank (Admin-managed) ──────────────────────────────────────
+
+model SpeakingTopic {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title           String   @db.VarChar(200)
+  isActive        Boolean  @default(true) @map("is_active")
+
+  // Part 1: introductory questions (4-5)
+  part1Questions  Json     @default("[]") @map("part1_questions")
+
+  // Part 2: Cue card
+  part2Topic      String?  @map("part2_topic")
+  part2Bullets    Json     @default("[]") @map("part2_bullets")
+  part2FinalPrompt String? @map("part2_final_prompt")
+
+  // Part 3: Discussion questions (4-6)
+  part3Questions  Json     @default("[]") @map("part3_questions")
+
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  sessions        SpeakingSession[]
+
+  @@map("speaking_topics")
+}
+
+// ─── Interactive Speaking Session ──────────────────────────────────────────────
+
+model SpeakingSession {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  topicId            String?  @map("topic_id") @db.Uuid
+  currentPart        Int      @default(1) @map("current_part")       // 1, 2, 3
+  currentStep        Int      @default(0) @map("current_step")       // question index within part
+  status             SpeakingSessionStatus @default(IN_PROGRESS)
+  topic              String?                                          // Main topic for this session
+  cueCard            Json?    @map("cue_card")                       // Part 2 cue card data
+  turns              Json     @default("[]")                          // [{role, content, audioUrl?, timestamp}]
+
+  // Final scores (filled after GRADING)
+  overallBand        Float?   @map("overall_band")
+  fluencyScore       Float?   @map("fluency_score")
+  lexicalScore       Float?   @map("lexical_score")
+  grammarScore       Float?   @map("grammar_score")
+  pronunciationScore Float?   @map("pronunciation_score")
+  detailedFeedback   Json?    @map("detailed_feedback")
+
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt        DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  speakingTopic      SpeakingTopic? @relation(fields: [topicId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@map("speaking_sessions")
+}
+
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
 enum EvaluationStatus {
@@ -97,4 +154,11 @@ enum EvaluationStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+enum SpeakingSessionStatus {
+  IN_PROGRESS
+  GRADING
+  COMPLETED
+  ABANDONED
 }

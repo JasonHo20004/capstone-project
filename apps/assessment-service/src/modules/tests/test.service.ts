@@ -29,16 +29,35 @@ export class TestService {
         passingScore: true,
         practiceCount: true,
         createdAt: true,
+        updatedAt: true,
         englishTestType: { select: { name: true } },
         testSkills: { select: { skill: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ updatedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
     });
   }
 
-  public async getTestById(idOrSlug: string) {
+  public async getTestById(idOrSlug: string, options?: { includeAnswers?: boolean }) {
     const prisma = databaseService.getClient();
     const where = isUUID(idOrSlug) ? { id: idOrSlug } : { slug: idOrSlug };
+
+    const questionSelect: any = {
+      id: true,
+      questionText: true,
+      questionType: true,
+      options: true,
+      content: true,
+      explanation: true,
+      questionOrder: true,
+      imageUrl: true,
+      wordLimit: true,
+    };
+
+    // Only include answer for admin editing — never for students!
+    if (options?.includeAnswers) {
+      questionSelect.answer = true;
+    }
+
     const test = await prisma.test.findFirst({
       where,
       include: {
@@ -51,18 +70,7 @@ export class TestService {
               orderBy: { passageOrder: "asc" as const },
             },
             questions: {
-              select: {
-                id: true,
-                questionText: true,
-                questionType: true,
-                options: true,
-                content: true,
-                explanation: true,
-                questionOrder: true,
-                imageUrl: true,
-                wordLimit: true,
-                // NEVER expose `answer` to the client!
-              },
+              select: questionSelect,
               orderBy: { questionOrder: "asc" },
             },
           },
@@ -70,15 +78,7 @@ export class TestService {
         // Direct questions (not in a section)
         questions: {
           where: { sectionId: null },
-          select: {
-            id: true,
-            questionText: true,
-            questionType: true,
-            options: true,
-            content: true,
-            explanation: true,
-            questionOrder: true,
-          },
+          select: questionSelect,
           orderBy: { questionOrder: "asc" },
         },
       },
@@ -262,12 +262,60 @@ export class TestService {
     return { deleted: true };
   }
 
-  public async gradeTest(testId: string, submissions: Record<string, string>) {
+  /**
+   * Start a practice session. If user already has an ONGOING session
+   * for this test, reuse it (prevents orphan sessions on page refresh / back button).
+   */
+  public async startSession(testId: string, userId: string) {
+    const prisma = databaseService.getClient();
+
+    // Verify test exists
+    const test = await prisma.test.findFirst({
+      where: isUUID(testId) ? { id: testId } : { slug: testId },
+      select: { id: true, title: true },
+    });
+    if (!test) throw new Error("Test not found");
+
+    // Check for existing ONGOING session for this user+test
+    const existing = await prisma.practiceSession.findFirst({
+      where: {
+        userId,
+        testId: test.id,
+        status: "ONGOING",
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (existing) {
+      console.log(`♻️ Reusing existing session ${existing.id} for user ${userId}`);
+      return { sessionId: existing.id, testId: test.id, resumed: true };
+    }
+
+    // Create new session
+    const session = await prisma.practiceSession.create({
+      data: {
+        userId,
+        testId: test.id,
+        selectedSections: [],
+        status: "ONGOING",
+      },
+    });
+
+    return { sessionId: session.id, testId: test.id, resumed: false };
+  }
+
+  public async gradeTest(testId: string, submissions: Record<string, string>, userId?: string) {
     const prisma = databaseService.getClient();
 
     // Fetch all questions with their answers (server-side only)
+    // Questions belong to sections, not directly to a test
     const questions = await prisma.question.findMany({
-      where: { testId },
+      where: {
+        OR: [
+          { testId },
+          { section: { testId } },
+        ],
+      },
       select: {
         id: true,
         questionText: true,
@@ -294,7 +342,7 @@ export class TestService {
         const options = contentData?.options || [];
         const correctIndex = answerData?.correctIndex;
         correctAnswer = options[correctIndex] || `Option ${correctIndex}`;
-        isCorrect = userAnswer === correctAnswer;
+        isCorrect = userAnswer.toLowerCase().trim() === correctAnswer.toLowerCase().trim();
       } else if (q.questionType === "GAP_FILL") {
         const acceptedAnswers: string[] = answerData?.text || [];
         correctAnswer = acceptedAnswers[0] || "";
@@ -326,10 +374,169 @@ export class TestService {
     const total = questions.length;
     const percentage = total > 0 ? Math.round((correct / total) * 100) : 0;
 
+    // ─── Look up Band Score from score_conversions ─────────────────────
+    const test = await prisma.test.findUnique({
+      where: { id: testId },
+      select: {
+        englishTestTypeId: true,
+        testSkills: { select: { skill: true } },
+      },
+    });
+
+    let bandScore: number | null = null;
+    if (test?.englishTestTypeId) {
+      // Determine skill for lookup (READING or LISTENING)
+      const skill = test.testSkills?.[0]?.skill || "READING";
+
+      const conversion = await prisma.scoreConversion.findFirst({
+        where: {
+          englishTestTypeId: test.englishTestTypeId,
+          skill,
+          rawScore: correct,
+        },
+      });
+
+      if (conversion) {
+        bandScore = conversion.scaledScore;
+      } else {
+        // Fallback: find closest rawScore that is <= correct
+        const closest = await prisma.scoreConversion.findFirst({
+          where: {
+            englishTestTypeId: test.englishTestTypeId,
+            skill,
+            rawScore: { lte: correct },
+          },
+          orderBy: { rawScore: "desc" },
+        });
+        bandScore = closest?.scaledScore ?? null;
+      }
+    }
+
+    // ─── Save to PracticeSession + UserAnswer ──────────────────────────
+    let sessionId: string | null = null;
+    if (userId) {
+      const session = await prisma.practiceSession.create({
+        data: {
+          userId,
+          testId,
+          selectedSections: [],
+          status: "COMPLETED",
+          completedAt: new Date(),
+          overallScaledScore: bandScore ?? percentage,
+          rawScoresBySkill: { correct, total, percentage, bandScore },
+          scoresBySkill: { details },
+        },
+      });
+      sessionId = session.id;
+
+      // Save individual answers
+      const userAnswerData = details.map((d) => ({
+        practiceSessionId: session.id,
+        questionId: d.questionId,
+        userId,
+        answerText: d.userAnswer,
+        isCorrect: d.isCorrect,
+      }));
+
+      await prisma.userAnswer.createMany({ data: userAnswerData });
+    }
+
     return {
-      score: { correct, total, percentage },
+      sessionId,
+      score: { correct, total, percentage, bandScore },
       details,
     };
+  }
+
+  // ─── Test History ──────────────────────────────────────────────────────────
+  public async getTestHistory(userId: string) {
+    const prisma = databaseService.getClient();
+    return await prisma.practiceSession.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        testId: true,
+        status: true,
+        createdAt: true,
+        completedAt: true,
+        overallScaledScore: true,
+        rawScoresBySkill: true,
+        test: {
+          select: {
+            title: true,
+            slug: true,
+            durationInMinutes: true,
+            testSkills: { select: { skill: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  public async getAttemptDetail(sessionId: string) {
+    const prisma = databaseService.getClient();
+    const session = await prisma.practiceSession.findUnique({
+      where: { id: sessionId },
+      include: {
+        test: {
+          select: { title: true, slug: true, durationInMinutes: true,
+            testSkills: { select: { skill: true } } },
+        },
+        userAnswers: {
+          include: {
+            question: {
+              select: { questionText: true, questionType: true, content: true,
+                answer: true, explanation: true, questionOrder: true },
+            },
+          },
+          orderBy: { question: { questionOrder: "asc" } },
+        },
+      },
+    });
+    if (!session) throw new Error("Attempt not found");
+    return session;
+  }
+
+  // ─── Temp: Seed Score Conversions ────────────────────────────────────────
+  public async seedScoreConversions() {
+    const prisma = databaseService.getClient();
+
+    let ielts = await prisma.englishTestType.findFirst({
+      where: { name: { contains: "IELTS", mode: "insensitive" } },
+    });
+
+    if (!ielts) {
+      ielts = await prisma.englishTestType.create({ data: { name: "IELTS Academic" } });
+    }
+
+    const id = ielts.id;
+
+    await prisma.scoreConversion.deleteMany({ where: { englishTestTypeId: id } });
+
+    const table: [number, number][] = [
+      [40,9.0],[39,9.0],[38,8.5],[37,8.5],[36,8.0],[35,8.0],
+      [34,7.5],[33,7.5],[32,7.0],[31,7.0],[30,7.0],
+      [29,6.5],[28,6.5],[27,6.5],
+      [26,6.0],[25,6.0],[24,6.0],[23,6.0],
+      [22,5.5],[21,5.5],[20,5.5],
+      [19,5.0],[18,5.0],[17,5.0],[16,5.0],
+      [15,4.5],[14,4.5],[13,4.5],
+      [12,4.0],[11,4.0],[10,4.0],
+      [9,3.5],[8,3.5],[7,3.5],
+      [6,3.0],[5,3.0],[4,2.5],[3,2.5],
+      [2,2.0],[1,2.0],[0,0.0],
+    ];
+
+    const data: any[] = [];
+    for (const skill of ["READING", "LISTENING"]) {
+      for (const [raw, band] of table) {
+        data.push({ englishTestTypeId: id, skill, rawScore: raw, scaledScore: band });
+      }
+    }
+
+    const result = await prisma.scoreConversion.createMany({ data });
+    return { inserted: result.count, ieltsId: id, ieltsName: ielts.name };
   }
 }
 

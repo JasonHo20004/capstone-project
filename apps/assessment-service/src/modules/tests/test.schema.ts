@@ -13,6 +13,9 @@ export const CreateTestSchema = z.object({
       title: z.string(),
       skill: z.enum(["READING", "LISTENING", "WRITING", "SPEAKING"]).optional(),
       durationInSeconds: z.number().optional(),
+      mediaUrl: z.string().optional(),
+      imageUrl: z.string().optional(),
+      passageContent: z.string().optional(),
       questions: z.array(
         z.object({
           questionText: z.string().optional(),
@@ -28,6 +31,7 @@ export const CreateTestSchema = z.object({
           answer: z.record(z.string(), z.any()).optional(),
           explanation: z.string().optional(),
           questionOrder: z.number().int().optional(),
+          imageUrl: z.string().optional(),
         })
       ).optional().default([]),
     })

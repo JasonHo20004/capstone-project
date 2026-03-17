@@ -17,7 +17,8 @@ export class TestController {
   public async getTestById(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
-      const test = await testService.getTestById(id);
+      const includeAnswers = req.query.includeAnswers === 'true';
+      const test = await testService.getTestById(id, { includeAnswers });
       res.status(200).json({ message: "Test retrieved", data: test });
     } catch (error) {
       next(error);
@@ -91,16 +92,61 @@ export class TestController {
     }
   }
 
+  public async startSession(req: Request, res: Response, next: NextFunction) {
+    try {
+      const testId = req.params.id as string;
+      const { userId } = req.body as { userId?: string };
+      if (!userId) {
+        res.status(400).json({ message: "userId is required" });
+        return;
+      }
+      const result = await testService.startSession(testId, userId);
+      res.status(201).json({ message: "Session started", data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   public async submitTest(req: Request, res: Response, next: NextFunction) {
     try {
       const testId = req.params.id as string;
-      const { submissions } = req.body as { submissions: Record<string, string> };
+      const { submissions, userId } = req.body as { submissions: Record<string, string>; userId?: string };
       if (!submissions || typeof submissions !== "object") {
         res.status(400).json({ message: "submissions object is required" });
         return;
       }
-      const result = await testService.gradeTest(testId, submissions);
+      const result = await testService.gradeTest(testId, submissions, userId);
       res.status(200).json({ message: "Test graded", data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public async getTestHistory(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.params.userId as string;
+      const history = await testService.getTestHistory(userId);
+      res.status(200).json({ message: "History retrieved", data: history });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public async getAttemptDetail(req: Request, res: Response, next: NextFunction) {
+    try {
+      const sessionId = req.params.sessionId as string;
+      const attempt = await testService.getAttemptDetail(sessionId);
+      res.status(200).json({ message: "Attempt detail retrieved", data: attempt });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // TEMP: Seed score conversions
+  public async seedScoreConversions(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await testService.seedScoreConversions();
+      res.status(200).json({ message: "Score conversions seeded", data: result });
     } catch (error) {
       next(error);
     }

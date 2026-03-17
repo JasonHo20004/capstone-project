@@ -1,10 +1,10 @@
 // =============================================================================
-// AI Evaluation Service - Speaking Evaluation Worker
+// AI Evaluation Service - Speaking Evaluation Worker (Gemini Multimodal)
 // =============================================================================
 
 import { Worker, Job } from "bullmq";
 import { SpeakingJobData, SpeakingEvaluationResult } from "../types.js";
-import { llmClient } from "../../llm/llm.client.js";
+import { geminiClient } from "../../llm/gemini.client.js";
 import { SPEAKING_EVALUATION_PROMPT } from "../../llm/prompts.js";
 import { databaseService } from "../../services/database.service.js";
 
@@ -33,39 +33,39 @@ export function createSpeakingWorker(): Worker {
           data: { status: "PROCESSING" },
         });
 
-        // Step 1: Download audio from S3 URL
+        // Step 1: Download audio from URL
         const audioResponse = await fetch(audioUrl);
         if (!audioResponse.ok) {
           throw new Error(`Failed to download audio: ${audioResponse.statusText}`);
         }
 
-        const audioBlob = await audioResponse.blob();
-        const audioFile = new File([audioBlob], "audio.webm", { type: "audio/webm" });
+        const audioBuffer = await audioResponse.arrayBuffer();
+        const audioBase64 = Buffer.from(audioBuffer).toString("base64");
 
-        // Step 2: Transcribe audio using Groq Whisper
-        console.log(`🔊 [Worker] Transcribing audio for ${evaluationId}...`);
-        const { transcript, duration } = await llmClient.transcribeAudio(audioFile, "audio.webm");
+        // Detect MIME type from URL or default to webm
+        const mimeType = audioUrl.endsWith(".mp3")
+          ? "audio/mp3"
+          : audioUrl.endsWith(".wav")
+          ? "audio/wav"
+          : "audio/webm";
 
-        // Save transcript to DB
-        await prisma.speakingEvaluation.update({
-          where: { id: evaluationId },
-          data: { transcript, duration },
-        });
-
-        // Step 3: Evaluate transcript using LLM
-        console.log(`🤖 [Worker] Evaluating transcript for ${evaluationId}...`);
-        const response = await llmClient.chatCompletion(
+        // Step 2: Send audio directly to Gemini for transcript + evaluation
+        console.log(`🤖 [Worker] Sending audio to Gemini for ${evaluationId}...`);
+        const response = await geminiClient.multimodalCompletion(
           SPEAKING_EVALUATION_PROMPT,
-          `Please evaluate the following IELTS Speaking response transcript:\n\n${transcript}`,
-          { jsonMode: true, temperature: 0.3 }
+          audioBase64,
+          mimeType,
+          "Please listen to this IELTS Speaking response and evaluate it. Provide transcript and scores.",
+          { temperature: 0.3 }
         );
 
-        const result: SpeakingEvaluationResult = JSON.parse(response);
+        const result: SpeakingEvaluationResult & { transcript?: string } = JSON.parse(response);
 
         // Save result to DB
         await prisma.speakingEvaluation.update({
           where: { id: evaluationId },
           data: {
+            transcript: result.transcript || "",
             overallBand: result.overall_band,
             pronunciationScore: result.pronunciation_score,
             fluencyScore: result.fluency_score,
@@ -110,7 +110,7 @@ export function createSpeakingWorker(): Worker {
     },
     {
       connection,
-      concurrency: 1, // Speaking is heavier (STT + LLM), process 1 at a time
+      concurrency: 1, // Speaking is heavier (audio processing), process 1 at a time
     }
   );
 

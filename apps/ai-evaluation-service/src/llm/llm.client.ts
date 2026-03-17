@@ -22,17 +22,17 @@ class LLMClient {
   }
 
   /**
-   * Chat completion with JSON mode
+   * Chat completion with a specified model (via Groq)
    */
   public async chatCompletion(
     systemPrompt: string,
     userMessage: string,
-    options?: { jsonMode?: boolean; maxTokens?: number; temperature?: number }
+    options?: { jsonMode?: boolean; maxTokens?: number; temperature?: number; model?: string }
   ): Promise<string> {
-    const { jsonMode = false, maxTokens = 4096, temperature = 0.3 } = options || {};
+    const { jsonMode = false, maxTokens = 8192, temperature = 0, model = "openai/gpt-oss-120b" } = options || {};
 
     const response = await this.groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+      model,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
@@ -44,10 +44,39 @@ class LLMClient {
 
     const content = response.choices[0]?.message?.content;
     if (!content) {
-      throw new Error("Empty response from Groq LLM");
+      throw new Error(`Empty response from Groq LLM (${model})`);
     }
 
     return content;
+  }
+
+  /**
+   * Ensemble completion — runs the same prompt on 2 models in parallel.
+   * Returns both raw responses for the caller to merge/average.
+   */
+  public async ensembleCompletion(
+    systemPrompt: string,
+    userMessage: string,
+    options?: { jsonMode?: boolean; maxTokens?: number; temperature?: number }
+  ): Promise<{ modelA: string; modelB: string }> {
+    const models = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile"];
+
+    const [responseA, responseB] = await Promise.allSettled([
+      this.chatCompletion(systemPrompt, userMessage, { ...options, model: models[0] }),
+      this.chatCompletion(systemPrompt, userMessage, { ...options, model: models[1] }),
+    ]);
+
+    const resultA = responseA.status === "fulfilled" ? responseA.value : null;
+    const resultB = responseB.status === "fulfilled" ? responseB.value : null;
+
+    if (!resultA && !resultB) {
+      throw new Error("Both ensemble models failed");
+    }
+
+    return {
+      modelA: resultA || resultB!,
+      modelB: resultB || resultA!,
+    };
   }
 
   /**
