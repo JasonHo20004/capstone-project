@@ -1,68 +1,66 @@
 // =============================================================================
-// AI Evaluation Service - Skill Tree Routes (TASK-09)
-// Dynamic AI Skill Tree: nodes + edges stored in JSONB
+// AI Evaluation Service - Skill Tree Routes
+// Dynamic AI Skill Tree: topic-based, mixed-skill learning paths
 // =============================================================================
 
 import { Router, Request, Response } from "express";
-import { databaseService } from "../../services/database.service.js";
-import { llmClient } from "../../llm/llm.client.js";
+import { skillTreeService } from "./skill-tree.service.js";
 
 const router = Router();
 
-const SKILL_TREE_PROMPT = `You are an English language learning skill tree generator.
+/**
+ * POST /api/ai/skill-tree/generate
+ * Generate an initial skill tree for a topic + level
+ * Body: { userId, topic, level, nodeLimit }
+ */
+router.post("/generate", async (req: Request, res: Response) => {
+  try {
+    const { userId, topic, level, nodeLimit = 6 } = req.body;
 
-Based on the student's wrong answers and their tags, generate NEW skill tree nodes to help them improve.
+    if (!userId || !topic || !level) {
+      res.status(400).json({
+        success: false,
+        error: "userId, topic, and level are required",
+      });
+      return;
+    }
 
-RULES:
-- Return ONLY valid JSON array, no other text
-- Each node has: id (string, unique like "node_xxx"), label (string, short skill name), type ("remedial" | "practice" | "challenge"), description (string, 1 sentence)
-- Each edge has: source (existing node id), target (new node id)
-- Generate 1-3 new nodes max
-- Labels should be specific and actionable (e.g., "Practice -ed endings", "Vocab: Academic Words")
+    const skillTree = await skillTreeService.generateTree({
+      userId,
+      topic,
+      level,
+      nodeLimit: Math.min(nodeLimit, 12),
+    });
 
-OUTPUT FORMAT:
-{
-  "newNodes": [{ "id": "node_xxx", "label": "...", "type": "remedial", "description": "..." }],
-  "newEdges": [{ "source": "existing_node_id", "target": "node_xxx" }]
-}`;
+    res.status(201).json({ success: true, data: skillTree });
+  } catch (error: any) {
+    console.error("❌ [SkillTree] Generate error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 /**
  * GET /api/ai/skill-tree/:userId
- * Get user's current skill tree
+ * Get skill tree(s) for a user
+ * Query: ?topic=X&level=Y (optional — if omitted, returns all trees)
  */
 router.get("/:userId", async (req: Request, res: Response) => {
   try {
     const userId = req.params.userId as string;
-    const prisma = databaseService.getClient();
+    const topic = req.query.topic as string | undefined;
+    const level = req.query.level as string | undefined;
 
-    let skillTree = await prisma.userSkillTree.findFirst({
-      where: { userId },
-    });
-
-    // If no skill tree exists, create a default one
-    if (!skillTree) {
-      skillTree = await prisma.userSkillTree.create({
-        data: {
-          userId,
-          nodes: [
-            { id: "root", label: "English Proficiency", type: "root", position: { x: 400, y: 50 }, description: "Your learning journey starts here" },
-            { id: "grammar_basics", label: "Grammar Basics", type: "practice", position: { x: 200, y: 200 }, description: "Foundation grammar skills" },
-            { id: "vocab_core", label: "Core Vocabulary", type: "practice", position: { x: 400, y: 200 }, description: "Essential vocabulary building" },
-            { id: "listening_skills", label: "Listening Skills", type: "practice", position: { x: 600, y: 200 }, description: "Comprehension and listening practice" },
-          ],
-          edges: [
-            { id: "e1", source: "root", target: "grammar_basics" },
-            { id: "e2", source: "root", target: "vocab_core" },
-            { id: "e3", source: "root", target: "listening_skills" },
-          ],
-        },
-      });
+    if (topic && level) {
+      const tree = await skillTreeService.getTree(userId, topic, level);
+      if (!tree) {
+        res.status(404).json({ success: false, error: "Skill tree not found" });
+        return;
+      }
+      res.json({ success: true, data: tree });
+    } else {
+      const trees = await skillTreeService.getAllTrees(userId);
+      res.json({ success: true, data: trees });
     }
-
-    res.json({
-      success: true,
-      data: skillTree,
-    });
   } catch (error: any) {
     console.error("❌ [SkillTree] Get error:", error);
     res.status(500).json({ success: false, error: error.message });
@@ -70,76 +68,92 @@ router.get("/:userId", async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/ai/skill-tree/:userId/update
- * Update skill tree based on test results
- * Input: { wrongAnswers: [...], tags: [...] }
+ * POST /api/ai/skill-tree/:userId/branch
+ * AI analyzes quiz results and generates new branches
+ * Body: { topic, level, parentNodeId, wrongAnswers }
  */
-router.post("/:userId/update", async (req: Request, res: Response) => {
+router.post("/:userId/branch", async (req: Request, res: Response) => {
   try {
     const userId = req.params.userId as string;
-    const { wrongAnswers, tags } = req.body;
+    const { topic, level, parentNodeId, wrongAnswers } = req.body;
 
-    if (!wrongAnswers || !tags) {
-      res.status(400).json({ success: false, error: "wrongAnswers and tags are required" });
+    if (!topic || !level || !parentNodeId || !wrongAnswers) {
+      res.status(400).json({
+        success: false,
+        error: "topic, level, parentNodeId, and wrongAnswers are required",
+      });
       return;
     }
 
-    const prisma = databaseService.getClient();
-
-    // Get current tree
-    const currentTree = await prisma.userSkillTree.findFirst({ where: { userId } });
-    if (!currentTree) {
-      res.status(404).json({ success: false, error: "Skill tree not found. Get the tree first." });
-      return;
-    }
-
-    // Ask AI to generate new nodes
-    const userMessage = JSON.stringify({
-      wrongAnswers: wrongAnswers.slice(0, 10), // Limit to 10
-      tags: tags.slice(0, 10),
-      existingNodeIds: (currentTree.nodes as any[]).map((n: any) => n.id),
+    const result = await skillTreeService.branchTree({
+      userId,
+      topic,
+      level,
+      parentNodeId,
+      wrongAnswers,
     });
 
-    const aiResponse = await llmClient.chatCompletion(SKILL_TREE_PROMPT, userMessage, { jsonMode: true });
-    const { newNodes, newEdges } = JSON.parse(aiResponse);
-
-    // Merge new nodes with positions
-    const existingNodes = currentTree.nodes as any[];
-    const existingEdges = currentTree.edges as any[];
-    const maxY = Math.max(...existingNodes.map((n: any) => n.position?.y || 0));
-
-    const positionedNewNodes = newNodes.map((node: any, i: number) => ({
-      ...node,
-      position: { x: 200 + i * 250, y: maxY + 200 },
-      status: "new", // Mark as new for frontend animation
-    }));
-
-    const updatedNodes = [...existingNodes, ...positionedNewNodes];
-    const updatedEdges = [...existingEdges, ...newEdges.map((e: any, i: number) => ({
-      ...e,
-      id: `e_${Date.now()}_${i}`,
-    }))];
-
-    // Save updated tree
-    const updated = await prisma.userSkillTree.update({
-      where: { id: currentTree.id },
-      data: {
-        nodes: updatedNodes,
-        edges: updatedEdges,
-        updatedAt: new Date(),
-      },
-    });
-
-    res.json({
-      success: true,
-      data: {
-        skillTree: updated,
-        addedNodes: positionedNewNodes,
-        addedEdges: newEdges,
-      },
-    });
+    res.json({ success: true, data: result });
   } catch (error: any) {
-    console.error("❌ [SkillTree] Update error:", error);
+    console.error("❌ [SkillTree] Branch error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * POST /api/ai/skill-tree/:userId/complete-node
+ * Mark a node as completed and activate the next node in the chain
+ * Body: { topic, level, nodeId }
+ */
+router.post("/:userId/complete-node", async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.userId as string;
+    const { topic, level, nodeId } = req.body;
+
+    if (!topic || !level || !nodeId) {
+      res.status(400).json({
+        success: false,
+        error: "topic, level, and nodeId are required",
+      });
+      return;
+    }
+
+    const updated = await skillTreeService.completeNodeAndAdvance(
+      userId, topic, level, nodeId
+    );
+
+    res.json({ success: true, data: updated });
+  } catch (error: any) {
+    console.error("❌ [SkillTree] Complete node error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * PATCH /api/ai/skill-tree/:userId/node-status
+ * Update a node's status
+ * Body: { topic, level, nodeId, status }
+ */
+router.patch("/:userId/node-status", async (req: Request, res: Response) => {
+  try {
+    const userId = req.params.userId as string;
+    const { topic, level, nodeId, status } = req.body;
+
+    if (!topic || !level || !nodeId || !status) {
+      res.status(400).json({
+        success: false,
+        error: "topic, level, nodeId, and status are required",
+      });
+      return;
+    }
+
+    const updated = await skillTreeService.updateNodeStatus(
+      userId, topic, level, nodeId, status
+    );
+
+    res.json({ success: true, data: updated });
+  } catch (error: any) {
+    console.error("❌ [SkillTree] Node status error:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
