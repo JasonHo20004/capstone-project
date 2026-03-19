@@ -67,6 +67,11 @@ export const services: ServiceConfig[] = [
     prefix: "/api/practice-sessions",
   },
   {
+    name: "assessment-service",
+    url: process.env.ASSESSMENT_SERVICE_URL || "http://localhost:3003",
+    prefix: "/api/dictation",
+  },
+  {
     name: "flashcard-service",
     url: process.env.FLASHCARD_SERVICE_URL || "http://localhost:3004",
     prefix: "/api/flashcard-decks",

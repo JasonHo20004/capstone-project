@@ -7,6 +7,7 @@ import cors from "cors";
 import { errorHandler } from "@capstone/common";
 import testRouter from "./modules/tests/test.route.js";
 import sessionRouter from "./modules/sessions/session.route.js";
+import dictationRouter from "./modules/dictation/dictation.route.js";
 
 const app: Express = express();
 
@@ -37,6 +38,7 @@ app.get("/health", (_req, res) => {
 // API Routes
 app.use("/api/tests", testRouter);
 app.use("/api/sessions", sessionRouter);
+app.use("/api/dictation", dictationRouter);
 
 // Error handling
 app.use(errorHandler);

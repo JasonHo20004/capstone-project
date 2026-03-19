@@ -199,3 +199,58 @@ enum SkillType {
 enum TestType {
   FINAL
 }
+
+// ─── Dictation Practice (IELTS Listening) ─────────────────────────────────────
+
+model DictationExercise {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title          String   @db.VarChar(255)
+  description    String?  @db.VarChar(500)
+  audioUrl       String   @map("audio_url")
+  level          String?  @db.VarChar(20)
+  category       String?  @db.VarChar(100)
+  totalSentences Int      @map("total_sentences")
+  isPublished    Boolean  @default(false) @map("is_published")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  sentences DictationSentence[]
+  sessions  DictationSession[]
+
+  @@map("dictation_exercises")
+}
+
+model DictationSentence {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exerciseId String @map("exercise_id") @db.Uuid
+  index      Int
+  text       String
+  startTime  Float  @map("start_time")
+  endTime    Float  @map("end_time")
+
+  exercise DictationExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([exerciseId, index])
+  @@map("dictation_sentences")
+}
+
+model DictationSession {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String          @map("user_id") @db.Uuid
+  exerciseId     String          @map("exercise_id") @db.Uuid
+  currentIndex   Int             @default(0) @map("current_index")
+  completedCount Int             @default(0) @map("completed_count")
+  accuracy       Float?
+  status         DictationStatus @default(IN_PROGRESS)
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt    DateTime?       @map("completed_at") @db.Timestamptz(6)
+
+  exercise DictationExercise @relation(fields: [exerciseId], references: [id])
+
+  @@index([userId])
+  @@map("dictation_sessions")
+}
+
+enum DictationStatus {
+  IN_PROGRESS
+  COMPLETED
+}
