@@ -62,16 +62,19 @@ model SpeakingEvaluation {
   @@map("speaking_evaluations")
 }
 
-// ─── User Skill Tree (Phase 3) ─────────────────────────────────────────────────
+// ─── User Skill Tree (Dynamic AI Skill Tree) ───────────────────────────────────
 
 model UserSkillTree {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId    String   @unique @map("user_id") @db.Uuid
-  nodes     Json     // [{ id, label, type, status, position }]
-  edges     Json     // [{ id, source, target }]
+  userId    String   @map("user_id") @db.Uuid
+  topic     String   @db.VarChar(50)   // "travel" | "food" | "business" | "health" ...
+  level     String   @db.VarChar(10)   // "A1" | "A2" | "B1" | "B2" | "C1" | "C2"
+  nodes     Json     // [{ id, label, type, status, position, mixedSkills[], questionTypes[], description }]
+  edges     Json     // [{ id, source, target, animated }]
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  @@unique([userId, topic, level])
   @@map("user_skill_trees")
 }
 
@@ -161,4 +164,30 @@ enum SpeakingSessionStatus {
   GRADING
   COMPLETED
   ABANDONED
+}
+
+// ─── Mini Quiz (Dynamic AI Skill Tree) ─────────────────────────────────────────
+
+model MiniQuiz {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  skillTreeId    String         @map("skill_tree_id") @db.Uuid
+  nodeId         String         @map("node_id") @db.VarChar(100)
+  questions      Json           // [{ question, options, correctIndex, type, skill, tag }]
+  userAnswers    Json?          @map("user_answers") // [{ questionIndex, selectedIndex, isCorrect }]
+  score          Float?
+  totalQuestions Int            @map("total_questions")
+  status         MiniQuizStatus @default(PENDING)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt    DateTime?      @map("completed_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([skillTreeId, nodeId])
+  @@map("mini_quizzes")
+}
+
+enum MiniQuizStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
 }
