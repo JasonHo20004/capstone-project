@@ -5,12 +5,14 @@
 import { Request, Response } from "express";
 import { CourseService } from "../services/course.service.js";
 import { asyncHandler, NotFoundError, ForbiddenError } from "@capstone/common";
+import { s3Service } from "../../../services/s3.service.js";
 
 export class CourseController {
   private courseService = new CourseService();
 
+
   getById = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const course = await this.courseService.getById(id);
 
     if (!course) {
@@ -60,7 +62,7 @@ export class CourseController {
 
   /** Get courses by seller ID (public - returns published courses only) */
   getBySellerId = asyncHandler(async (req: Request, res: Response) => {
-    const { sellerId } = req.params;
+    const sellerId = req.params.sellerId as string;
     const query = req.query as any;
     const result = await this.courseService.getMany({
       page: parseInt(query.page) || 1,
@@ -83,7 +85,7 @@ export class CourseController {
   });
 
   update = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const sellerId = req.user!.userId;
     const course = await this.courseService.update(id, sellerId, req.body);
     
@@ -91,7 +93,7 @@ export class CourseController {
   });
 
   publish = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const sellerId = req.user!.userId;
     const course = await this.courseService.publish(id, sellerId);
     
@@ -99,7 +101,7 @@ export class CourseController {
   });
 
   delete = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const sellerId = req.user!.userId;
     await this.courseService.delete(id, sellerId);
     
@@ -110,5 +112,80 @@ export class CourseController {
     const userId = req.user!.userId;
     const courses = await this.courseService.getEnrolledCourses(userId);
     res.json({ success: true, data: courses });
+  });
+
+  setFinalTest = asyncHandler(async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const sellerId = req.user!.userId;
+    const { testId } = req.body;
+
+    if (!testId) {
+      res.status(400).json({ success: false, message: "testId is required" });
+      return;
+    }
+
+    await this.courseService.setFinalTest(id, sellerId, testId);
+    res.json({ success: true, message: "Final test linked successfully" });
+  });
+
+  removeFinalTest = asyncHandler(async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const sellerId = req.user!.userId;
+    await this.courseService.removeFinalTest(id, sellerId);
+    res.json({ success: true, message: "Final test removed successfully" });
+  });
+
+  createLesson = asyncHandler(async (req: Request, res: Response) => {
+    const courseId = req.params.id as string;
+    const sellerId = req.user!.userId;
+    const { title, description, durationInSeconds, lessonOrder, moduleId } = req.body;
+
+    // Upload video to S3 if a file was provided
+    let videoUrl: string | undefined;
+    if (req.file) {
+      videoUrl = await s3Service.uploadFile(req.file, "course-videos");
+    }
+
+    const lesson = await this.courseService.createLesson(courseId, sellerId, {
+      title,
+      description,
+      durationInSeconds: durationInSeconds ? parseFloat(durationInSeconds) : undefined,
+      lessonOrder: lessonOrder ? parseInt(lessonOrder) : undefined,
+      moduleId: moduleId || undefined,
+      videoUrl,
+    });
+
+    res.status(201).json({ success: true, data: lesson });
+  });
+
+  getLessonById = asyncHandler(async (req: Request, res: Response) => {
+    const courseId = req.params.id as string;
+    const lessonId = req.params.lessonId as string;
+    const lesson = await this.courseService.getLessonById(courseId, lessonId);
+    res.json({ success: true, data: lesson });
+  });
+
+  updateLesson = asyncHandler(async (req: Request, res: Response) => {
+    const courseId = req.params.id as string;
+    const lessonId = req.params.lessonId as string;
+    const sellerId = req.user!.userId;
+    const { title, description, durationInSeconds, lessonOrder, materials } = req.body;
+
+    // Upload video to S3 if a new file was provided
+    let videoUrl: string | undefined;
+    if ((req as any).file) {
+      videoUrl = await s3Service.uploadFile((req as any).file, "course-videos");
+    }
+
+    const lesson = await this.courseService.updateLesson(courseId, lessonId, sellerId, {
+      title: title || undefined,
+      description: description !== undefined ? description : undefined,
+      durationInSeconds: durationInSeconds ? parseFloat(durationInSeconds) : undefined,
+      lessonOrder: lessonOrder ? parseInt(lessonOrder) : undefined,
+      materials: materials ? (typeof materials === 'string' ? JSON.parse(materials) : materials) : undefined,
+      videoUrl,
+    });
+
+    res.json({ success: true, data: lesson });
   });
 }

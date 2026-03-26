@@ -9,8 +9,9 @@ import { errorHandler } from "@capstone/common";
 // Import routes
 import courseRouter from "./modules/courses/routes/course.route.js";
 import sellerStatsRouter from "./modules/seller/routes/seller-stats.route.js";
+import studentRouter from "./modules/student/routes/student.route.js";
 
-const app = express();
+const app: express.Express = express();
 
 app.set("trust proxy", 1);
 
@@ -39,6 +40,7 @@ app.get("/health", (_req, res) => {
 // API Routes
 app.use("/api/courses", courseRouter);
 app.use("/api/seller", sellerStatsRouter);
+app.use("/api/student", studentRouter);
 
 // Error handling
 app.use(errorHandler);

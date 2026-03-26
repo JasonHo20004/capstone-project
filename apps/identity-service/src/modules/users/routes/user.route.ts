@@ -14,7 +14,8 @@ const userController = new UserController();
 router.get("/profile", authenticateToken, userController.getProfile);
 router.patch("/profile", authenticateToken, validate(updateUserSchema), userController.updateProfile);
 
-// Internal API for other services (should be protected by service-to-service auth in production)
+// Internal API for other services
+router.post("/internal/batch", userController.getBasicInfoBatch);
 router.get("/internal/:id", userController.getBasicInfo);
 
 // Admin routes

@@ -28,12 +28,26 @@ model Course {
   createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   thumbnailUrl   String?        @map("thumbnail_url")
   
+  modules        Module[]
   lessons        Lesson[]
   ratings        Rating[]
   reports        Report[]
   userActivities UserActivity[]
 
   @@map("courses")
+}
+
+model Module {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String   @db.VarChar(150)
+  description String?
+  moduleOrder Int      @map("module_order")
+  courseId    String   @map("course_id") @db.Uuid
+
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons     Lesson[]
+
+  @@map("modules")
 }
 
 model Lesson {
@@ -45,9 +59,11 @@ model Lesson {
   materials         String[]
   commentCount      Int?         @map("comment_count")
   courseId          String       @map("course_id") @db.Uuid
+  moduleId          String?      @map("module_id") @db.Uuid
   
   comments          Comment[]
   course            Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  module            Module?      @relation(fields: [moduleId], references: [id], onDelete: SetNull)
   mediaAssets       MediaAsset[]
   userLessons       UserLesson[]
 

@@ -6,15 +6,15 @@ import { Request, Response, NextFunction, RequestHandler } from "express";
 import { z, ZodError, ZodSchema, ZodIssue } from "zod";
 
 export interface ValidationSchema {
-  body?: ZodSchema;
-  params?: ZodSchema;
-  query?: ZodSchema;
+  body?: ZodSchema | any;
+  params?: ZodSchema | any;
+  query?: ZodSchema | any;
 }
 
 /**
  * Validate request against Zod schemas
  */
-export const validate = (schema: ValidationSchema): RequestHandler => {
+export const validate = (schema: any): RequestHandler => {
   return (req: Request, res: Response, next: NextFunction): void => {
     try {
       if (schema.body) {

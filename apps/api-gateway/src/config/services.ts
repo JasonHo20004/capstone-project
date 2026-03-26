@@ -49,6 +49,11 @@ export const services: ServiceConfig[] = [
   {
     name: "course-service",
     url: process.env.COURSE_SERVICE_URL || "http://localhost:3002",
+    prefix: "/api/student",
+  },
+  {
+    name: "course-service",
+    url: process.env.COURSE_SERVICE_URL || "http://localhost:3002",
     prefix: "/api/lessons",
   },
   {
@@ -70,6 +75,11 @@ export const services: ServiceConfig[] = [
     name: "assessment-service",
     url: process.env.ASSESSMENT_SERVICE_URL || "http://localhost:3003",
     prefix: "/api/dictation",
+  },
+  {
+    name: "assessment-service",
+    url: process.env.ASSESSMENT_SERVICE_URL || "http://localhost:3003",
+    prefix: "/api/test-comments",
   },
   {
     name: "flashcard-service",

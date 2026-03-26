@@ -12,6 +12,14 @@ export class CourseRepository {
     return await this.prisma.course.findUnique({
       where: { id },
       include: {
+        modules: {
+          orderBy: { moduleOrder: "asc" },
+          include: {
+            lessons: {
+              orderBy: { lessonOrder: "asc" },
+            },
+          },
+        },
         lessons: {
           orderBy: { lessonOrder: "asc" },
         },
@@ -126,6 +134,88 @@ export class CourseRepository {
         },
       },
       orderBy: { createdAt: "desc" },
+    });
+  }
+
+  async createLesson(data: {
+    title: string;
+    description?: string;
+    durationInSeconds?: number;
+    lessonOrder?: number;
+    materials?: string[];
+    courseId: string;
+    moduleId?: string;
+    videoUrl?: string;
+  }) {
+    return await this.prisma.lesson.create({
+      data: {
+        title: data.title,
+        description: data.description,
+        durationInSeconds: data.durationInSeconds,
+        lessonOrder: data.lessonOrder,
+        materials: data.materials ?? [],
+        courseId: data.courseId,
+        moduleId: data.moduleId,
+        ...(data.videoUrl ? {
+          mediaAssets: {
+            create: {
+              assetType: "VIDEO",
+              assetUrl: data.videoUrl,
+            },
+          },
+        } : {}),
+      },
+      include: {
+        mediaAssets: true,
+      },
+    });
+  }
+
+  async findLessonById(lessonId: string) {
+    return await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+      include: {
+        mediaAssets: true,
+        comments: true,
+      },
+    });
+  }
+
+  async updateLesson(lessonId: string, data: {
+    title?: string;
+    description?: string;
+    durationInSeconds?: number;
+    lessonOrder?: number;
+    materials?: string[];
+    videoUrl?: string;
+  }) {
+    // If videoUrl is provided, delete old VIDEO asset and create new one
+    if (data.videoUrl) {
+      await this.prisma.mediaAsset.deleteMany({
+        where: { lessonId, assetType: "VIDEO" },
+      });
+    }
+
+    return await this.prisma.lesson.update({
+      where: { id: lessonId },
+      data: {
+        ...(data.title !== undefined && { title: data.title }),
+        ...(data.description !== undefined && { description: data.description }),
+        ...(data.durationInSeconds !== undefined && { durationInSeconds: data.durationInSeconds }),
+        ...(data.lessonOrder !== undefined && { lessonOrder: data.lessonOrder }),
+        ...(data.materials !== undefined && { materials: data.materials }),
+        ...(data.videoUrl ? {
+          mediaAssets: {
+            create: {
+              assetType: "VIDEO",
+              assetUrl: data.videoUrl,
+            },
+          },
+        } : {}),
+      },
+      include: {
+        mediaAssets: true,
+      },
     });
   }
 }

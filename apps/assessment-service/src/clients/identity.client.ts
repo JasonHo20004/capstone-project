@@ -20,10 +20,10 @@ export class IdentityClient {
     try {
       const response = await fetch(`${IDENTITY_SERVICE_URL}/api/users/internal/${userId}`);
       if (!response.ok) return null;
-      const data = await response.json() as { data: UserBasicInfo };
-      return data.data;
+      const data = await response.json();
+      return data.data as UserBasicInfo;
     } catch (error) {
-      console.error(`[Course Service] Error fetching user:`, error);
+      console.error(`[Assessment Service] Error fetching user:`, error);
       return null;
     }
   }
@@ -33,17 +33,19 @@ export class IdentityClient {
     if (!userIds.length) return result;
 
     try {
+      // Use batch endpoint for single DB query instead of N requests
       const response = await fetch(`${IDENTITY_SERVICE_URL}/api/users/internal/batch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids: userIds }),
       });
       if (!response.ok) throw new Error(`Batch failed: ${response.status}`);
-      const data = await response.json() as { data: UserBasicInfo[] };
-      const users = data.data || [];
+      const data = await response.json();
+      const users = (data.data || []) as UserBasicInfo[];
       users.forEach((u) => result.set(u.id, u));
     } catch (error) {
-      console.warn("[Course Service] Batch fetch failed, falling back:", error);
+      // Fallback to individual requests if batch fails
+      console.warn("[Assessment Service] Batch fetch failed, falling back:", error);
       const promises = userIds.map((id) => this.getUserBasicInfo(id));
       const users = await Promise.all(promises);
       users.forEach((user, index) => {

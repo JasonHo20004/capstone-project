@@ -1,4 +1,5 @@
 import { SellerStatsRepository } from "../repositories/seller-stats.repository.js";
+import { identityClient } from "../../../clients/identity.client.js";
 
 export class SellerStatsService {
   private repository = new SellerStatsRepository();
@@ -18,25 +19,35 @@ export class SellerStatsService {
       coursesCount,
       learnersCount,
       commentsCount,
-      averageRating: Math.round(averageRating * 10) / 10, // Round to 1 decimal
+      averageRating: Math.round(averageRating * 10) / 10,
     };
   }
 
   /**
-   * Get seller's learners
+   * Get seller's learners with user enrichment
    */
   async getLearners(sellerId: string, page: number = 1, limit: number = 50, search?: string) {
     const result = await this.repository.getLearners(sellerId, page, limit, search);
 
+    // Enrich with user info from identity service
+    const userIds = [...new Set(result.data.map((a) => a.userId))];
+    const usersMap = await identityClient.getUsersBasicInfo(userIds);
+
     return {
-      learners: result.data.map((activity) => ({
-        id: activity.id,
-        userId: activity.userId,
-        courseId: activity.courseId,
-        courseTitle: activity.course.title,
-        courseThumbnail: activity.course.thumbnailUrl,
-        purchasedAt: activity.createdAt,
-      })),
+      learners: result.data.map((activity) => {
+        const user = usersMap.get(activity.userId);
+        return {
+          id: activity.id,
+          userId: activity.userId,
+          userName: user?.fullName || "Người dùng",
+          email: user?.email || "",
+          profilePicture: user?.profilePicture || null,
+          courseId: activity.courseId,
+          courseTitle: activity.course.title,
+          courseThumbnail: activity.course.thumbnailUrl,
+          purchasedAt: activity.createdAt,
+        };
+      }),
       pagination: {
         total: result.total,
         page: result.page,

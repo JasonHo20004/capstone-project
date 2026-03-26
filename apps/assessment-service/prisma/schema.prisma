@@ -43,6 +43,7 @@ model Test {
   questions         Question[]
   sections          Section[]
   testSkills        TestSkill[]
+  testComments      TestComment[]
   englishTestType   EnglishTestType   @relation(fields: [englishTestTypeId], references: [id])
 
   @@map("tests")
@@ -253,4 +254,21 @@ model DictationSession {
 enum DictationStatus {
   IN_PROGRESS
   COMPLETED
+}
+
+// ─── Test Comments (Discussion) ───────────────────────────────────────────────
+
+model TestComment {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  testId          String       @map("test_id") @db.Uuid
+  userId          String       @map("user_id") @db.Uuid
+  content         String
+  parentCommentId String?      @map("parent_comment_id") @db.Uuid
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  test            Test         @relation(fields: [testId], references: [id], onDelete: Cascade)
+  parent          TestComment? @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies         TestComment[] @relation("CommentReplies")
+
+  @@index([testId])
+  @@map("test_comments")
 }

@@ -243,7 +243,6 @@ export class CourseService {
         create: {
           userId,
           transactionId,
-          courseId,
         },
       },
     });
@@ -254,5 +253,72 @@ export class CourseService {
       orderId: transactionId,
       grantedAt: new Date(),
     });
+  }
+
+  async setFinalTest(courseId: string, sellerId: string, testId: string): Promise<void> {
+    const existing = await this.courseRepository.findById(courseId);
+    if (!existing) throw new Error("Course not found");
+    if (existing.courseSellerId !== sellerId) throw new Error("Not authorized");
+
+    await this.courseRepository.update(courseId, { finalTestId: testId });
+  }
+
+  async removeFinalTest(courseId: string, sellerId: string): Promise<void> {
+    const existing = await this.courseRepository.findById(courseId);
+    if (!existing) throw new Error("Course not found");
+    if (existing.courseSellerId !== sellerId) throw new Error("Not authorized");
+
+    await this.courseRepository.update(courseId, { finalTestId: null });
+  }
+
+  async createLesson(courseId: string, sellerId: string, input: {
+    title: string;
+    description?: string;
+    durationInSeconds?: number;
+    lessonOrder?: number;
+    materials?: string[];
+    moduleId?: string;
+    videoUrl?: string;
+  }) {
+    const course = await this.courseRepository.findById(courseId);
+    if (!course) throw new Error("Course not found");
+    if (course.courseSellerId !== sellerId) throw new Error("Not authorized");
+
+    return await this.courseRepository.createLesson({
+      title: input.title,
+      description: input.description,
+      durationInSeconds: input.durationInSeconds,
+      lessonOrder: input.lessonOrder,
+      materials: input.materials,
+      courseId,
+      moduleId: input.moduleId,
+      videoUrl: input.videoUrl,
+    });
+  }
+
+  async getLessonById(courseId: string, lessonId: string) {
+    const lesson = await this.courseRepository.findLessonById(lessonId);
+    if (!lesson || lesson.courseId !== courseId) {
+      throw new Error("Lesson not found");
+    }
+    return lesson;
+  }
+
+  async updateLesson(courseId: string, lessonId: string, sellerId: string, input: {
+    title?: string;
+    description?: string;
+    durationInSeconds?: number;
+    lessonOrder?: number;
+    materials?: string[];
+    videoUrl?: string;
+  }) {
+    const course = await this.courseRepository.findById(courseId);
+    if (!course) throw new Error("Course not found");
+    if (course.courseSellerId !== sellerId) throw new Error("Not authorized");
+
+    const lesson = await this.courseRepository.findLessonById(lessonId);
+    if (!lesson || lesson.courseId !== courseId) throw new Error("Lesson not found");
+
+    return await this.courseRepository.updateLesson(lessonId, input);
   }
 }

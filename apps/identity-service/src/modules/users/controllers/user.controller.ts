@@ -43,6 +43,16 @@ export class UserController {
     res.json({ success: true, data: user });
   });
 
+  // Internal batch endpoint for other services
+  getBasicInfoBatch = asyncHandler(async (req: Request, res: Response) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: "ids array is required" });
+    }
+    const users = await this.userService.getBasicInfoBatch(ids.slice(0, 100));
+    res.json({ success: true, data: users });
+  });
+
   updateProfile = asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.userId;
     const user = await this.userService.update(userId, req.body);

@@ -66,7 +66,7 @@ export class TestController {
 
   public async uploadAudio(req: Request, res: Response, next: NextFunction) {
     try {
-      const file = req.file;
+      const file = (req as any).file;
       if (!file) {
         res.status(400).json({ message: "No audio file provided" });
         return;
@@ -80,7 +80,7 @@ export class TestController {
 
   public async uploadImage(req: Request, res: Response, next: NextFunction) {
     try {
-      const file = req.file;
+      const file = (req as any).file;
       if (!file) {
         res.status(400).json({ message: "No image file provided" });
         return;

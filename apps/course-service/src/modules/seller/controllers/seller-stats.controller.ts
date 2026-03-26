@@ -56,8 +56,10 @@ export class SellerStatsController {
       const result = await this.service.getLearners(sellerId, page, limit, search);
       res.status(200).json({
         success: true,
-        data: result.learners,
-        pagination: result.pagination,
+        data: {
+          learners: result.learners,
+          pagination: result.pagination,
+        },
       });
     } catch (error) {
       res.status(500).json({

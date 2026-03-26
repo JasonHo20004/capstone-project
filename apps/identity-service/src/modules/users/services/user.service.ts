@@ -42,6 +42,20 @@ export class UserService {
     };
   }
 
+  async getBasicInfoBatch(ids: string[]): Promise<UserBasicResponse[]> {
+    if (!ids.length) return [];
+    const users = await this.userRepository.findMany({
+      where: { id: { in: ids } },
+    });
+    return users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      fullName: u.fullName,
+      role: u.role,
+      profilePicture: u.profilePicture,
+    }));
+  }
+
   async update(id: string, data: UpdateUserInput): Promise<UserResponse> {
     const user = await this.userRepository.update(id, data);
 
