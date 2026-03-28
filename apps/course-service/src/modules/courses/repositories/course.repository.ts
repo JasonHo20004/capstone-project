@@ -95,7 +95,7 @@ export class CourseRepository {
     search?: string;
   }) {
     const where: Prisma.CourseWhereInput = {
-      status: "PUBLISHED",
+      status: "ACTIVE",
     };
 
     if (options.category) {

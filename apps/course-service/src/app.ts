@@ -10,6 +10,7 @@ import { errorHandler } from "@capstone/common";
 import courseRouter from "./modules/courses/routes/course.route.js";
 import sellerStatsRouter from "./modules/seller/routes/seller-stats.route.js";
 import studentRouter from "./modules/student/routes/student.route.js";
+import adminCourseRouter from "./modules/admin/routes/admin-course.route.js";
 
 const app: express.Express = express();
 
@@ -41,6 +42,7 @@ app.get("/health", (_req, res) => {
 app.use("/api/courses", courseRouter);
 app.use("/api/seller", sellerStatsRouter);
 app.use("/api/student", studentRouter);
+app.use("/api/admin", adminCourseRouter);
 
 // Error handling
 app.use(errorHandler);

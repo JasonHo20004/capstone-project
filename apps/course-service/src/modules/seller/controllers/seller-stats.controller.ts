@@ -1,11 +1,9 @@
 import type { Request, Response } from "express";
+import type { JwtPayload } from "@capstone/common";
 import { SellerStatsService } from "../services/seller-stats.service.js";
 
 interface AuthenticatedRequest extends Request {
-  user?: {
-    userId: string;
-    role: string | null;
-  };
+  user?: JwtPayload;
 }
 
 export class SellerStatsController {

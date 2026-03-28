@@ -71,7 +71,7 @@ export class CourseController {
       category: query.category,
       level: query.level,
       sellerId,
-      status: "PUBLISHED",
+      status: "ACTIVE",
     });
 
     res.json({ success: true, ...result });

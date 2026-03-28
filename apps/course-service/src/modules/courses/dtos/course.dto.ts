@@ -23,7 +23,7 @@ export const updateCourseSchema = z.object({
     category: z.string().optional(),
     courseLevel: z.enum(["A1", "A2", "B1", "B2", "C1", "C2"]).optional(),
     thumbnailUrl: z.string().url().optional(),
-    status: z.enum(["DRAFT", "PENDING", "PUBLISHED", "INACTIVE"]).optional(),
+    status: z.enum(["DRAFT", "PENDING", "ACTIVE", "INACTIVE"]).optional(),
   }),
 });
 
@@ -34,7 +34,7 @@ export const getCoursesQuerySchema = z.object({
     search: z.string().optional(),
     category: z.string().optional(),
     level: z.enum(["A1", "A2", "B1", "B2", "C1", "C2"]).optional(),
-    status: z.enum(["PENDING", "ACTIVE", "PUBLISHED", "DRAFT"]).optional(),
+    status: z.enum(["PENDING", "ACTIVE", "DRAFT", "INACTIVE", "REFUSE"]).optional(),
     sellerId: z.string().uuid().optional(),
   }),
 });

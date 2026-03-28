@@ -126,6 +126,11 @@ export const services: ServiceConfig[] = [
     url: process.env.NOTIFICATION_SERVICE_URL || "http://localhost:3006",
     prefix: "/api/notifications",
   },
+  {
+    name: "course-service",
+    url: process.env.COURSE_SERVICE_URL || "http://localhost:3002",
+    prefix: "/api/admin",
+  },
   // practice-service REMOVED — consolidated into assessment-service (/api/tests)
   {
     name: "ai-evaluation-service",

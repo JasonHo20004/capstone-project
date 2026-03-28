@@ -10,6 +10,7 @@ import { authenticateToken, requireSeller, optionalAuth, validate, asyncHandler 
 import { createCourseSchema, updateCourseSchema, getCoursesQuerySchema } from "../dtos/course.dto.js";
 import { databaseService } from "../../../services/database.service.js";
 import { identityClient } from "../../../clients/identity.client.js";
+import { notificationClient } from "../../../clients/notification.client.js";
 
 const router: ReturnType<typeof Router> = Router();
 const courseController = new CourseController();
@@ -87,6 +88,7 @@ router.post(
   "/:id/lessons/:lessonId/comments",
   authenticateToken,
   asyncHandler(async (req: Request, res: Response) => {
+    const courseId = req.params.id as string;
     const lessonId = req.params.lessonId as string;
     const userId = req.user!.userId as string;
     const { content, parentCommentId } = req.body;
@@ -107,6 +109,48 @@ router.post(
     });
 
     res.status(201).json({ success: true, data: comment });
+
+    // Fire-and-forget notifications
+    (async () => {
+      try {
+        const [course, lesson] = await Promise.all([
+          prisma.course.findUnique({ where: { id: courseId }, select: { courseSellerId: true, title: true } }),
+          prisma.lesson.findUnique({ where: { id: lessonId }, select: { title: true } }),
+        ]);
+
+        // Notify seller about new comment on their course
+        if (course && course.courseSellerId !== userId) {
+          notificationClient.createNotification({
+            userId: course.courseSellerId,
+            title: "Bình luận mới trên khóa học",
+            content: `Có người đã bình luận trong bài học "${lesson?.title || ""}" của khóa học "${course.title}"`,
+            type: "course_comment",
+            courseId,
+            metadata: { lessonId, commentId: comment.id },
+          });
+        }
+
+        // Notify parent comment author about the reply
+        if (parentCommentId) {
+          const parentComment = await prisma.comment.findUnique({
+            where: { id: parentCommentId },
+            select: { userId: true },
+          });
+          if (parentComment && parentComment.userId !== userId) {
+            notificationClient.createNotification({
+              userId: parentComment.userId,
+              title: "Có người trả lời bình luận của bạn",
+              content: `Có người đã trả lời bình luận của bạn trong bài học "${lesson?.title || ""}"`,
+              type: "comment_reply",
+              courseId,
+              metadata: { lessonId, commentId: comment.id, parentCommentId },
+            });
+          }
+        }
+      } catch (err) {
+        console.error("[Course Service] Error sending comment notifications:", err);
+      }
+    })();
   })
 );
 

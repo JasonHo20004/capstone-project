@@ -132,51 +132,15 @@ function analyzeEssayFeatures(text: string) {
 
 /**
  * Post-processing score calibration based on objective text metrics.
- * Applies hard caps that the LLM models refuse to self-apply.
+ * We now rely on the LLM's strict instructions rather than regex hard-caps,
+ * to avoid unfairly punishing highly natural/simple essays (like Simon's).
  */
 function calibrateScores(result: any, essayText: string): any {
   const features = analyzeEssayFeatures(essayText);
-  console.log(`🔍 [Calibration] TTR: ${features.ttr}, Academic words: ${features.academicWordCount}, Complex ratio: ${features.complexSentenceRatio}, Basic connectors only: ${features.hasOnlyBasicConnectors}`);
+  // Just log the features for debugging, no longer penalize scores
+  console.log(`🔍 [Essay Features] TTR: ${features.ttr}, Academic words: ${features.academicWordCount}, Complex ratio: ${features.complexSentenceRatio}, Basic connectors only: ${features.hasOnlyBasicConnectors}`);
 
-  const calibrated = JSON.parse(JSON.stringify(result)); // deep clone
-
-  // Lexical Resource cap: low vocabulary diversity + few academic words
-  if (features.ttr < 0.45 && features.academicWordCount < 5) {
-    const maxLexical = 6.5;
-    if (calibrated.criteria.lexical?.score > maxLexical) {
-      console.log(`📉 [Calibration] Lexical capped: ${calibrated.criteria.lexical.score} → ${maxLexical} (TTR=${features.ttr}, academic=${features.academicWordCount})`);
-      calibrated.criteria.lexical.score = maxLexical;
-    }
-  }
-
-  // Grammar cap: few complex structures
-  if (features.complexSentenceRatio < 0.25) {
-    const maxGrammar = 6.5;
-    if (calibrated.criteria.grammar?.score > maxGrammar) {
-      console.log(`📉 [Calibration] Grammar capped: ${calibrated.criteria.grammar.score} → ${maxGrammar} (complex ratio=${features.complexSentenceRatio})`);
-      calibrated.criteria.grammar.score = maxGrammar;
-    }
-  }
-
-  // Coherence cap: only basic connectors
-  if (features.hasOnlyBasicConnectors) {
-    const maxCoherence = 6.5;
-    if (calibrated.criteria.coherence?.score > maxCoherence) {
-      console.log(`📉 [Calibration] Coherence capped: ${calibrated.criteria.coherence.score} → ${maxCoherence} (basic connectors only)`);
-      calibrated.criteria.coherence.score = maxCoherence;
-    }
-  }
-
-  // Recalculate overall band after calibration
-  const criteriaKeys = ["task_achievement", "coherence", "lexical", "grammar"];
-  const avgOverall = criteriaKeys.reduce((sum, k) => sum + (calibrated.criteria[k]?.score || 0), 0) / criteriaKeys.length;
-  calibrated.overall_band = roundToHalf(avgOverall);
-
-  if (calibrated.overall_band !== result.overall_band) {
-    console.log(`✅ [Calibration] Overall adjusted: ${result.overall_band} → ${calibrated.overall_band}`);
-  }
-
-  return calibrated;
+  return result; // Return LLM's original assessment unchanged
 }
 
 /**

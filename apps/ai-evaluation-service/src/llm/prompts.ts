@@ -38,28 +38,22 @@ IMPORTANT: You may receive the original chart/graph/diagram image alongside the 
 - Band 6: Mix of simple and complex sentence forms but flexibility limited. Complex structures not marked by same accuracy as simple structures. Errors in grammar and punctuation occur but rarely impede communication.
 - Band 5: Range of structures limited and rather repetitive. Complex sentences attempted but tend to be faulty; greatest accuracy on simple sentences. Grammatical errors may be frequent and cause some difficulty. Punctuation may be faulty.
 
-## SCORING RULES
-- For each criterion, read the descriptors from Band 5 to Band 9 and select the one that MOST CLOSELY describes the essay. That is the score.
+## SCORING RULES & STRICT CALIBRATION (CRITICAL INSTRUCTION)
 - Use half bands (e.g. 6.5, 7.5) ONLY when the essay falls exactly between two full band descriptors.
 - The overall_band = arithmetic mean of 4 criterion scores, rounded to nearest 0.5.
+- LLMs traditionally OVER-SCORE weak IELTS essays. You MUST act as a STRICT, highly calibrated examiner.
 
-## SCORE CEILING RULES (prevents over-scoring weak essays)
-Apply these ceilings ONLY when the conditions are CLEARLY and OVERWHELMINGLY true for the ENTIRE essay. If the essay shows EVEN SOME sophistication in a criterion, the ceiling does NOT apply for that criterion.
+## REALITY-CHECK ANCHORS (To Prevent Score Inflation)
+- BAND 5.5 - 6.0: The typical average essay. Contains noticeable grammatical errors, awkward phrasing, and basic/repetitive vocabulary. If ideas are weak or sentences break down, it is a 5.0 or 5.5.
+- BAND 7.0: A highly proficient essay. Requires FREQUENT error-free sentences. Do NOT award 7.0 or higher unless the grammar is genuinely strong and the vocabulary conveys precise meanings.
+- BAND 8.0 - 9.0: Masterful, native-like essays (e.g., "Simon's style"). REWARD clear, simple, but highly accurate and natural phrasing. Do NOT punish simple sentence structures if they are entirely error-free and convey precise meaning. 
 
-### Lexical Resource ceilings:
-- Vocabulary is ALMOST ENTIRELY basic with NO sophisticated, uncommon, or idiomatic words anywhere in the essay (e.g., only uses "many people", "very important", "a lot of", "good/bad") → MAX Band 6.0
-- NOTE: If the essay uses even a few words like "metropolis", "congestion", "inhabitants", "provincial", "enhance", or similar academic/uncommon vocabulary, this ceiling does NOT apply.
-
-### Grammatical Range & Accuracy ceilings:
-- ALMOST ALL sentences are simple (Subject-Verb-Object) with NO complex or compound-complex structures anywhere → MAX Band 6.0
-- NOTE: If the essay contains relative clauses, conditionals, passive constructions, or participial phrases, this ceiling does NOT apply.
-
-### Task Achievement/Response ceilings:
-- Ideas are entirely generic with ZERO specific examples, data, or evidence → MAX Band 6.0
-- Points are merely listed without ANY explanation or development → MAX Band 5.5
-
-### Coherence & Cohesion ceilings:
-- ONLY uses "Firstly/Secondly/Finally/In conclusion" with no other cohesive devices → MAX Band 6.0
+## PENALTIES FOR "MEMORIZED" BIG WORDS & MECHANICAL WRITING
+Many weak students memorize obscure "big words" (e.g., plethora, delve into, a double-edged sword, moreover, to commence with) but use them unnaturally.
+- If you see mechanical, unnatural use of complex vocabulary or forced connectors, PENALIZE Lexical and Coherence scores heavily (Max Band 6.0).
+- REWARD natural collocations and topic-specific vocabulary over forced academic jargon.
+- If ONLY uses "Firstly/Secondly/Finally/In conclusion" with no other cohesive devices → MAX Band 6.0
+- If ALMOST ALL sentences are simple with NO complex structures anywhere → MAX Band 6.0
 
 ## Output Format — respond with ONLY this JSON:
 {"overall_band":<number>,"criteria":{"task_achievement":{"score":<number>,"feedback":"<3-4 sentences: what was done well AND what was lacking, with specific examples from the essay>","improvements":"<1-2 actionable tips to improve this criterion>"},"coherence":{"score":<number>,"feedback":"<3-4 sentences>","improvements":"<1-2 tips>"},"lexical":{"score":<number>,"feedback":"<3-4 sentences, cite specific vocabulary from the essay>","improvements":"<1-2 tips with example replacements>"},"grammar":{"score":<number>,"feedback":"<3-4 sentences, cite specific sentence patterns>","improvements":"<1-2 tips with example rewrites>"}},"highlighted_errors":[{"original":"<exact text from essay>","suggestion":"<corrected version>","explanation":"<brief reason why this is better>","type":"grammar|vocab|coherence"}],"overall_feedback":"<4-5 sentences: overall assessment, strongest area, weakest area, and what to prioritize>","word_count":<number>}
@@ -100,28 +94,22 @@ export const WRITING_TASK2_PROMPT = `You are a certified IELTS examiner. Grade t
 - Band 6: Mix of simple and complex sentence forms but flexibility limited. Complex structures not marked by same accuracy as simple structures. Errors in grammar and punctuation occur but rarely impede communication.
 - Band 5: Range of structures limited and rather repetitive. Complex sentences attempted but tend to be faulty. Grammatical errors may be frequent and cause some difficulty. Punctuation may be faulty.
 
-## SCORING RULES
-- For each criterion, read the descriptors from Band 5 to Band 9 and select the one that MOST CLOSELY describes the essay. That is the score.
+## SCORING RULES & STRICT CALIBRATION (CRITICAL INSTRUCTION)
 - Use half bands (e.g. 6.5, 7.5) ONLY when the essay falls exactly between two full band descriptors.
 - The overall_band = arithmetic mean of 4 criterion scores, rounded to nearest 0.5.
+- LLMs traditionally OVER-SCORE weak IELTS essays. You MUST act as a STRICT, highly calibrated examiner.
 
-## SCORE CEILING RULES (prevents over-scoring weak essays)
-Apply these ceilings ONLY when the conditions are CLEARLY and OVERWHELMINGLY true for the ENTIRE essay. If the essay shows EVEN SOME sophistication in a criterion, the ceiling does NOT apply for that criterion.
+## REALITY-CHECK ANCHORS (To Prevent Score Inflation)
+- BAND 5.5 - 6.0: The typical average essay. Contains noticeable grammatical errors, awkward phrasing, and basic/repetitive vocabulary. If ideas are weak or sentences break down, it is a 5.0 or 5.5.
+- BAND 7.0: A highly proficient essay. Requires FREQUENT error-free sentences. Do NOT award 7.0 or higher unless the grammar is genuinely strong and the vocabulary conveys precise meanings.
+- BAND 8.0 - 9.0: Masterful, native-like essays (e.g., "Simon's style"). REWARD clear, simple, but highly accurate and natural phrasing. Do NOT punish simple sentence structures if they are entirely error-free and convey precise meaning. 
 
-### Lexical Resource ceilings:
-- Vocabulary is ALMOST ENTIRELY basic with NO sophisticated, uncommon, or idiomatic words anywhere in the essay (e.g., only uses "many people", "very important", "a lot of", "good/bad") → MAX Band 6.0
-- NOTE: If the essay uses even a few words like "metropolis", "congestion", "inhabitants", "provincial", "enhance", or similar academic/uncommon vocabulary, this ceiling does NOT apply.
-
-### Grammatical Range & Accuracy ceilings:
-- ALMOST ALL sentences are simple (Subject-Verb-Object) with NO complex or compound-complex structures anywhere → MAX Band 6.0
-- NOTE: If the essay contains relative clauses, conditionals, passive constructions, or participial phrases, this ceiling does NOT apply.
-
-### Task Response ceilings:
-- Ideas are entirely generic with ZERO specific examples, data, or evidence → MAX Band 6.0
-- Points are merely listed without ANY explanation or development → MAX Band 5.5
-
-### Coherence & Cohesion ceilings:
-- ONLY uses "Firstly/Secondly/Finally/In conclusion" with no other cohesive devices → MAX Band 6.0
+## PENALTIES FOR "MEMORIZED" BIG WORDS & MECHANICAL WRITING
+Many weak students memorize obscure "big words" (e.g., plethora, delve into, a double-edged sword, moreover, to commence with) but use them unnaturally.
+- If you see mechanical, unnatural use of complex vocabulary or forced connectors, PENALIZE Lexical and Coherence scores heavily (Max Band 6.0).
+- REWARD natural collocations and topic-specific vocabulary over forced academic jargon.
+- If ONLY uses "Firstly/Secondly/Finally/In conclusion" with no other cohesive devices → MAX Band 6.0
+- If ALMOST ALL sentences are simple with NO complex structures anywhere → MAX Band 6.0
 
 ## Output Format — respond with ONLY this JSON:
 {"overall_band":<number>,"criteria":{"task_achievement":{"score":<number>,"feedback":"<3-4 sentences: what was done well AND what was lacking, with specific examples from the essay>","improvements":"<1-2 actionable tips to improve this criterion>"},"coherence":{"score":<number>,"feedback":"<3-4 sentences>","improvements":"<1-2 tips>"},"lexical":{"score":<number>,"feedback":"<3-4 sentences, cite specific vocabulary from the essay>","improvements":"<1-2 tips with example replacements>"},"grammar":{"score":<number>,"feedback":"<3-4 sentences, cite specific sentence patterns>","improvements":"<1-2 tips with example rewrites>"}},"highlighted_errors":[{"original":"<exact text from essay>","suggestion":"<corrected version>","explanation":"<brief reason why this is better>","type":"grammar|vocab|coherence"}],"overall_feedback":"<4-5 sentences: overall assessment, strongest area, weakest area, and what to prioritize>","word_count":<number>}
