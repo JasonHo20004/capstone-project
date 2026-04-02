@@ -179,4 +179,13 @@ export class FlashcardController {
 
     res.json({ success: true, data: cards });
   });
+
+  resetProgressByDeck = asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.userId;
+    const { deckId } = req.params;
+
+    await this.service.resetProgressByDeck(deckId as string, userId);
+
+    res.json({ success: true, message: "Progress reset successfully" });
+  });
 }

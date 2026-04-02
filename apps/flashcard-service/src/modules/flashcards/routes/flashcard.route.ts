@@ -64,3 +64,4 @@ reviewRouter.get("/cards", authenticateToken, validate(getReviewCardsSchema), co
 reviewRouter.get("/queue/:deckId", authenticateToken, validate(getReviewQueueSchema), controller.getReviewQueue);
 reviewRouter.post("/submit/:flashcardId", authenticateToken, validate(updateProgressSchema), controller.updateProgress);
 reviewRouter.post("/:flashcardId", authenticateToken, validate(updateProgressSchema), controller.updateProgress);
+reviewRouter.delete("/reset/:deckId", authenticateToken, validate(getReviewQueueSchema), controller.resetProgressByDeck);

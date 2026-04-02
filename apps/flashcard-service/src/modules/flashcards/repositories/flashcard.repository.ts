@@ -223,6 +223,15 @@ export class FlashcardRepository {
     });
   }
 
+  async resetProgressByDeck(deckId: string, userId: string) {
+    return await this.prisma.userFlashcardProgress.deleteMany({
+      where: {
+        userId,
+        flashcard: { deckId }
+      }
+    });
+  }
+
   async upsertUserProgress(data: {
     userId: string;
     flashcardId: string;

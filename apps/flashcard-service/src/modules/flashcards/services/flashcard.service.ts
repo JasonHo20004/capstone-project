@@ -296,6 +296,14 @@ export class FlashcardService {
     });
   }
 
+  async resetProgressByDeck(deckId: string, userId: string) {
+    const deck = await this.repository.findDeckById(deckId);
+    if (!deck) {
+      throw new NotFoundError("Deck not found");
+    }
+    return await this.repository.resetProgressByDeck(deckId, userId);
+  }
+
   async getReviewCards(userId: string, limit: number) {
     const dueCards = await this.repository.findDueCards(userId, limit);
 
