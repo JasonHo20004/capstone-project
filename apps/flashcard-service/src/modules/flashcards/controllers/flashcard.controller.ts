@@ -2,7 +2,7 @@
 // Flashcard Controller - HTTP Handlers
 // =============================================================================
 
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { FlashcardService } from "../services/flashcard.service.js";
 import { FlashcardRepository } from "../repositories/flashcard.repository.js";
 import { asyncHandler } from "@capstone/common";
@@ -121,28 +121,28 @@ export class FlashcardController {
     res.json({ success: true, message: "Flashcard deleted successfully" });
   });
 
-  createFlashcardFromBody = asyncHandler(async (req: Request, res: Response) => {
+  createFlashcardFromBody = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { deckId, ...body } = req.body;
     if (!deckId) throw new Error("deckId is required");
     req.params = { deckId };
     req.body = body;
-    return this.createFlashcard(req, res);
+    return this.createFlashcard(req, res, next);
   });
 
-  updateFlashcardByCardId = asyncHandler(async (req: Request, res: Response) => {
+  updateFlashcardByCardId = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { id: cardId } = req.params;
     const flashcard = await this.service.getFlashcardByCardId(cardId as string, req.user?.userId);
     if (!flashcard) throw new Error("Flashcard not found");
     req.params = { deckId: flashcard.deckId, id: cardId };
-    return this.updateFlashcard(req, res);
+    return this.updateFlashcard(req, res, next);
   });
 
-  deleteFlashcardByCardId = asyncHandler(async (req: Request, res: Response) => {
+  deleteFlashcardByCardId = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const { id: cardId } = req.params;
     const flashcard = await this.service.getFlashcardByCardId(cardId as string, req.user?.userId);
     if (!flashcard) throw new Error("Flashcard not found");
     req.params = { deckId: flashcard.deckId, id: cardId };
-    return this.deleteFlashcard(req, res);
+    return this.deleteFlashcard(req, res, next);
   });
 
   // ============== Progress/Review Endpoints ==============

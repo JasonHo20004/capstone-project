@@ -12,6 +12,10 @@ const SERVICE_NAME = "course-service";
 
 let eventBus: EventBusService;
 
+export function getEventBus(): EventBusService {
+  return eventBus;
+}
+
 async function setupEventHandlers() {
   // Listen for payment success events to grant course access
   await eventBus.subscribe<OrderPaidEvent>(EventNames.ORDER_PAID, async (event) => {

@@ -84,17 +84,17 @@ export function createWritingWorker(): Worker {
               imageData.base64,
               imageData.mimeType,
               textPrompt,
-              { temperature: 0.3 },
+              { temperature: 0.2, useProModel: false },
             );
           } else {
             // Fallback: text-only if image fetch failed
             console.warn(`⚠️ [Worker] Image fetch failed, falling back to text-only evaluation`);
             userMessage += `\n\n**Note:** The original chart/graph image could not be loaded. Please evaluate based on the writing quality alone, but note that Task Achievement cannot be fully assessed without the visual data.`;
-            response = await geminiClient.chatCompletion(prompt, userMessage, { temperature: 0.3 });
+            response = await geminiClient.chatCompletion(prompt, userMessage, { temperature: 0.2, useProModel: false });
           }
         } else {
           // Task 2 or Task 1 without image: text-only
-          response = await geminiClient.chatCompletion(prompt, userMessage, { temperature: 0.3 });
+          response = await geminiClient.chatCompletion(prompt, userMessage, { temperature: 0.2, useProModel: false });
         }
 
         const result: WritingEvaluationResult = JSON.parse(response);

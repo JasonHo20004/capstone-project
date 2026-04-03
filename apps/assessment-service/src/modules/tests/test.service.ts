@@ -332,7 +332,7 @@ export class TestService {
 
     let correct = 0;
     const details = questions.map((q) => {
-      const userAnswer = (submissions[q.id] || "").trim();
+      let userAnswer = (submissions[q.id] || "").trim();
       const answerData = q.answer as any;
       const contentData = q.content as any;
       let correctAnswer = "";
@@ -343,13 +343,30 @@ export class TestService {
         const correctIndex = answerData?.correctIndex;
         correctAnswer = options[correctIndex] || `Option ${correctIndex}`;
         isCorrect = userAnswer.toLowerCase().trim() === correctAnswer.toLowerCase().trim();
-      } else if (q.questionType === "GAP_FILL") {
+      } else if (q.questionType === "MULTIPLE_CHOICE_MULTI_ANSWER") {
+        const options = contentData?.options || [];
+        const correctIndices: number[] = answerData?.correctIndices || [];
+        correctAnswer = correctIndices.map(idx => String.fromCharCode(65 + idx) + ". " + options[idx]).join(", ");
+        
+        const userIndices = userAnswer.split(',').map(s => s.trim()).filter(s => s !== '');
+        userAnswer = userIndices.map((idxStr) => {
+          const idx = parseInt(idxStr, 10);
+          return isNaN(idx) ? idxStr : (String.fromCharCode(65 + Math.max(0, idx)) + ". " + (options[idx] || ""));
+        }).join(", ");
+
+        if (userIndices.length > 0 && userIndices.length === correctIndices.length && 
+            userIndices.every((idxStr) => correctIndices.includes(parseInt(idxStr, 10)))) {
+          isCorrect = true;
+        } else {
+          isCorrect = false;
+        }
+      } else if (q.questionType === "GAP_FILL" || q.questionType === "SHORT_ANSWER") {
         const acceptedAnswers: string[] = answerData?.text || [];
         correctAnswer = acceptedAnswers[0] || "";
         isCorrect = acceptedAnswers.some(
           (a: string) => a.toLowerCase().trim() === userAnswer.toLowerCase()
         );
-      } else if (q.questionType === "TRUE_FALSE_NOT_GIVEN") {
+      } else if (q.questionType === "TRUE_FALSE_NOT_GIVEN" || q.questionType === "YES_NO_NOT_GIVEN") {
         correctAnswer = answerData?.correctAnswer || "";
         isCorrect = userAnswer.toUpperCase() === correctAnswer.toUpperCase();
       } else if (q.questionType === "MATCHING") {

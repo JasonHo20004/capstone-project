@@ -5,6 +5,7 @@
 import "dotenv/config";
 import app from "./app.js";
 import { databaseService } from "./services/index.js";
+import { initializeEventHandlers, getNotificationEventBus } from "./modules/notifications/handlers/course-approved.handler.js";
 
 const PORT = process.env.NOTIFICATION_SERVICE_PORT || 3006;
 
@@ -12,6 +13,9 @@ const startServer = async () => {
   try {
     // Connect to database
     await databaseService.connect();
+
+    // Initialize RabbitMQ Event Bus
+    await initializeEventHandlers(databaseService);
 
     app.listen(PORT, () => {
       console.log(`🚀 Notification Service running on port ${PORT}`);
@@ -22,6 +26,13 @@ const startServer = async () => {
     // Graceful shutdown
     const shutdown = async () => {
       console.log("\n🛑 Shutting down Notification Service...");
+      
+      // Disconnect Event Bus
+      const eventBus = getNotificationEventBus();
+      if (eventBus) {
+        await eventBus.disconnect();
+      }
+      
       await databaseService.disconnect();
       process.exit(0);
     };

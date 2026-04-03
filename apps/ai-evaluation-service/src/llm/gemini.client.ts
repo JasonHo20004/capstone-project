@@ -107,7 +107,7 @@ class GeminiClient {
       },
     ];
 
-    try {
+    try { 
       const response = await this.ai.models.generateContent({
         model: selectedModel,
         contents: contentsParts,

@@ -3,7 +3,8 @@
 // =============================================================================
 
 import { Router, Request, Response } from "express";
-import { authenticateToken, requireAdmin, asyncHandler } from "@capstone/common";
+import { authenticateToken, requireAdmin, asyncHandler, EventNames, CoursePublishedEvent } from "@capstone/common";
+import { getEventBus } from "../../../server.js";
 import { databaseService } from "../../../services/database.service.js";
 import { identityClient } from "../../../clients/identity.client.js";
 import type { CourseStatus } from "../../../../generated/prisma/index.js";
@@ -137,6 +138,24 @@ router.put(
       data: updateData,
       include: { lessons: { select: { id: true } } },
     }) as any;
+
+    // 🔥 Emit RabbitMQ Event if course was just approved to ACTIVE
+    if (updateData.status === "ACTIVE" && existing.status !== "ACTIVE") {
+      const payload: CoursePublishedEvent = {
+        courseId: course.id,
+        sellerId: course.courseSellerId,
+        title: course.title,
+        price: Number(course.price)
+      };
+      
+      const eventBus = getEventBus();
+      if (eventBus) {
+        console.log(`🐰 [CourseService] Publishing ${EventNames.COURSE_PUBLISHED}`);
+        eventBus.publish(EventNames.COURSE_PUBLISHED, payload).catch(err => {
+          console.error("Failed to publish COURSE_PUBLISHED via RabbitMQ:", err);
+        });
+      }
+    }
 
     res.json({
       success: true,

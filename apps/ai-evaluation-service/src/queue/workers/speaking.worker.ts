@@ -55,8 +55,8 @@ export function createSpeakingWorker(): Worker {
           SPEAKING_EVALUATION_PROMPT,
           audioBase64,
           mimeType,
-          "Please listen to this IELTS Speaking response and evaluate it. Provide transcript and scores.",
-          { temperature: 0.3 }
+          "Please listen to this IELTS Speaking response and evaluate it. Provide transcript, detailed analysis, and precise scores.",
+          { temperature: 0.2, useProModel: false } // Flash model for cost/rate-limit efficiency
         );
 
         const result: SpeakingEvaluationResult & { transcript?: string } = JSON.parse(response);

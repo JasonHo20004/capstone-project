@@ -7,6 +7,7 @@ import walletRouter from "./modules/wallet/routes/wallet.route.js";
 import orderRouter from "./modules/orders/routes/order.route.js";
 import topupRouter from "./modules/topup/routes/topup.route.js";
 import cartRouter from "./modules/carts/routes/cart.route.js";
+import subscriptionRouter from "./modules/subscription/routes/user-subscription.route.js";
 
 const app: Express = express();
 
@@ -42,6 +43,7 @@ app.use("/api/wallet", walletRouter);
 app.use("/api/orders", orderRouter);
 app.use("/api/topup-orders", topupRouter);
 app.use("/api/carts", cartRouter);
+app.use("/api/subscriptions", subscriptionRouter);
 
 app.use(errorHandler);
 
