@@ -1,12 +1,25 @@
-// =============================================================================
-// Interactive Speaking Session - API Routes
-// =============================================================================
-
 import { Router, Request, Response } from "express";
 import { SpeakingSessionService } from "./speaking-session.service.js";
 import { s3Service } from "../../services/s3.service.js";
+import { databaseService } from "../../services/database.service.js";
 
 const router = Router();
+
+const PAYMENT_SERVICE_URL = process.env.PAYMENT_SERVICE_URL || "http://localhost:3005";
+
+/** Check if user has Pro subscription */
+async function checkUserPro(userId: string): Promise<boolean> {
+  try {
+    const resp = await fetch(
+      `${PAYMENT_SERVICE_URL}/api/subscriptions/internal/check-access/ai_speaking?userId=${userId}`
+    );
+    if (!resp.ok) return false;
+    const result = await resp.json();
+    return result.data?.hasAccess === true;
+  } catch {
+    return true; // fail-open
+  }
+}
 
 /**
  * POST /api/ai/speaking-sessions/start
@@ -19,6 +32,25 @@ router.post("/start", async (req: Request, res: Response) => {
     if (!userId) {
       res.status(400).json({ success: false, error: "userId is required" });
       return;
+    }
+
+    // Per-item premium check: if user selected a specific topic, check if it's premium
+    if (topic) {
+      const prisma = databaseService.getClient();
+      const dbTopic = await prisma.speakingTopic.findFirst({
+        where: { title: topic, isActive: true },
+      });
+      if (dbTopic?.isPremium) {
+        const isPro = await checkUserPro(userId);
+        if (!isPro) {
+          res.status(403).json({
+            success: false,
+            error: "This speaking topic requires a Pro subscription",
+            code: "PREMIUM_REQUIRED",
+          });
+          return;
+        }
+      }
     }
 
     const result = await SpeakingSessionService.startSession(userId, topic);

@@ -49,13 +49,15 @@ app.use("/api/ai/writing-assistant", assistantRouter);
 app.use("/api/ai/mini-quiz", miniQuizRouter);
 app.use("/api/ai/speaking-topics", speakingTopicRouter);
 
-// Premium-gated routes (require Pro subscription)
+// Premium-gated routes (require Pro subscription for entire feature)
 app.use("/api/ai/assessments/writing", requirePremiumFeature("ai_writing"), writingRouter);
 app.use("/api/ai/assessments/speaking", requirePremiumFeature("ai_speaking"), speakingRouter);
-app.use("/api/ai/speaking-sessions", requirePremiumFeature("ai_speaking"), speakingSessionRouter);
-app.use("/api/ai/dictation", requirePremiumFeature("dictation"), dictationRouter);
 app.use("/api/ai/skill-tree", requirePremiumFeature("skill_tree"), skillTreeRouter);
 app.use("/api/ai/learning-path", requirePremiumFeature("learning_path"), learningPathRouter);
+
+// Per-item premium gating (isPremium checked inside route handlers)
+app.use("/api/ai/speaking-sessions", speakingSessionRouter);
+app.use("/api/ai/dictation", dictationRouter);
 
 // Error handling
 app.use(errorHandler);

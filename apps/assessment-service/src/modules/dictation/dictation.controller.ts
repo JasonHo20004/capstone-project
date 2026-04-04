@@ -48,10 +48,40 @@ export class DictationController {
         res.status(400).json({ message: "userId is required" });
         return;
       }
+
+      // Per-item premium check
+      const exercise = await dictationService.getExerciseById(id);
+      if ((exercise as any).isPremium) {
+        const isPro = await this.checkUserPro(userId);
+        if (!isPro) {
+          res.status(403).json({
+            success: false,
+            error: "This dictation exercise requires a Pro subscription",
+            code: "PREMIUM_REQUIRED",
+          });
+          return;
+        }
+      }
+
       const session = await dictationService.startOrResumeSession(id, userId);
       res.status(200).json({ message: "Session started", data: session });
     } catch (error) {
       next(error);
+    }
+  }
+
+  /** Check if user has Pro subscription */
+  private async checkUserPro(userId: string): Promise<boolean> {
+    const PAYMENT_SERVICE_URL = process.env.PAYMENT_SERVICE_URL || "http://localhost:3005";
+    try {
+      const resp = await fetch(
+        `${PAYMENT_SERVICE_URL}/api/subscriptions/internal/check-access/dictation?userId=${userId}`
+      );
+      if (!resp.ok) return false;
+      const result = await resp.json();
+      return result.data?.hasAccess === true;
+    } catch {
+      return true; // fail-open
     }
   }
 

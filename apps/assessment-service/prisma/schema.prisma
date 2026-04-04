@@ -215,6 +215,7 @@ model DictationExercise {
   category       String?  @db.VarChar(100)
   totalSentences Int      @map("total_sentences")
   isPublished    Boolean  @default(false) @map("is_published")
+  isPremium      Boolean  @default(false) @map("is_premium")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   sentences DictationSentence[]

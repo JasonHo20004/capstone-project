@@ -99,6 +99,7 @@ model SpeakingTopic {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title           String   @db.VarChar(200)
   isActive        Boolean  @default(true) @map("is_active")
+  isPremium       Boolean  @default(false) @map("is_premium")
 
   // Part 1: introductory questions (4-5)
   part1Questions  Json     @default("[]") @map("part1_questions")

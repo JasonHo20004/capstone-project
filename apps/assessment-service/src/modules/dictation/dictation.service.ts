@@ -29,6 +29,7 @@ class DictationService {
         category: true,
         totalSentences: true,
         isPublished: true,
+        isPremium: true,
         createdAt: true,
       },
     });
@@ -165,6 +166,7 @@ class DictationService {
       level?: string;
       category?: string;
       isPublished?: boolean;
+      isPremium?: boolean;
       sentences?: { index: number; text: string; startTime: number; endTime: number }[];
     }
   ) {
@@ -177,6 +179,7 @@ class DictationService {
       if (data.level !== undefined) updateData.level = data.level;
       if (data.category !== undefined) updateData.category = data.category;
       if (data.isPublished !== undefined) updateData.isPublished = data.isPublished;
+      if (data.isPremium !== undefined) updateData.isPremium = data.isPremium;
 
       // If sentences provided, replace all
       if (data.sentences) {

@@ -16,6 +16,7 @@ router.post("/", async (req: Request, res: Response) => {
     const prisma = databaseService.getClient();
     const {
       title,
+      isPremium,
       part1Questions,
       part2Topic,
       part2Bullets,
@@ -31,6 +32,7 @@ router.post("/", async (req: Request, res: Response) => {
     const topic = await prisma.speakingTopic.create({
       data: {
         title,
+        isPremium: isPremium ?? false,
         part1Questions: part1Questions || [],
         part2Topic: part2Topic || null,
         part2Bullets: part2Bullets || [],
@@ -103,6 +105,7 @@ router.put("/:id", async (req: Request, res: Response) => {
     const {
       title,
       isActive,
+      isPremium,
       part1Questions,
       part2Topic,
       part2Bullets,
@@ -115,6 +118,7 @@ router.put("/:id", async (req: Request, res: Response) => {
       data: {
         ...(title !== undefined && { title }),
         ...(isActive !== undefined && { isActive }),
+        ...(isPremium !== undefined && { isPremium }),
         ...(part1Questions !== undefined && { part1Questions }),
         ...(part2Topic !== undefined && { part2Topic }),
         ...(part2Bullets !== undefined && { part2Bullets }),
@@ -126,6 +130,31 @@ router.put("/:id", async (req: Request, res: Response) => {
     res.json({ success: true, data: topic });
   } catch (error: any) {
     console.error("❌ [Speaking Topic] Update error:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * PATCH /api/ai/speaking-topics/:id/toggle-premium
+ * Toggle premium status of a speaking topic
+ */
+router.patch("/:id/toggle-premium", async (req: Request, res: Response) => {
+  try {
+    const prisma = databaseService.getClient();
+    const existing = await prisma.speakingTopic.findUnique({
+      where: { id: String(req.params.id) },
+    });
+    if (!existing) {
+      res.status(404).json({ success: false, error: "Topic not found" });
+      return;
+    }
+    const topic = await prisma.speakingTopic.update({
+      where: { id: String(req.params.id) },
+      data: { isPremium: !existing.isPremium },
+    });
+    res.json({ success: true, data: topic });
+  } catch (error: any) {
+    console.error("❌ [Speaking Topic] Toggle premium error:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
