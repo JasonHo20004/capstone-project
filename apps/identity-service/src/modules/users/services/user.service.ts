@@ -103,6 +103,60 @@ export class UserService {
     };
   }
 
+  async getStats() {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    const [
+      totalUsers,
+      totalSellers,
+      totalAdmins,
+      newUsersThisMonth,
+      newUsersLastMonth,
+      pendingApplications,
+    ] = await Promise.all([
+      this.userRepository.count(),
+      this.userRepository.count({ role: "COURSESELLER" as any }),
+      this.userRepository.count({ role: "ADMINISTRATOR" as any }),
+      this.userRepository.count({ createdAt: { gte: startOfMonth } }),
+      this.userRepository.count({
+        createdAt: { gte: startOfLastMonth, lt: startOfMonth },
+      }),
+      this.userRepository.countPendingApplications(),
+    ]);
+
+    const userGrowthPercent =
+      newUsersLastMonth > 0
+        ? Math.round(((newUsersThisMonth - newUsersLastMonth) / newUsersLastMonth) * 100)
+        : newUsersThisMonth > 0
+        ? 100
+        : 0;
+
+    // Monthly user growth (last 6 months)
+    const monthlyGrowth = [];
+    for (let i = 5; i >= 0; i--) {
+      const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+      const count = await this.userRepository.count({
+        createdAt: { gte: monthStart, lt: monthEnd },
+      });
+      const monthLabel = `T${monthStart.getMonth() + 1}`;
+      monthlyGrowth.push({ name: monthLabel, value: count });
+    }
+
+    return {
+      totalUsers,
+      totalStudents: totalUsers - totalSellers - totalAdmins,
+      totalSellers,
+      totalAdmins,
+      newUsersThisMonth,
+      userGrowthPercent,
+      pendingApplications,
+      monthlyGrowth,
+    };
+  }
+
   async delete(id: string): Promise<void> {
     await this.userRepository.delete(id);
   }

@@ -4,11 +4,14 @@
 
 import { databaseService } from "../../../services/database.service.js";
 import { WalletService } from "../../wallet/services/wallet.service.js";
+import { CommissionService } from "../../commission/services/commission.service.js";
+import { getCourseById } from "../../../clients/course.client.js";
 import { EventBusService, EventNames } from "@capstone/common";
 
 export class OrderService {
   private prisma = databaseService.getClient();
   private walletService = new WalletService();
+  private commissionService = new CommissionService();
   private eventBus: EventBusService;
 
   constructor() {
@@ -76,6 +79,24 @@ export class OrderService {
     // Extract course IDs from cart items
     const courseIds = order.cart.cartItems.map((item) => item.courseId);
 
+    // Revenue split for each course
+    for (const courseId of courseIds) {
+      try {
+        const course = await getCourseById(courseId);
+        if (course?.courseSellerId) {
+          await this.commissionService.processRevenueSplit({
+            orderId,
+            courseId,
+            sellerId: course.courseSellerId,
+            buyerId: userId,
+            coursePrice: course.price,
+          });
+        }
+      } catch (err) {
+        console.error(`⚠️ Revenue split failed for course ${courseId}:`, err);
+      }
+    }
+
     // Publish payment success event
     await this.eventBus.publish(EventNames.ORDER_PAID, {
       userId,
@@ -123,6 +144,24 @@ export class OrderService {
       `Payment for order ${orderId}`,
       orderId
     );
+
+    // Revenue split for each course
+    for (const courseId of courseIds) {
+      try {
+        const course = await getCourseById(courseId);
+        if (course?.courseSellerId) {
+          await this.commissionService.processRevenueSplit({
+            orderId,
+            courseId,
+            sellerId: course.courseSellerId,
+            buyerId: userId,
+            coursePrice: course.price,
+          });
+        }
+      } catch (err) {
+        console.error(`⚠️ Revenue split failed for course ${courseId}:`, err);
+      }
+    }
 
     await this.eventBus.publish(EventNames.ORDER_PAID, {
       userId,
