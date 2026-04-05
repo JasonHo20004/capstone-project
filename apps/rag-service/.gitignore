@@ -1,0 +1,32 @@
+# Environments
+venv/
+env/
+ENV/
+.venv/
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+
+# Database / Vector stores
+chroma_db/
+*.db
+*.sqlite3
+
+# OS generated files
+.DS_Store
+Thumbs.db

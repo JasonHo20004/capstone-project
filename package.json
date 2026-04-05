@@ -26,7 +26,8 @@
     "prisma:migrate:ai-evaluation": "pnpm --filter @capstone/ai-evaluation-service run prisma:migrate",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
-    "docker:logs": "docker-compose logs -f"
+    "docker:logs": "docker-compose logs -f",
+    "dev:rag": "cd apps/rag-service && python -m uvicorn app.main:app --reload --port 8000"
   },
   "devDependencies": {
     "typescript": "^5.9.2"

@@ -4,6 +4,8 @@
 
 import { FlashcardRepository } from "../repositories/flashcard.repository.js";
 import { NotFoundError, ForbiddenError, BadRequestError } from "@capstone/common";
+import { validateEnglishText } from "../../../services/english-validator.service.js";
+import { generateTTSAudio } from "../../../services/tts.service.js";
 import type {
   CreateDeckInput,
   UpdateDeckInput,
@@ -134,8 +136,23 @@ export class FlashcardService {
       throw new ForbiddenError("You can only add cards to your own decks");
     }
 
+    // Validate English word/phrase (skip if audioUrl already provided)
+    if (!input.audioUrl && input.frontContent) {
+      const validation = await validateEnglishText(input.frontContent);
+      if (!validation.valid) {
+        throw new BadRequestError(validation.reason || "Invalid English text");
+      }
+    }
+
+    // Auto-generate TTS audio if not provided
+    let audioUrl = input.audioUrl;
+    if (!audioUrl && input.frontContent) {
+      audioUrl = await generateTTSAudio(input.frontContent) ?? undefined;
+    }
+
     const flashcard = await this.repository.createFlashcard({
       ...input,
+      audioUrl,
       deckId,
     });
 

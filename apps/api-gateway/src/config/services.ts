@@ -147,6 +147,11 @@ export const services: ServiceConfig[] = [
     url: process.env.AI_EVALUATION_SERVICE_URL || "http://localhost:3007",
     prefix: "/api/ai",
   },
+  {
+    name: "rag-service",
+    url: process.env.RAG_SERVICE_URL || "http://localhost:8000",
+    prefix: "/api/rag",
+  },
 ];
 
 export function getServiceByPrefix(prefix: string): ServiceConfig | undefined {
