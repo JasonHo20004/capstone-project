@@ -132,6 +132,11 @@ export const services: ServiceConfig[] = [
     prefix: "/api/commission",
   },
   {
+    name: "payment-service",
+    url: process.env.PAYMENT_SERVICE_URL || "http://localhost:3005",
+    prefix: "/api/withdrawals",
+  },
+  {
     name: "notification-service",
     url: process.env.NOTIFICATION_SERVICE_URL || "http://localhost:3006",
     prefix: "/api/notifications",
