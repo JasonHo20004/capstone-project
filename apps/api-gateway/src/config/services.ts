@@ -157,6 +157,13 @@ export const services: ServiceConfig[] = [
     url: process.env.RAG_SERVICE_URL || "http://localhost:8000",
     prefix: "/api/rag",
   },
+  // AI Advisor SSE — must be listed BEFORE the generic /api/ai entry
+  // http-proxy-middleware matches in array order; SSE needs no buffering
+  {
+    name: "ai-evaluation-service",
+    url: process.env.AI_EVALUATION_SERVICE_URL || "http://localhost:3007",
+    prefix: "/api/ai/advisor/stream",
+  },
 ];
 
 export function getServiceByPrefix(prefix: string): ServiceConfig | undefined {
