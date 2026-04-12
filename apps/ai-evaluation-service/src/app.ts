@@ -15,6 +15,7 @@ import learningPathRouter from "./modules/learning-path/learning-path.route.js";
 import dictationRouter from "./modules/dictation/dictation.route.js";
 import speakingSessionRouter from "./modules/speaking-session/speaking-session.route.js";
 import speakingTopicRouter from "./modules/speaking-topic/speaking-topic.route.js";
+import advisorRouter from "./modules/advisor/advisor.route.js";
 import { requirePremiumFeature } from "./middlewares/premium-gate.middleware.js";
 
 const app: Express = express();
@@ -58,6 +59,9 @@ app.use("/api/ai/learning-path", requirePremiumFeature("learning_path"), learnin
 // Per-item premium gating (isPremium checked inside route handlers)
 app.use("/api/ai/speaking-sessions", speakingSessionRouter);
 app.use("/api/ai/dictation", dictationRouter);
+
+// AI Advisor — not premium-gated, available to all authenticated users
+app.use("/api/ai/advisor", advisorRouter);
 
 // Error handling
 app.use(errorHandler);
