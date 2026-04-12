@@ -9,6 +9,7 @@ import {
   GENERATE_SKILL_TREE_PROMPT,
   BRANCH_SKILL_TREE_PROMPT,
 } from "./skill-tree.prompts.js";
+import { advisorService } from "../advisor/advisor.service.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -239,6 +240,20 @@ class SkillTreeService {
         nodes: finalNodes as any,
         edges: finalEdges as any,
       },
+    });
+
+    // Notify AI Advisor — fire-and-forget (does not affect skill tree response)
+    setImmediate(() => {
+      advisorService
+        .analyzeAndAdvise({
+          userId,
+          source: "skill_tree_quiz",
+          wrongAnswers,
+          totalQuestions: wrongAnswers.length + (parsed.newNodes?.length ?? 0),
+          topic,
+          level,
+        })
+        .catch((err) => console.error("[SkillTree] Advisor notify failed:", err));
     });
 
     return {
