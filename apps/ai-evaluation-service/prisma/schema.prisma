@@ -192,3 +192,79 @@ enum MiniQuizStatus {
   IN_PROGRESS
   COMPLETED
 }
+
+// =============================================================================
+// AI Advisor — Proactive Learning Ecosystem
+// =============================================================================
+
+// ─── User Learning Profile (AI Memory) ─────────────────────────────────────────
+
+model UserLearningProfile {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String   @unique @map("user_id") @db.Uuid
+
+  // Band score tracking
+  bandScoreTarget    Float    @default(6.5) @map("band_score_target")
+  bandScoreCurrent   Float    @default(0) @map("band_score_current")
+
+  // Per-skill gap scores (0.0 - 1.0, where 0 = far below target)
+  // Shape: { "listening": 0.4, "reading": 0.7, "writing": 0.3, "speaking": 0.5 }
+  skillGaps          Json     @default("{}") @map("skill_gaps")
+
+  // Learning personality derived from behavior
+  // Shape: { "best_time": "evening", "avg_session_min": 25, "error_patterns": [...], "total_quizzes": 12 }
+  learningPersonality Json    @default("{}") @map("learning_personality")
+
+  // Advisor delivery config — controls proactive push frequency
+  // Shape: { "proactive_enabled": true, "last_push_at": "ISO", "min_interval_hours": 4 }
+  advisorConfig      Json     @default("{}") @map("advisor_config")
+
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("user_learning_profiles")
+}
+
+// ─── IELTS Knowledge Base (pgvector RAG) ───────────────────────────────────────
+// Note: embedding column is managed via raw SQL migration (Prisma doesn't support vector natively)
+
+model IeltsKnowledgeBase {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  content     String   // The text chunk for retrieval
+  skill       String   @db.VarChar(20)  // 'listening' | 'reading' | 'writing' | 'speaking' | 'general'
+  bandRange   String   @map("band_range") @db.VarChar(10) // '4.0-5.0' | '5.0-6.0' | '6.0-7.0' | '7.0-9.0'
+  source      String?  @db.VarChar(200) // e.g. "Cambridge IELTS 17", "IELTS.org official band descriptors"
+  metadata    Json     @default("{}") // extra tags, topic, etc.
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // embedding VECTOR(768) — managed by raw SQL, not Prisma
+
+  @@index([skill])
+  @@index([bandRange])
+  @@map("ielts_knowledge_base")
+}
+
+// ─── Advisor Action Log (Action Registry audit trail) ──────────────────────────
+
+model AdvisorActionLog {
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String           @map("user_id") @db.Uuid
+  actionType    AdvisorActionType @map("action_type")
+  payload       Json             // { message, evidence, courseId?, tipId? }
+  triggerReason String           @map("trigger_reason") // 'quiz_failed' | 'idle_4h' | 'band_gap_detected' | 'user_request'
+  deliveredAt   DateTime?        @map("delivered_at") @db.Timestamptz(6)
+  acknowledgedAt DateTime?       @map("acknowledged_at") @db.Timestamptz(6)
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([actionType])
+  @@index([createdAt])
+  @@map("advisor_action_log")
+}
+
+enum AdvisorActionType {
+  SHOW_BANNER      // Show a tip/insight banner in the UI
+  SUGGEST_COURSE   // Recommend a course based on skill gap evidence
+  UNLOCK_TIP       // Surface a contextual IELTS tip
+  SEND_REMINDER    // Remind user to study (band-gap-based, not streak-based)
+}
