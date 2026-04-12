@@ -87,4 +87,14 @@ export class UserRepository {
   async count(where?: Prisma.UserWhereInput) {
     return await this.prisma.user.count({ where });
   }
+
+  async countPendingApplications() {
+    try {
+      return await this.prisma.sellerApplication.count({
+        where: { status: "PENDING" as any },
+      });
+    } catch {
+      return 0;
+    }
+  }
 }

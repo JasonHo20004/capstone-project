@@ -192,4 +192,133 @@ router.delete(
   })
 );
 
+// ─── DASHBOARD ─────────────────────────────────────────────────────────
+// GET /api/admin/dashboard - Admin dashboard aggregated stats
+router.get(
+  "/dashboard",
+  authenticateToken,
+  requireAdmin,
+  asyncHandler(async (_req: Request, res: Response) => {
+    const prisma = databaseService.getClient();
+
+    // 1. Course stats
+    const [totalCourses, activeCourses, pendingCourses, coursesByStatus] = await Promise.all([
+      prisma.course.count(),
+      prisma.course.count({ where: { status: "ACTIVE" as CourseStatus } }),
+      prisma.course.count({ where: { status: "PENDING" as CourseStatus } }),
+      prisma.course.groupBy({
+        by: ["status"],
+        _count: { id: true },
+      }),
+    ]);
+
+    const courseStatusData = coursesByStatus.map((g) => ({
+      name: g.status,
+      value: g._count.id,
+    }));
+
+    // 2. Revenue from orders (last 6 months)
+    const now = new Date();
+    const revenueData = [];
+    for (let i = 5; i >= 0; i--) {
+      const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+
+      const orders = await prisma.userActivity.count({
+        where: {
+          createdAt: { gte: monthStart, lt: monthEnd },
+        },
+      });
+
+      // Calculate revenue: sum of course prices for activities in this month
+      const activities = await prisma.userActivity.findMany({
+        where: { createdAt: { gte: monthStart, lt: monthEnd } },
+        include: { course: { select: { price: true } } },
+      });
+
+      const revenue = activities.reduce(
+        (sum: number, act: { course: { price: any } }) => sum + Number(act.course.price || 0),
+        0
+      );
+
+      revenueData.push({
+        month: `T${monthStart.getMonth() + 1}`,
+        revenue,
+        orders,
+      });
+    }
+
+    const totalRevenue = revenueData.reduce((s, r) => s + r.revenue, 0);
+
+    // 3. Top selling courses
+    const topCourses = await prisma.course.findMany({
+      where: { status: "ACTIVE" as CourseStatus },
+      orderBy: { ratingCount: "desc" },
+      take: 5,
+      select: {
+        id: true,
+        title: true,
+        price: true,
+        ratingCount: true,
+        thumbnailUrl: true,
+        courseSellerId: true,
+        _count: { select: { lessons: true } },
+      },
+    });
+
+    // Enrich top courses with seller names
+    const sellerIds = [...new Set(topCourses.map((c) => c.courseSellerId))];
+    const sellers = await identityClient.getUsersBasicInfo(sellerIds);
+
+    const topCoursesData = topCourses.map((c) => ({
+      id: c.id,
+      title: c.title,
+      price: Number(c.price),
+      ratingCount: c.ratingCount,
+      thumbnailUrl: c.thumbnailUrl,
+      lessonCount: c._count.lessons,
+      sellerName: sellers.get(c.courseSellerId)?.fullName || "Seller",
+    }));
+
+    // 4. User stats from identity-service
+    const userStats = await identityClient.getUserStats();
+
+    // 5. Revenue growth rate
+    const courseGrowthPercent = (() => {
+      const thisMonth = revenueData[revenueData.length - 1]?.revenue || 0;
+      const lastMonth = revenueData[revenueData.length - 2]?.revenue || 0;
+      if (lastMonth > 0) return Math.round(((thisMonth - lastMonth) / lastMonth) * 100);
+      return thisMonth > 0 ? 100 : 0;
+    })();
+
+    res.json({
+      success: true,
+      data: {
+        stats: {
+          totalUsers: userStats?.totalUsers ?? 0,
+          totalCourses,
+          activeCourses,
+          pendingCourses,
+          totalRevenue,
+          pendingApplications: userStats?.pendingApplications ?? 0,
+          monthlyGrowth: {
+            users: userStats?.userGrowthPercent ?? 0,
+            courses: courseGrowthPercent,
+            revenue: courseGrowthPercent,
+          },
+        },
+        revenueData,
+        userGrowthData: userStats?.monthlyGrowth ?? [],
+        courseStatusData,
+        topCourses: topCoursesData,
+        userBreakdown: {
+          students: userStats?.totalStudents ?? 0,
+          sellers: userStats?.totalSellers ?? 0,
+          admins: userStats?.totalAdmins ?? 0,
+        },
+      },
+    });
+  })
+);
+
 export default router;

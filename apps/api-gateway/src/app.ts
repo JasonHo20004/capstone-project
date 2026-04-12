@@ -50,6 +50,8 @@ for (const service of services) {
     pathFilter: service.pathFilter ?? service.prefix,
     cookieDomainRewrite: "",
     cookiePathRewrite: "/",
+    // RAG service needs longer timeout for LLM calls (5 min)
+    ...(service.name === "rag-service" && { proxyTimeout: 300000, timeout: 300000 }),
     on: {
       proxyReq: (proxyReq, req, _res) => {
         console.log(`➡️ [Gateway] ${req.method} ${req.url} -> ${service.url}${proxyReq.path} (${service.name})`);

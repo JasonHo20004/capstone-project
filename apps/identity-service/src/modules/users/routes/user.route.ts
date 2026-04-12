@@ -16,10 +16,13 @@ router.patch("/profile", authenticateToken, validate(updateUserSchema), userCont
 
 // Internal API for other services
 router.post("/internal/batch", userController.getBasicInfoBatch);
+router.get("/internal/stats", userController.getStats);
 router.get("/internal/:id", userController.getBasicInfo);
 
 // Admin routes
 router.get("/", authenticateToken, requireAdmin, validate(getUsersQuerySchema), userController.getMany);
+router.post("/create", authenticateToken, requireAdmin, userController.createUser);
+router.put("/:id", authenticateToken, requireAdmin, userController.updateUser);
 router.get("/:id", authenticateToken, requireAdmin, userController.getById);
 router.delete("/:id", authenticateToken, requireAdmin, userController.deleteUser);
 

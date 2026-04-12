@@ -8,6 +8,8 @@ import orderRouter from "./modules/orders/routes/order.route.js";
 import topupRouter from "./modules/topup/routes/topup.route.js";
 import cartRouter from "./modules/carts/routes/cart.route.js";
 import subscriptionRouter from "./modules/subscription/routes/user-subscription.route.js";
+import commissionRouter from "./modules/commission/routes/commission.routes.js";
+import withdrawalRouter from "./modules/withdrawal/routes/withdrawal.routes.js";
 
 const app: Express = express();
 
@@ -44,6 +46,8 @@ app.use("/api/orders", orderRouter);
 app.use("/api/topup-orders", topupRouter);
 app.use("/api/carts", cartRouter);
 app.use("/api/subscriptions", subscriptionRouter);
+app.use("/api/commission", commissionRouter);
+app.use("/api/withdrawals", withdrawalRouter);
 
 app.use(errorHandler);
 

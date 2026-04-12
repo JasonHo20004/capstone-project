@@ -53,6 +53,18 @@ export class IdentityClient {
 
     return result;
   }
+
+  async getUserStats(): Promise<any> {
+    try {
+      const response = await fetch(`${IDENTITY_SERVICE_URL}/api/users/internal/stats`);
+      if (!response.ok) return null;
+      const data = await response.json() as { data: any };
+      return data.data;
+    } catch (error) {
+      console.error(`[Course Service] Error fetching user stats:`, error);
+      return null;
+    }
+  }
 }
 
 export const identityClient = IdentityClient.getInstance();

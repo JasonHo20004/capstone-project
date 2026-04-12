@@ -21,6 +21,7 @@ export class WalletService {
     return {
       id: wallet.id,
       balance: Number(wallet.allowance),
+      pendingBalance: Number(wallet.pendingBalance),
       userId: wallet.userId,
     };
   }

@@ -127,6 +127,16 @@ export const services: ServiceConfig[] = [
     prefix: "/api/subscriptions",
   },
   {
+    name: "payment-service",
+    url: process.env.PAYMENT_SERVICE_URL || "http://localhost:3005",
+    prefix: "/api/commission",
+  },
+  {
+    name: "payment-service",
+    url: process.env.PAYMENT_SERVICE_URL || "http://localhost:3005",
+    prefix: "/api/withdrawals",
+  },
+  {
     name: "notification-service",
     url: process.env.NOTIFICATION_SERVICE_URL || "http://localhost:3006",
     prefix: "/api/notifications",
@@ -141,6 +151,11 @@ export const services: ServiceConfig[] = [
     name: "ai-evaluation-service",
     url: process.env.AI_EVALUATION_SERVICE_URL || "http://localhost:3007",
     prefix: "/api/ai",
+  },
+  {
+    name: "rag-service",
+    url: process.env.RAG_SERVICE_URL || "http://localhost:8000",
+    prefix: "/api/rag",
   },
 ];
 
