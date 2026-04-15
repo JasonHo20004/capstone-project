@@ -61,14 +61,31 @@ router.get(
     const totalLessons = syllabus.length;
     const completedCount = completedLessons.length;
 
+    // Fetch instructor info from identity service (best-effort)
+    const instructor = await identityClient.getUserBasicInfo(course.courseSellerId).catch(() => null);
+
     res.json({
       success: true,
       data: {
-        courseId: course.id,
-        courseTitle: course.title,
-        totalLessons,
-        completedLessons: completedCount,
-        progressPercent: totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0,
+        course: {
+          id: course.id,
+          title: course.title,
+          description: course.description ?? null,
+          category: course.category ?? null,
+          courseLevel: course.courseLevel ?? null,
+          totalLessons,
+          totalRatings: course.ratingCount ?? 0,
+          instructor: {
+            id: instructor?.id ?? course.courseSellerId,
+            fullName: instructor?.fullName ?? "Giảng viên",
+            profilePicture: instructor?.profilePicture ?? null,
+          },
+        },
+        progress: {
+          completedLessons: completedCount,
+          totalLessons,
+          progressPercentage: totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0,
+        },
         syllabus,
       },
     });

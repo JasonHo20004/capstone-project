@@ -6,6 +6,7 @@ import "dotenv/config";
 import app from "./app.js";
 import { databaseService } from "./services/database.service.js";
 import { EventBusService, EventNames, OrderPaidEvent } from "@capstone/common";
+import { CourseService } from "./modules/courses/services/course.service.js";
 
 const PORT = process.env.COURSE_SERVICE_PORT || 3002;
 const SERVICE_NAME = "course-service";
@@ -17,15 +18,15 @@ export function getEventBus(): EventBusService {
 }
 
 async function setupEventHandlers() {
+  const courseService = new CourseService();
+
   // Listen for payment success events to grant course access
   await eventBus.subscribe<OrderPaidEvent>(EventNames.ORDER_PAID, async (event) => {
     console.log(`📥 [${SERVICE_NAME}] Received ORDER_PAID event for user ${event.payload.userId}`);
-    
-    // Here we would grant access to courses
-    // This would be implemented in the CourseService
+
     for (const courseId of event.payload.courseIds) {
       console.log(`🔓 [${SERVICE_NAME}] Granting access to course ${courseId} for user ${event.payload.userId}`);
-      // await courseService.grantAccess(event.payload.userId, courseId, event.payload.orderId);
+      await courseService.grantAccess(event.payload.userId, courseId, event.payload.orderId);
     }
   });
 }
