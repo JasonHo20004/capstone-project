@@ -8,13 +8,17 @@ export class TopupController {
   createOrder = asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.userId;
     const { realMoney } = req.body;
+    const ipAddr =
+      (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+      req.socket.remoteAddress ||
+      "127.0.0.1";
 
-    const result = await this.topupService.createOrder(userId, Number(realMoney));
+    const result = await this.topupService.createOrder(userId, Number(realMoney), ipAddr);
 
     res.status(201).json({
       success: true,
       data: result,
-      message: "Stripe payment intent created",
+      message: "VNPay payment URL created",
     });
   });
 
@@ -24,19 +28,28 @@ export class TopupController {
 
     const result = await this.topupService.getOrderStatus(orderId, userId);
 
-    res.json({
-      success: true,
-      data: result,
-    });
+    res.json({ success: true, data: result });
   });
 
-  handleWebhook = asyncHandler(async (req: Request, res: Response) => {
-    const rawSignature = req.headers["stripe-signature"];
-    const signature = Array.isArray(rawSignature) ? rawSignature[0] : rawSignature;
-    const payload = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body);
-
-    const result = await this.topupService.handleWebhook(signature, payload);
-
+  // VNPay IPN — server-to-server callback, must respond quickly with RspCode
+  handleIpn = asyncHandler(async (req: Request, res: Response) => {
+    const params = req.query as Record<string, string>;
+    const result = await this.topupService.handleIpn(params);
     res.json(result);
+  });
+
+  // VNPay return — browser redirect after payment, redirects user to frontend
+  handleReturn = asyncHandler(async (req: Request, res: Response) => {
+    const params = req.query as Record<string, string>;
+    const result = await this.topupService.verifyReturn(params);
+
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const status = result.success ? "success" : "failed";
+    const orderId = "orderId" in result ? result.orderId : "";
+    const txnRef = result.txnRef ?? "";
+
+    res.redirect(
+      `${frontendUrl}/payment/result?status=${status}&orderId=${orderId}&txnRef=${encodeURIComponent(txnRef)}`
+    );
   });
 }

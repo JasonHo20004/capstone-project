@@ -9,6 +9,7 @@ import testRouter from "./modules/tests/test.route.js";
 import sessionRouter from "./modules/sessions/session.route.js";
 import dictationRouter from "./modules/dictation/dictation.route.js";
 import commentRouter from "./modules/comments/comment.route.js";
+import tutorRouter from "./modules/tutor/tutor.route.js";
 
 const app: Express = express();
 
@@ -41,6 +42,7 @@ app.use("/api/tests", testRouter);
 app.use("/api/sessions", sessionRouter);
 app.use("/api/dictation", dictationRouter);
 app.use("/api/test-comments", commentRouter);
+app.use("/api/tutor", tutorRouter);
 
 // Error handling
 app.use(errorHandler);

@@ -40,6 +40,29 @@ class AskQuestionResponse(BaseModel):
     relevant_chunks: list[str] = Field(default_factory=list, description="Các đoạn tài liệu liên quan")
 
 
+class ChatMessage(BaseModel):
+    role: str = Field(..., description="'user' or 'assistant'")
+    content: str
+
+
+class ExplainRequest(BaseModel):
+    passage: str = Field(..., min_length=1, description="Passage / transcript / '[LISTENING]' sentinel")
+    question_text: str = Field(..., description="Nội dung câu hỏi")
+    question_type: str = Field("MULTIPLE_CHOICE", description="Loại câu hỏi")
+    options: list[str] = Field(default_factory=list, description="Các đáp án")
+    correct_answer: str = Field(..., description="Đáp án đúng")
+    user_answer: str = Field(..., description="Đáp án user đã chọn")
+    test_skill: str = Field("READING", description="'READING' or 'LISTENING'")
+    conversation_history: list[ChatMessage] = Field(default_factory=list, description="Lịch sử hội thoại cho follow-up")
+
+
+class ExplainResponse(BaseModel):
+    success: bool = True
+    explanation: str = Field(..., description="Giải thích chi tiết")
+    passage_reference: str = Field("", description="Trích dẫn passage liên quan")
+    tips: str = Field("", description="Mẹo cho dạng câu hỏi này")
+
+
 class HealthResponse(BaseModel):
     service: str = "rag-service"
     status: str = "healthy"

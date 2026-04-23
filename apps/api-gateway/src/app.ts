@@ -58,6 +58,12 @@ for (const service of services) {
       },
       proxyRes: (proxyRes, req, _res) => {
         console.log(`⬅️ [Gateway] ${proxyRes.statusCode} ${req.method} ${req.url}`);
+        // Disable buffering for SSE streams so tokens flow through immediately
+        if (proxyRes.headers["content-type"]?.includes("text/event-stream")) {
+          console.log(`🔄 [Gateway] SSE stream detected for ${req.url}`);
+          (proxyRes as any).headers["cache-control"] = "no-cache";
+          (proxyRes as any).headers["x-accel-buffering"] = "no";
+        }
       },
       error: (err, req, res) => {
         console.error(`❌ [Gateway] Proxy error for ${req.url}:`, err.message);

@@ -276,3 +276,33 @@ model TestComment {
   @@index([testId])
   @@map("test_comments")
 }
+
+// ─── AI Tutor Chat Sessions ───────────────────────────────────────────────────
+
+model TutorSession {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  practiceSessionId String          @map("practice_session_id") @db.Uuid
+  questionId        String          @map("question_id") @db.Uuid
+  userId            String          @map("user_id") @db.Uuid
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  messages TutorMessage[]
+
+  @@unique([practiceSessionId, questionId, userId])
+  @@index([userId])
+  @@map("tutor_sessions")
+}
+
+model TutorMessage {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tutorSessionId  String       @map("tutor_session_id") @db.Uuid
+  role            String       @db.VarChar(20)  // "user" | "assistant"
+  content         String
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tutorSession TutorSession @relation(fields: [tutorSessionId], references: [id], onDelete: Cascade)
+
+  @@index([tutorSessionId])
+  @@map("tutor_messages")
+}

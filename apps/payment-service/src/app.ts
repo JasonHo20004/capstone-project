@@ -26,11 +26,6 @@ app.use(
   })
 );
 
-app.post(
-  "/api/topup-orders/webhook",
-  express.raw({ type: "application/json" }),
-  (_req, _res, next) => next()
-);
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
