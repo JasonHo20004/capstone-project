@@ -27,6 +27,7 @@ export async function generateTTSAudio(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, voice_id: voiceId, speed }),
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!response.ok) {

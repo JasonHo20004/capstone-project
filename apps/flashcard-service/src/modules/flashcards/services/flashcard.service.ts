@@ -6,6 +6,7 @@ import { FlashcardRepository } from "../repositories/flashcard.repository.js";
 import { NotFoundError, ForbiddenError, BadRequestError } from "@capstone/common";
 import { validateEnglishText } from "../../../services/english-validator.service.js";
 import { generateTTSAudio } from "../../../services/tts.service.js";
+import { fetchPexelsVideoUrl } from "../../../services/pexels.service.js";
 import type {
   CreateDeckInput,
   UpdateDeckInput,
@@ -150,9 +151,20 @@ export class FlashcardService {
       audioUrl = await generateTTSAudio(input.frontContent) ?? undefined;
     }
 
+    // Auto-fetch Pexels video only for single words or 2-word concrete phrases.
+    // Idioms/phrases (3+ words) produce misleading literal visuals (e.g. "break a leg" → broken leg video).
+    let videoUrl = input.videoUrl;
+    if (!videoUrl && input.frontContent) {
+      const searchTerm = extractSearchTerm(input.frontContent);
+      if (searchTerm.split(/\s+/).length <= 2) {
+        videoUrl = await fetchPexelsVideoUrl(searchTerm) ?? undefined;
+      }
+    }
+
     const flashcard = await this.repository.createFlashcard({
       ...input,
       audioUrl,
+      videoUrl,
       deckId,
     });
 
@@ -384,4 +396,21 @@ export class FlashcardService {
       flashcardCount: flashcardCount ?? 0,
     };
   }
+}
+
+/**
+ * Extract the key search term from flashcard frontContent for Pexels video search.
+ * Strips definitions (text after ':', '-', '(') then takes the first 3 words.
+ * Examples:
+ *   "break the ice (idiom)"  → "break the ice"
+ *   "ambiguous (adj): unclear" → "ambiguous"
+ *   "make ends meet"          → "make ends meet"
+ */
+function extractSearchTerm(text: string): string {
+  return text
+    .split(/[:()\-–]/)[0]   // take only part before definition markers
+    .trim()
+    .split(/\s+/)
+    .slice(0, 3)             // max 3 words — Pexels works best with short queries
+    .join(" ");
 }

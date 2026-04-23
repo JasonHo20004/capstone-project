@@ -122,6 +122,7 @@ export class FlashcardRepository {
     backContent: string;
     exampleSentence?: string;
     audioUrl?: string;
+    videoUrl?: string;
     deckId: string;
   }) {
     return await this.prisma.flashcard.create({
@@ -161,6 +162,7 @@ export class FlashcardRepository {
     backContent?: string;
     exampleSentence?: string;
     audioUrl?: string;
+    videoUrl?: string;
   }) {
     return await this.prisma.flashcard.update({
       where: { id },
@@ -289,11 +291,10 @@ export class FlashcardRepository {
 
     const where: Prisma.FlashcardWhereInput = {
       id: { notIn: excludeIds },
-      deck: { isPublic: true },
+      // When deckId is given, access was already validated upstream — no isPublic filter needed.
+      // Without deckId (global feed), restrict to public decks only.
+      ...(deckId ? { deckId } : { deck: { isPublic: true } }),
     };
-    if (deckId) {
-      where.deckId = deckId;
-    }
 
     return await this.prisma.flashcard.findMany({
       where,

@@ -52,6 +52,7 @@ export const createFlashcardSchema = {
     backContent: z.string().min(1, "Back content is required"),
     exampleSentence: z.string().optional(),
     audioUrl: z.string().url().optional(),
+    videoUrl: z.string().url().optional(),
   }),
   params: z.object({
     deckId: z.string().uuid(),
@@ -65,6 +66,7 @@ export const createFlashcardFromBodySchema = {
     backContent: z.string().min(1, "Back content is required"),
     exampleSentence: z.string().optional(),
     audioUrl: z.string().url().optional(),
+    videoUrl: z.string().url().optional(),
   }),
 };
 
@@ -74,6 +76,7 @@ export const updateFlashcardSchema = {
     backContent: z.string().min(1).optional(),
     exampleSentence: z.string().optional(),
     audioUrl: z.string().url().optional(),
+    videoUrl: z.string().url().optional(),
   }),
   params: z.object({
     deckId: z.string().uuid(),
@@ -162,6 +165,7 @@ export interface FlashcardResponse {
   backContent: string;
   exampleSentence: string | null;
   audioUrl: string | null;
+  videoUrl: string | null;
   deckId: string;
 }
 

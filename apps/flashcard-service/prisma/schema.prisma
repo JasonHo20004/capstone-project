@@ -41,6 +41,7 @@ model Flashcard {
   backContent     String                  @map("back_content")
   exampleSentence String?                 @map("example_sentence")
   audioUrl        String?                 @map("audio_url")
+  videoUrl        String?                 @map("video_url")
   deckId          String                  @map("deck_id") @db.Uuid
   deck            FlashcardDeck           @relation(fields: [deckId], references: [id], onDelete: Cascade)
   userProgress    UserFlashcardProgress[]
