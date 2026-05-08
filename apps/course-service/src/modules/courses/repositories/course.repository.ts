@@ -147,27 +147,52 @@ export class CourseRepository {
     moduleId?: string;
     videoUrl?: string;
   }) {
-    return await this.prisma.lesson.create({
-      data: {
-        title: data.title,
-        description: data.description,
-        durationInSeconds: data.durationInSeconds,
-        lessonOrder: data.lessonOrder,
-        materials: data.materials ?? [],
-        courseId: data.courseId,
-        moduleId: data.moduleId,
-        ...(data.videoUrl ? {
-          mediaAssets: {
-            create: {
-              assetType: "VIDEO",
-              assetUrl: data.videoUrl,
-            },
+    return await this.prisma.$transaction(async (tx) => {
+      if (data.lessonOrder !== undefined) {
+        const conflict = await tx.lesson.findFirst({
+          where: {
+            moduleId: data.moduleId ?? null,
+            lessonOrder: data.lessonOrder,
+            ...(data.moduleId ? {} : { courseId: data.courseId }),
           },
-        } : {}),
-      },
-      include: {
-        mediaAssets: true,
-      },
+          select: { id: true },
+        });
+
+        if (conflict) {
+          if (data.moduleId) {
+            await tx.$executeRaw`
+              UPDATE lessons SET lesson_order = lesson_order + 1
+              WHERE module_id = ${data.moduleId}::uuid AND lesson_order >= ${data.lessonOrder}
+            `;
+          } else {
+            await tx.$executeRaw`
+              UPDATE lessons SET lesson_order = lesson_order + 1
+              WHERE course_id = ${data.courseId}::uuid AND module_id IS NULL AND lesson_order >= ${data.lessonOrder}
+            `;
+          }
+        }
+      }
+
+      return await tx.lesson.create({
+        data: {
+          title: data.title,
+          description: data.description,
+          durationInSeconds: data.durationInSeconds,
+          lessonOrder: data.lessonOrder,
+          materials: data.materials ?? [],
+          courseId: data.courseId,
+          moduleId: data.moduleId,
+          ...(data.videoUrl ? {
+            mediaAssets: {
+              create: {
+                assetType: "VIDEO",
+                assetUrl: data.videoUrl,
+              },
+            },
+          } : {}),
+        },
+        include: { mediaAssets: true },
+      });
     });
   }
 

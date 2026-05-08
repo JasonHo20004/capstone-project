@@ -140,22 +140,30 @@ export class CourseController {
     const sellerId = req.user!.userId;
     const { title, description, durationInSeconds, lessonOrder, moduleId } = req.body;
 
-    // Upload video to S3 if a file was provided
     let videoUrl: string | undefined;
     if (req.file) {
       videoUrl = await s3Service.uploadFile(req.file, "course-videos");
     }
 
-    const lesson = await this.courseService.createLesson(courseId, sellerId, {
-      title,
-      description,
-      durationInSeconds: durationInSeconds ? parseFloat(durationInSeconds) : undefined,
-      lessonOrder: lessonOrder ? parseInt(lessonOrder) : undefined,
-      moduleId: moduleId || undefined,
-      videoUrl,
-    });
-
-    res.status(201).json({ success: true, data: lesson });
+    try {
+      const lesson = await this.courseService.createLesson(courseId, sellerId, {
+        title,
+        description,
+        durationInSeconds: durationInSeconds ? parseFloat(durationInSeconds) : undefined,
+        lessonOrder: lessonOrder ? parseInt(lessonOrder) : undefined,
+        moduleId: moduleId || undefined,
+        videoUrl,
+      });
+      res.status(201).json({ success: true, data: lesson });
+    } catch (err) {
+      console.error("[CourseController] createLesson DB error:", err);
+      if (videoUrl) {
+        s3Service.deleteFile(videoUrl).catch((cleanupErr) =>
+          console.error("[CourseController] S3 cleanup failed after DB error:", cleanupErr)
+        );
+      }
+      throw err;
+    }
   });
 
   getLessonById = asyncHandler(async (req: Request, res: Response) => {

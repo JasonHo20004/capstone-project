@@ -7,6 +7,7 @@ import multer from "multer";
 import { CourseController } from "../controllers/course.controller.js";
 import { ModuleController } from "../controllers/module.controller.js";
 import { authenticateToken, requireSeller, optionalAuth, validate, asyncHandler } from "@capstone/common";
+import { uploadLimiter, createCourseLimiter } from "../../../middleware/rateLimiter.middleware.js";
 import { createCourseSchema, updateCourseSchema, getCoursesQuerySchema } from "../dtos/course.dto.js";
 import { databaseService } from "../../../services/database.service.js";
 import { identityClient } from "../../../clients/identity.client.js";
@@ -15,7 +16,7 @@ import { notificationClient } from "../../../clients/notification.client.js";
 const router: ReturnType<typeof Router> = Router();
 const courseController = new CourseController();
 const moduleController = new ModuleController();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 1024 * 1024 * 1024 } }); // 1GB
 
 // Public routes
 router.get("/published", optionalAuth, validate(getCoursesQuerySchema), courseController.getPublished);
@@ -29,7 +30,7 @@ router.get("/:id", optionalAuth, courseController.getById);
 router.get("/seller/my-courses", authenticateToken, requireSeller, courseController.getMyCourses);
 router.get("/seller/me", authenticateToken, requireSeller, courseController.getMyCourses);
 router.get("/seller/:sellerId", optionalAuth, validate(getCoursesQuerySchema), courseController.getBySellerId);
-router.post("/", authenticateToken, requireSeller, validate(createCourseSchema), courseController.create);
+router.post("/", authenticateToken, requireSeller, createCourseLimiter, validate(createCourseSchema), courseController.create);
 router.patch("/:id", authenticateToken, requireSeller, validate(updateCourseSchema), courseController.update);
 router.post("/:id/publish", authenticateToken, requireSeller, courseController.publish);
 router.put("/:id/final-test", authenticateToken, requireSeller, courseController.setFinalTest);
@@ -38,7 +39,7 @@ router.delete("/:id", authenticateToken, requireSeller, courseController.delete)
 
 // Lesson routes (uses multer to parse FormData for creation)
 router.get("/:id/lessons/:lessonId", optionalAuth, courseController.getLessonById);
-router.post("/:id/lessons", authenticateToken, requireSeller, upload.single('video'), courseController.createLesson);
+router.post("/:id/lessons", authenticateToken, requireSeller, uploadLimiter, upload.single('video'), courseController.createLesson);
 router.patch("/:id/lessons/:lessonId", authenticateToken, requireSeller, upload.single('video'), courseController.updateLesson);
 
 // Comment routes for lessons

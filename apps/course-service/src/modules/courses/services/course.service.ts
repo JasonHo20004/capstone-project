@@ -7,6 +7,7 @@ import { identityClient } from "../../../clients/identity.client.js";
 import { notificationClient } from "../../../clients/notification.client.js";
 import { databaseService } from "../../../services/database.service.js";
 import { EventBusService, EventNames, getPaginationMeta } from "@capstone/common";
+import DOMPurify from "isomorphic-dompurify";
 import type { CreateCourseInput, UpdateCourseInput, GetCoursesQuery, CourseResponse } from "../dtos/course.dto.js";
 import type { CourseStatus, Prisma } from "../../../../generated/prisma/index.js";
 
@@ -45,7 +46,7 @@ export class CourseService {
   async create(sellerId: string, input: CreateCourseInput): Promise<CourseResponse> {
     const course = await this.courseRepository.create({
       title: input.title,
-      description: input.description,
+      description: input.description ? DOMPurify.sanitize(input.description, { ALLOWED_TAGS: [] }) : input.description,
       price: input.price,
       category: input.category,
       courseLevel: input.courseLevel as any,
@@ -83,7 +84,7 @@ export class CourseService {
 
     const course = await this.courseRepository.update(id, {
       title: input.title,
-      description: input.description,
+      description: input.description ? DOMPurify.sanitize(input.description, { ALLOWED_TAGS: [] }) : input.description,
       price: input.price,
       category: input.category,
       courseLevel: input.courseLevel as any,
@@ -356,8 +357,8 @@ export class CourseService {
     if (course.courseSellerId !== sellerId) throw new Error("Not authorized");
 
     const lesson = await this.courseRepository.createLesson({
-      title: input.title,
-      description: input.description,
+      title: DOMPurify.sanitize(input.title, { ALLOWED_TAGS: [] }),
+      description: input.description ? DOMPurify.sanitize(input.description, { ALLOWED_TAGS: [] }) : input.description,
       durationInSeconds: input.durationInSeconds,
       lessonOrder: input.lessonOrder,
       materials: input.materials,
@@ -397,7 +398,11 @@ export class CourseService {
     const lesson = await this.courseRepository.findLessonById(lessonId);
     if (!lesson || lesson.courseId !== courseId) throw new Error("Lesson not found");
 
-    const updatedLesson = await this.courseRepository.updateLesson(lessonId, input);
+    const updatedLesson = await this.courseRepository.updateLesson(lessonId, {
+      ...input,
+      title: input.title ? DOMPurify.sanitize(input.title, { ALLOWED_TAGS: [] }) : input.title,
+      description: input.description ? DOMPurify.sanitize(input.description, { ALLOWED_TAGS: [] }) : input.description,
+    });
 
     // Notify enrolled users about lesson update (fire-and-forget)
     if (course.status === "ACTIVE") {
@@ -409,7 +414,7 @@ export class CourseService {
 
   // ============== Helper: Notify enrolled users ==============
 
-  private async notifyEnrolledUsers(courseId: string, courseTitle: string, title: string, content: string): Promise<void> {
+  private async notifyEnrolledUsers(courseId: string, _courseTitle: string, title: string, content: string): Promise<void> {
     try {
       const prisma = databaseService.getClient();
       const enrolledUsers = await prisma.userActivity.findMany({
