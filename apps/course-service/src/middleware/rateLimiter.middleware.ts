@@ -1,4 +1,4 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { RedisStore } from "rate-limit-redis";
 import { createClient } from "redis";
 import type { Request } from "express";
@@ -17,7 +17,7 @@ const RATE_LIMIT_RESPONSE = {
 };
 
 const keyGenerator = (req: Request): string =>
-  (req as any).user?.userId ?? req.ip ?? "anonymous";
+  (req as any).user?.userId ?? ipKeyGenerator(req.ip ?? "anonymous");
 
 export const uploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
