@@ -34,6 +34,8 @@ model Course {
   reports        Report[]
   userActivities UserActivity[]
 
+  @@index([courseSellerId])
+  @@index([status])
   @@map("courses")
 }
 
@@ -47,6 +49,8 @@ model Module {
   course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   lessons     Lesson[]
 
+  @@unique([courseId, moduleOrder])
+  @@index([courseId, moduleOrder])
   @@map("modules")
 }
 
@@ -67,6 +71,7 @@ model Lesson {
   mediaAssets       MediaAsset[]
   userLessons       UserLesson[]
 
+  @@unique([moduleId, lessonOrder])
   @@map("lessons")
 }
 
