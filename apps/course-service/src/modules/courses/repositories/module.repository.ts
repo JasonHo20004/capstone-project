@@ -35,23 +35,55 @@ export class ModuleRepository {
   }
 
   async create(data: Prisma.ModuleUncheckedCreateInput) {
-    return await this.prisma.module.create({
-      data,
-      include: {
-        lessons: true,
-      },
+    return await this.prisma.$transaction(async (tx) => {
+      const targetOrder = data.moduleOrder as number;
+      const courseId = data.courseId as string;
+
+      const conflict = await tx.module.findFirst({
+        where: { courseId, moduleOrder: targetOrder },
+        select: { id: true },
+      });
+
+      if (conflict) {
+        await tx.$executeRaw`
+          UPDATE modules SET module_order = module_order + 1
+          WHERE course_id = ${courseId}::uuid AND module_order >= ${targetOrder}
+        `;
+      }
+
+      return await tx.module.create({
+        data,
+        include: { lessons: true },
+      });
     });
   }
 
   async update(id: string, data: Prisma.ModuleUncheckedUpdateInput) {
-    return await this.prisma.module.update({
-      where: { id },
-      data,
-      include: {
-        lessons: {
-          orderBy: { lessonOrder: "asc" },
+    return await this.prisma.$transaction(async (tx) => {
+      if (data.moduleOrder !== undefined) {
+        const current = await tx.module.findUnique({ where: { id }, select: { courseId: true } });
+        if (current) {
+          const targetOrder = data.moduleOrder as number;
+          const conflict = await tx.module.findFirst({
+            where: { courseId: current.courseId, moduleOrder: targetOrder, NOT: { id } },
+            select: { id: true },
+          });
+          if (conflict) {
+            await tx.$executeRaw`
+              UPDATE modules SET module_order = module_order + 1
+              WHERE course_id = ${current.courseId}::uuid AND module_order >= ${targetOrder}
+            `;
+          }
+        }
+      }
+
+      return await tx.module.update({
+        where: { id },
+        data,
+        include: {
+          lessons: { orderBy: { lessonOrder: "asc" } },
         },
-      },
+      });
     });
   }
 
