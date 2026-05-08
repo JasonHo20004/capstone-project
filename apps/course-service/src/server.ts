@@ -7,6 +7,7 @@ import app from "./app.js";
 import { databaseService } from "./services/database.service.js";
 import { EventBusService, EventNames, OrderPaidEvent } from "@capstone/common";
 import { CourseService } from "./modules/courses/services/course.service.js";
+import { startNotificationCron } from "./helpers/notification.cron.js";
 
 const PORT = process.env.COURSE_SERVICE_PORT || 3002;
 const SERVICE_NAME = "course-service";
@@ -42,6 +43,9 @@ async function startServer() {
 
     // Setup event handlers
     await setupEventHandlers();
+
+    // Start notification outbox cron
+    startNotificationCron();
 
     // Start server
     app.listen(PORT, () => {

@@ -9,6 +9,7 @@ import { errorHandler } from "@capstone/common";
 // Import routes
 import courseRouter from "./modules/courses/routes/course.route.js";
 import sellerStatsRouter from "./modules/seller/routes/seller-stats.route.js";
+import withdrawalRouter from "./modules/seller/routes/withdrawal.route.js";
 import studentRouter from "./modules/student/routes/student.route.js";
 import adminCourseRouter from "./modules/admin/routes/admin-course.route.js";
 
@@ -41,6 +42,7 @@ app.get("/health", (_req, res) => {
 // API Routes
 app.use("/api/courses", courseRouter);
 app.use("/api/seller", sellerStatsRouter);
+app.use("/api/seller/withdrawal", withdrawalRouter);
 app.use("/api/student", studentRouter);
 app.use("/api/admin", adminCourseRouter);
 
