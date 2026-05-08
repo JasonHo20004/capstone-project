@@ -45,9 +45,27 @@ export class FlashcardController {
   });
 
   listDecks = asyncHandler(async (req: Request, res: Response) => {
-    const userId = req.user?.userId;
-    const result = await this.service.listDecks(req.query as any, userId);
+    const authUserId = req.user?.userId;
 
+    // Express query params are always strings — coerce manually since
+    // the Zod validate middleware validates but does not replace req.query.
+    const raw = req.query as Record<string, string | undefined>;
+    const query: any = {
+      page: raw.page ? Number(raw.page) : 1,
+      limit: raw.limit ? Number(raw.limit) : 10,
+      search: raw.search,
+      tag: raw.tag,
+      userId: raw.userId,
+      isPublic: raw.isPublic === 'true' ? true : raw.isPublic === 'false' ? false : undefined,
+    };
+
+    // Default to showing only the authenticated user's own decks unless
+    // the caller explicitly requests public decks (isPublic=true).
+    if (query.isPublic !== true && authUserId && !query.userId) {
+      query.userId = authUserId;
+    }
+
+    const result = await this.service.listDecks(query, authUserId);
     res.json({ success: true, ...result });
   });
 

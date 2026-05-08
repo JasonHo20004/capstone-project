@@ -8,3 +8,6 @@ pymupdf
 httpx
 python-dotenv
 numpy
+edge-tts
+redis[asyncio]
+PyJWT

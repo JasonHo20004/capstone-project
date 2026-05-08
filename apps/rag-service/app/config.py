@@ -20,6 +20,18 @@ class Settings(BaseSettings):
     chunk_size: int = 1000
     chunk_overlap: int = 200
 
+    # Redis
+    redis_url: str = "redis://localhost:6379"
+
+    # JWT (same secret as identity-service ACCESS_TOKEN_SECRET)
+    jwt_secret: str = ""
+    jwt_algorithm: str = "HS256"
+
+    # Livestream
+    audio_base_url: str = "http://localhost:8000"
+    max_room_participants: int = 30
+    questions_per_minute: int = 3
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
