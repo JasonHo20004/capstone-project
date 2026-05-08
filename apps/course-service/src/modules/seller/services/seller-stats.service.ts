@@ -1,5 +1,6 @@
 import { SellerStatsRepository } from "../repositories/seller-stats.repository.js";
 import { identityClient } from "../../../clients/identity.client.js";
+import { paymentClient } from "../../../clients/payment.client.js";
 
 export class SellerStatsService {
   private repository = new SellerStatsRepository();
@@ -117,19 +118,33 @@ export class SellerStatsService {
   }
 
   /**
-   * Get seller's monthly subscription fees (placeholder - fee data lives in payment-service)
+   * Get seller's monthly earnings for a given year (12-month array)
    */
-  async getMonthlyFees(sellerId: string, page: number = 1, limit: number = 10) {
-    // Placeholder: returns empty fees. Full implementation would integrate with payment-service
-    // to fetch subscription contract payments for the seller.
-    return {
-      fees: [],
-      pagination: {
-        total: 0,
-        page,
-        limit,
-        totalPages: 0,
-      },
-    };
+  async getMonthlyFees(sellerId: string, year?: number) {
+    const targetYear = year ?? new Date().getFullYear();
+    const transactions = await paymentClient.getSellerTransactions(sellerId, targetYear);
+
+    const monthlyMap = new Map<number, { grossAmount: number; platformFee: number }>();
+    for (const tx of transactions) {
+      const existing = monthlyMap.get(tx.month) ?? { grossAmount: 0, platformFee: 0 };
+      monthlyMap.set(tx.month, {
+        grossAmount: existing.grossAmount + tx.grossAmount,
+        platformFee: existing.platformFee + tx.platformFee,
+      });
+    }
+
+    const fees = Array.from({ length: 12 }, (_, i) => {
+      const month = i + 1;
+      const data = monthlyMap.get(month) ?? { grossAmount: 0, platformFee: 0 };
+      return {
+        month,
+        year: targetYear,
+        grossAmount: data.grossAmount,
+        platformFee: data.platformFee,
+        netAmount: data.grossAmount - data.platformFee,
+      };
+    });
+
+    return { fees, year: targetYear };
   }
 }

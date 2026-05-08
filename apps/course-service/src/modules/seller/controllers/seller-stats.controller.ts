@@ -127,8 +127,8 @@ export class SellerStatsController {
   };
 
   /**
-   * Get seller's monthly fees
-   * GET /api/seller/fees
+   * Get seller's monthly earnings
+   * GET /api/seller/fees?year=2025
    */
   getMonthlyFees = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
@@ -138,15 +138,14 @@ export class SellerStatsController {
         return;
       }
 
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 10;
+      const year = req.query.year ? parseInt(req.query.year as string) : undefined;
 
-      const result = await this.service.getMonthlyFees(sellerId, page, limit);
+      const result = await this.service.getMonthlyFees(sellerId, year);
       res.status(200).json({
         success: true,
         data: {
           fees: result.fees,
-          pagination: result.pagination,
+          year: result.year,
         },
       });
     } catch (error) {
