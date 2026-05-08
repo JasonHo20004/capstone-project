@@ -4,8 +4,9 @@
 
 import { CourseRepository } from "../repositories/course.repository.js";
 import { identityClient } from "../../../clients/identity.client.js";
-import { notificationClient } from "../../../clients/notification.client.js";
+import { assessmentClient } from "../../../clients/assessment.client.js";
 import { databaseService } from "../../../services/database.service.js";
+import { publishNotification, publishBulkNotification } from "../../../helpers/notification.helper.js";
 import { EventBusService, EventNames, getPaginationMeta } from "@capstone/common";
 import DOMPurify from "isomorphic-dompurify";
 import type { CreateCourseInput, UpdateCourseInput, GetCoursesQuery, CourseResponse } from "../dtos/course.dto.js";
@@ -316,21 +317,24 @@ export class CourseService {
       grantedAt: new Date(),
     });
 
-    // Notify seller about new enrollment (fire-and-forget)
-    notificationClient.createNotification({
+    publishNotification({
       userId: course.courseSellerId,
       title: "Có học viên mới đăng ký khóa học",
       content: `Có một học viên mới đã đăng ký khóa học "${course.title}"`,
       type: "course_enrollment",
       courseId,
       metadata: { enrolledUserId: userId, transactionId },
-    }).catch(err => console.error("[Course Service] Error sending enrollment notification:", err));
+    });
   }
 
   async setFinalTest(courseId: string, sellerId: string, testId: string): Promise<void> {
     const existing = await this.courseRepository.findById(courseId);
     if (!existing) throw new Error("Course not found");
     if (existing.courseSellerId !== sellerId) throw new Error("Not authorized");
+
+    const test = await assessmentClient.getTest(testId, sellerId);
+    if (!test) throw Object.assign(new Error("Test not found"), { statusCode: 404 });
+    if (test.sellerId !== sellerId) throw Object.assign(new Error("Not authorized to use this test"), { statusCode: 403 });
 
     await this.courseRepository.update(courseId, { finalTestId: testId });
   }
@@ -425,11 +429,11 @@ export class CourseService {
       const userIds = [...new Set(enrolledUsers.map((u: { userId: string }) => u.userId))];
       if (userIds.length === 0) return;
 
-      await notificationClient.createBulkNotifications({
-        userIds,
+      await publishBulkNotification(userIds, {
         title,
         content,
         type: "course_update",
+        courseId,
         metadata: { courseId },
       });
     } catch (err) {
