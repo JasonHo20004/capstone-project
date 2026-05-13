@@ -141,9 +141,23 @@ export class PracticeSessionService {
       overallScaledScore = conversion?.scaledScore ?? null;
     }
 
-    // 6. Save all UserAnswer rows + complete session atomically
+    // 6. Save all UserAnswer rows + complete session atomically.
+    //    Use conditional updateMany to prevent double-submit race condition:
+    //    only the first request that flips status ONGOING→COMPLETED proceeds.
     await databaseService.transaction(async (tx) => {
-      // Save each answer
+      const claim = await tx.practiceSession.updateMany({
+        where: { id: sessionId, status: SessionStatus.ONGOING },
+        data: {
+          status: SessionStatus.COMPLETED,
+          completedAt: new Date(),
+          overallScaledScore,
+          rawScoresBySkill: rawScoresBySkill,
+        },
+      });
+      if (claim.count === 0) {
+        throw new Error("Session already submitted");
+      }
+
       await tx.userAnswer.createMany({
         data: results.map((r) => ({
           practiceSessionId: sessionId,
@@ -157,17 +171,6 @@ export class PracticeSessionService {
           selectedOptionIndex: null,
         })),
         skipDuplicates: true,
-      });
-
-      // Complete the session
-      await tx.practiceSession.update({
-        where: { id: sessionId },
-        data: {
-          status: SessionStatus.COMPLETED,
-          completedAt: new Date(),
-          overallScaledScore,
-          rawScoresBySkill: rawScoresBySkill,
-        },
       });
     });
 

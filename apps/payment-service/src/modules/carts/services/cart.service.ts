@@ -182,13 +182,18 @@ export class CartService {
       });
     }
 
-    const cartItem = await this.prisma.cartItem.create({
-      data: {
-        cartId: cart.id,
-        courseId,
-        priceAtTime: course.price,
-      },
-    });
+    // Reuse existing cart item if user double-clicked Buy Now — prevents
+    // duplicate orders / payment race on rapid clicks.
+    let cartItem = cart.cartItems.find((i) => i.courseId === courseId);
+    if (!cartItem) {
+      cartItem = await this.prisma.cartItem.create({
+        data: {
+          cartId: cart.id,
+          courseId,
+          priceAtTime: course.price,
+        },
+      });
+    }
 
     return this.checkoutPartial(userId, [cartItem.id]);
   }

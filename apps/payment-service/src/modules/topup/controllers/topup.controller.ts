@@ -47,9 +47,10 @@ export class TopupController {
     const status = result.success ? "success" : "failed";
     const orderId = "orderId" in result ? result.orderId : "";
     const txnRef = result.txnRef ?? "";
+    const amount = "amount" in result && result.amount ? String(result.amount) : "";
 
     res.redirect(
-      `${frontendUrl}/payment/result?status=${status}&orderId=${orderId}&txnRef=${encodeURIComponent(txnRef)}`
+      `${frontendUrl}/payment/result?status=${status}&orderId=${orderId}&txnRef=${encodeURIComponent(txnRef)}&amount=${amount}`
     );
   });
 }
