@@ -14,6 +14,7 @@ export const CreateTestSchema = z.object({
       skill: z.enum(["READING", "LISTENING", "WRITING", "SPEAKING"]).optional(),
       durationInSeconds: z.number().optional(),
       mediaUrl: z.string().optional(),
+      audioTranscript: z.string().optional(),
       imageUrl: z.string().optional(),
       passageContent: z.string().optional(),
       questions: z.array(

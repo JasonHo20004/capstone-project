@@ -4,6 +4,7 @@
 
 import { databaseService } from "../../services/database.service.js";
 import { geminiClient, ConversationTurn } from "../../llm/gemini.client.js";
+import { llmClient } from "../../llm/llm.client.js";
 import {
   EXAMINER_PART1_PROMPT,
   EXAMINER_PART2_PROMPT,
@@ -196,17 +197,24 @@ export class SpeakingSessionService {
       };
     }
 
-    // Add user's audio to conversation history
+    // STT: transcribe audio with Groq Whisper-large-v3 (much better than Gemini for accents)
+    let transcript = "";
+    try {
+      const audioBuffer = Buffer.from(audioBase64, "base64");
+      const audioBlob = new Blob([audioBuffer as any], { type: audioMimeType });
+      const sttResult = await llmClient.transcribeAudio(audioBlob, "audio.webm");
+      transcript = (sttResult.transcript || "").trim();
+      console.log(`[Speaking] Whisper STT (${sttResult.duration}s): "${transcript.slice(0, 80)}${transcript.length > 80 ? "..." : ""}"`);
+    } catch (sttError: any) {
+      console.error("[Speaking] Whisper STT failed:", sttError?.message || sttError);
+      transcript = "(audio unclear)";
+    }
+
+    // Push transcribed text (not raw audio) to conversation history.
+    // Text-only history is cheaper, faster, and gives Gemini cleaner context for grading.
     state.conversationHistory.push({
       role: "user",
-      parts: [
-        {
-          inlineData: {
-            mimeType: audioMimeType,
-            data: audioBase64,
-          },
-        },
-      ],
+      parts: [{ text: transcript }],
     });
 
     // Get current part's prompt
@@ -216,7 +224,7 @@ export class SpeakingSessionService {
     const contextMessage = this.buildContextMessage(state);
 
     // Send to Gemini: conversation history + context
-    const systemPrompt = `${prompt}\n\n## Session Context:\n- Topic: "${state.topic}"\n- Current Part: ${state.currentPart}\n- Question Number: ${state.currentStep + 1}\n${contextMessage}`;
+    const systemPrompt = `${prompt}\n\n## Session Context:\n- Topic: "${state.topic}"\n- Current Part: ${state.currentPart}\n- Question Number: ${state.currentStep + 1}\n${contextMessage}\n\nNote: The candidate's responses below are already transcribed text (from Whisper STT). You do NOT need to transcribe — just react and generate the next examiner question.`;
 
     const response = await geminiClient.conversationCompletion(
       systemPrompt,
@@ -225,9 +233,6 @@ export class SpeakingSessionService {
     );
 
     const parsed = JSON.parse(response);
-
-    // Extract transcript (Gemini transcribes the audio)
-    const transcript = parsed.transcript || parsed.examinerNote || "";
 
     // Track transcript per part
     const partKey = `part${state.currentPart}` as keyof typeof state.partTranscripts;

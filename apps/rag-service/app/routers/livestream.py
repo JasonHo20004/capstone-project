@@ -14,52 +14,100 @@ Features:
 
 import asyncio
 import json
-import tempfile
+import re
 import time
 import uuid
 from datetime import datetime
 from pathlib import Path
 
-import edge_tts
-import httpx
 import jwt as pyjwt
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import redis.asyncio as aioredis
 
-router = APIRouter(prefix="/api/livestream", tags=["Livestream"])
+from app.services.tts_service import AUDIO_DIR, synthesize_to_file
+from app.services.llm_service import generate_text, extract_json_object
+from app.services.image_service import fetch_images_for_queries
 
-# ── Audio temp directory ───────────────────────────────────────────────────────
-AUDIO_DIR = Path(tempfile.gettempdir()) / "livestream_audio"
+router = APIRouter(prefix="/api/livestream", tags=["Livestream"])
 
 # ── In-process WebSocket registry ─────────────────────────────────────────────
 _connections: dict[str, dict[str, WebSocket]] = {}
 _user_names: dict[str, dict[str, str]] = {}
+_raised_hands: dict[str, list[str]] = {}  # room_id → ordered queue of user_ids
+
+# Reactions allowlist — only these emojis can be broadcast
+ALLOWED_REACTIONS = {"👍", "❤️", "👏", "🎉", "🤔", "😮", "🔥", "😂"}
+
+
+def _participants_payload(room_id: str, host_id: str) -> list[dict]:
+    """Build participant list snapshot for a room."""
+    names = _user_names.get(room_id, {})
+    raised = _raised_hands.get(room_id, [])
+    return [
+        {
+            "user_id": uid,
+            "user_name": names.get(uid, "Student"),
+            "is_host": uid == host_id,
+            "hand_raised": uid in raised,
+            "hand_position": (raised.index(uid) + 1) if uid in raised else 0,
+        }
+        for uid in _connections.get(room_id, {})
+    ]
+
+
+async def _broadcast_participants(room_id: str, host_id: str):
+    await _broadcast(room_id, {
+        "type": "participant_list",
+        "participants": _participants_payload(room_id, host_id),
+    })
+
+# ── Acronym normaliser for TTS ─────────────────────────────────────────────────
+# All-caps tokens get read letter-by-letter by neural TTS — map to phonetic form.
+_PHONETIC: dict[str, str] = {
+    "IELTS": "eye-elts",
+    "TOEFL": "toe-full",
+    "TOEIC": "toe-ick",
+    "GMAT":  "gee-mat",
+    "CEFR":  "seffer",
+    "FCE":   "F C E",
+    "CAE":   "C A E",
+    "GRE":   "G R E",
+    "SAT":   "S A T",
+    "ESL":   "E S L",
+    "EFL":   "E F L",
+}
+_ACRONYM_RE = re.compile(r"\b(" + "|".join(re.escape(k) for k in _PHONETIC) + r")\b")
+
+def _normalize_tts(text: str) -> str:
+    """Replace known acronyms with TTS-friendly phonetic spellings."""
+    return _ACRONYM_RE.sub(lambda m: _PHONETIC[m.group(0)], text)
 
 # ── Constants ──────────────────────────────────────────────────────────────────
-VOICES = {
-    "beginner": "en-US-JennyNeural",
-    "intermediate": "en-US-AriaNeural",
-    "advanced": "en-GB-SoniaNeural",
-}
 LEVEL_LABELS = {
-    "beginner": "Beginner (A1–A2)",
+    "beginner":     "Beginner (A1–A2)",
     "intermediate": "Intermediate (B1–B2)",
-    "advanced": "Advanced (C1–C2)",
+    "advanced":     "Advanced (C1–C2)",
 }
-OLLAMA_OPTIONS = {"temperature": 0.7, "num_predict": 1024, "num_ctx": 4096, "top_p": 0.9}
-ROOM_TTL = 86400        # 24 h
-RECORDING_TTL = 7 * 86400  # 7 days
+ROOM_TTL = 86400
+RECORDING_TTL = 7 * 86400
 
 
 # ── Pydantic models ────────────────────────────────────────────────────────────
 
 class CreateRoomRequest(BaseModel):
-    topic: str
+    topic: str          # display title shown on room cards
+    lesson_prompt: str = ""  # AI generation directive (empty → use topic)
     level: str = "intermediate"
+    language: str = "en"  # "en" | "vi"
     host_id: str
     host_name: str
+
+
+class TranslateRequest(BaseModel):
+    word: str           # token to translate (max 80 chars)
+    target: str = "vi"  # target language
 
 
 # ── Redis helpers ──────────────────────────────────────────────────────────────
@@ -149,20 +197,6 @@ async def _is_rate_limited(r: aioredis.Redis, user_id: str, limit: int) -> bool:
     return count > limit
 
 
-# ── TTS → disk ────────────────────────────────────────────────────────────────
-
-async def _tts_to_file(text: str, voice: str) -> str:
-    filename = f"{uuid.uuid4().hex}.mp3"
-    path = AUDIO_DIR / filename
-    communicate = edge_tts.Communicate(text, voice)
-    audio_data = b""
-    async for chunk in communicate.stream():
-        if chunk["type"] == "audio":
-            audio_data += chunk["data"]
-    await asyncio.to_thread(path.write_bytes, audio_data)
-    return filename
-
-
 # ── Audio cleanup ──────────────────────────────────────────────────────────────
 
 async def cleanup_audio_loop():
@@ -205,47 +239,164 @@ async def _broadcast(room_id: str, message: dict):
 
 # ── Lesson generation ──────────────────────────────────────────────────────────
 
-_LESSON_PROMPT = """You are a friendly English teacher. Create a structured lesson about "{topic}" for {level} English learners.
+_LESSON_PROMPT_EN = """You are a master English teacher delivering a live lesson. Your ONLY job is to answer the teaching directive below — do NOT teach the general topic of the lesson title.
 
-Generate exactly 5 lesson sections. Each section has a short title and 2-3 sentences of clear content.
+═══ THE TEACHING DIRECTIVE (this is what you MUST answer) ═══
+{lesson_focus}
+═══════════════════════════════════════════════════════════════
+
+LESSON LABEL (display only — DO NOT teach general background of this): "{topic}"
+AUDIENCE: {level} English learners.
+
+🚫 ABSOLUTE RULE: every section must directly serve the DIRECTIVE above. The label is just a display string for the slide header. If your sentence sounds like a generic intro to the lesson label (e.g. "IELTS is an important exam…"), DELETE IT and replace with content that directly advances the directive.
+
+═══ ADAPTIVE STRUCTURE — choose the 5-section decomposition that BEST fits the directive ═══
+
+First, identify what TYPE of question the directive is:
+- TIMELINE / ROADMAP question (e.g. "how to go from 0 to 6.0 in 12 months", "plan for 3 months") → 5 sections = sequential phases of the timeline. Each section is a concrete phase with weeks/months, what to focus on, what milestones.
+- TECHNIQUE / HOW-TO question (e.g. "how to develop ideas in Speaking Part 2") → 5 sections = problem framing → technique 1 → technique 2 → worked example → mistakes & action plan.
+- COMPARISON / OPTIONS question (e.g. "PTE vs IELTS, which fits me?") → 5 sections = criterion-by-criterion comparison + recommendation.
+- TROUBLESHOOTING question (e.g. "why is my Writing stuck at 5.5?") → 5 sections = diagnosis → top 3 root causes → fix for each → 7-day rescue plan.
+- CONCEPT / EXPLAINER question (e.g. "what is IELTS band descriptor?") → 5 sections = core idea → mechanics → why it matters → real example → how it changes student's daily practice.
+
+DEFAULT if unsure: TECHNIQUE.
+
+For the chosen structure, design 5 sections where EACH section advances the directive by a specific, concrete step. Section titles MUST reflect the directive — not the lesson label. Example: directive "12-month roadmap from 0 to 6.0" → titles like "Months 1-2: Survive English first", "Months 3-5: Build foundation grammar + 800 core words", NOT "Welcome to IELTS Foundation".
+
+═══ HARD QUALITY RULES ═══
+1. EVERY section must concretely advance the directive. Background filler about the lesson label is FORBIDDEN.
+2. "title" 5-12 words, MUST reference the specific phase/technique/option this section covers — not the lesson label generically.
+3. "content" 80-130 words (5-7 sentences) — warm, conversational, information-dense. NO generic platitudes.
+4. "key_points" EXACTLY 4 bullets, each 10-18 words, CONCRETE actionable items (e.g. "Drill 20 minutes of Cambridge listening test 1 daily", NOT "practice listening regularly").
+5. "keywords" EXACTLY 3 English terms relevant to this section's specific content.
+6. "example" a natural English sentence (12-20 words) demonstrating the section's idea in real use.
+7. "practice_phrase" empty string "" for 3 sections; for 2 sections, a 6-12 word natural English phrase to read aloud.
+8. "image_query" 2-4 concrete English visual keywords matching this section.
+9. FORBIDDEN openings for "content": "Welcome", "Today's lesson", "In this section", "Let's explore", "{topic} is important", "Many students…". Start each section with a concrete statement or scenario tied to the directive.
+
+═══ OUTPUT ═══
 Respond ONLY with valid JSON, no extra text:
-{{"sections": [{{"title": "string", "content": "string"}}, {{"title": "string", "content": "string"}}, {{"title": "string", "content": "string"}}, {{"title": "string", "content": "string"}}, {{"title": "string", "content": "string"}}]}}
+{{"sections": [{{"title": "string", "content": "string (80-130 words)", "key_points": ["s","s","s","s"], "keywords": [{{"term":"s","meaning":"s"}},{{"term":"s","meaning":"s"}},{{"term":"s","meaning":"s"}}], "example": "string", "practice_phrase": "string", "image_query": "string"}}, ...5 total sections...]}}
 
-Requirements: plain text only in content, {level}-appropriate vocabulary."""
+LANGUAGE: {level}-appropriate English. Every field in English."""
+
+_LESSON_PROMPT_VI = """Bạn là giáo viên tiếng Anh giỏi đang dạy livestream. Nhiệm vụ DUY NHẤT là trả lời NỘI DUNG CẦN DẠY bên dưới — KHÔNG được dạy chung chung về tiêu đề bài.
+
+═══ NỘI DUNG CẦN DẠY (đây là cái bạn PHẢI trả lời) ═══
+{lesson_focus}
+═══════════════════════════════════════════════════
+
+NHÃN BÀI (chỉ để hiển thị — KHÔNG được lan man về nhãn này): "{topic}"
+ĐỐI TƯỢNG: học viên trình độ {level}.
+
+🚫 LUẬT TUYỆT ĐỐI: mỗi phần phải trực tiếp phục vụ NỘI DUNG CẦN DẠY ở trên. Nhãn bài chỉ là chuỗi hiển thị trên header slide. Nếu một câu nghe giống intro chung chung về nhãn bài (vd "IELTS là kỳ thi quốc tế quan trọng…"), XOÁ ĐI và thay bằng nội dung trực tiếp đẩy directive tiến lên.
+
+═══ CẤU TRÚC THÍCH NGHI — chọn cách chia 5 phần PHÙ HỢP NHẤT với directive ═══
+
+Đầu tiên, xác định LOẠI câu hỏi của directive:
+- CÂU HỎI LỘ TRÌNH / TIMELINE (vd "lộ trình 12 tháng từ 0 đến 6.0", "kế hoạch 3 tháng") → 5 phần = 5 GIAI ĐOẠN tuần tự theo thời gian. Mỗi phần là 1 mốc cụ thể với tuần/tháng, trọng tâm cần học, milestone đạt được.
+- CÂU HỎI KỸ THUẬT / HOW-TO (vd "làm sao phát triển idea trong Speaking Part 2") → 5 phần = đặt vấn đề → kỹ thuật 1 → kỹ thuật 2 → ví dụ thực hành → lỗi & action plan.
+- CÂU HỎI SO SÁNH / LỰA CHỌN (vd "PTE vs IELTS, nên thi cái nào?") → 5 phần = so sánh theo từng tiêu chí + khuyến nghị.
+- CÂU HỎI GỠ RỐI (vd "tại sao Writing tôi mãi 5.5?") → 5 phần = chẩn đoán → 3 nguyên nhân gốc → cách sửa cho từng nguyên nhân → kế hoạch giải cứu 7 ngày.
+- CÂU HỎI GIẢI THÍCH KHÁI NIỆM (vd "IELTS band descriptor là gì?") → 5 phần = ý cốt lõi → cơ chế hoạt động → tại sao quan trọng → ví dụ thật → ảnh hưởng tới luyện tập hằng ngày.
+
+MẶC ĐỊNH nếu không chắc: dùng KỸ THUẬT.
+
+Với loại đã chọn, thiết kế 5 phần mà MỖI PHẦN đẩy directive tiến lên 1 bước cụ thể. Tiêu đề phần phải phản ánh DIRECTIVE — không phản ánh nhãn bài. Ví dụ: directive "lộ trình 12 tháng 0 đến 6.0" → tiêu đề kiểu "Tháng 1-2: Sống sót tiếng Anh trước đã", "Tháng 3-5: Xây nền ngữ pháp + 800 từ cốt lõi", KHÔNG được kiểu "Giới thiệu IELTS Foundation".
+
+═══ NGUYÊN TẮC CHẤT LƯỢNG NGHIÊM NGẶT ═══
+1. MỌI phần phải cụ thể đẩy directive tiến lên. Filler chung về nhãn bài bị CẤM.
+2. "title" 5-12 từ, PHẢI nêu rõ giai đoạn/kỹ thuật/option cụ thể phần đó nói tới — không nêu nhãn bài chung chung.
+3. "content" 80-130 từ tiếng Việt (5-7 câu) — ấm áp, hội thoại, đặc thông tin. KHÔNG sáo rỗng.
+4. "key_points" ĐÚNG 4 bullet, mỗi cái 10-18 từ, CỤ THỂ và actionable (vd "Luyện 20 phút Cambridge Listening test 1 mỗi ngày", KHÔNG "luyện nghe thường xuyên").
+5. "keywords" ĐÚNG 3 từ tiếng Anh liên quan trực tiếp nội dung phần đó.
+6. "example" câu tiếng Anh tự nhiên 12-20 từ minh hoạ ý của phần.
+7. "practice_phrase" rỗng "" cho 3 phần; 2 phần có cụm 6-12 từ tiếng Anh để đọc theo.
+8. "image_query" 2-4 từ tiếng Anh trực quan khớp phần đó.
+9. CẤM mở đầu "content" bằng: "Chào mừng", "Bài học hôm nay", "Trong phần này", "Hãy cùng khám phá", "{topic} là kỳ thi quan trọng", "Nhiều bạn học viên…". Mỗi phần phải mở bằng phát biểu/tình huống cụ thể bám directive.
+
+═══ ĐẦU RA ═══
+Chỉ trả về JSON hợp lệ, không thêm chữ nào khác:
+{{"sections": [{{"title": "string", "content": "string (80-130 từ tiếng Việt)", "key_points": ["s","s","s","s"], "keywords": [{{"term":"s","meaning":"s"}},{{"term":"s","meaning":"s"}},{{"term":"s","meaning":"s"}}], "example": "string", "practice_phrase": "string", "image_query": "string"}}, ...5 phần]}}
+
+NGÔN NGỮ NGHIÊM NGẶT: title / content / key_points / keywords.meaning BẰNG TIẾNG VIỆT; keywords.term / example / practice_phrase / image_query BẰNG TIẾNG ANH."""
 
 
-def _fallback_sections(topic: str, level: str) -> list[dict]:
+def _fallback_sections(topic: str, level: str, language: str) -> list[dict]:
+    if language == "vi":
+        return [
+            {"title": "Giới thiệu bài học", "practice_phrase": "", "image_query": "classroom welcome teacher",
+             "content": f"Chào mừng bạn đến với bài học về chủ đề {topic}. Đây là chủ đề rất hữu ích cho người học tiếng Anh trình độ {level}. Chúng ta sẽ cùng khám phá từng bước một.",
+             "key_points": [f"Chủ đề: {topic}", f"Phù hợp trình độ {level}", "Học theo từng bước rõ ràng"],
+             "keywords": [{"term": "lesson", "meaning": "bài học"}, {"term": "step by step", "meaning": "từng bước"}],
+             "example": f"Today's lesson is about {topic}."},
+            {"title": "Từ vựng quan trọng", "practice_phrase": f"Let's learn about {topic}", "image_query": "english vocabulary dictionary book",
+             "content": f"Trước tiên, hãy cùng tìm hiểu những từ vựng chính liên quan đến {topic}. Nắm vững từ vựng sẽ giúp bạn hiểu và sử dụng chủ đề này tự tin hơn.",
+             "key_points": ["Học từ vựng cốt lõi của chủ đề", "Hiểu nghĩa và cách dùng", "Áp dụng vào giao tiếp thực tế"],
+             "keywords": [{"term": "vocabulary", "meaning": "từ vựng"}, {"term": "confident", "meaning": "tự tin"}],
+             "example": f"I want to improve my {topic} vocabulary."},
+            {"title": "Khái niệm cốt lõi", "practice_phrase": "", "image_query": "concept lightbulb idea brainstorm",
+             "content": f"Nội dung chính của {topic} có thể chia thành vài ý đơn giản. Khi hiểu từng ý, bạn sẽ thấy bức tranh tổng thể rõ ràng hơn nhiều.",
+             "key_points": ["Chia nhỏ thành ý đơn giản", "Hiểu từng phần một", "Tổng hợp lại bức tranh lớn"],
+             "keywords": [{"term": "concept", "meaning": "khái niệm"}, {"term": "overall", "meaning": "tổng thể"}],
+             "example": "Understanding the basics makes everything clearer."},
+            {"title": "Ví dụ thực tế", "practice_phrase": f"I want to practice {topic} every day", "image_query": "people conversation real life english",
+             "content": f"Hãy xem {topic} xuất hiện như thế nào trong tiếng Anh hàng ngày. Các ví dụ này sẽ cho bạn thấy cách dùng những gì đã học hôm nay.",
+             "key_points": ["Quan sát ví dụ thực tế", "Học cách dùng trong ngữ cảnh", "Luyện tập hằng ngày"],
+             "keywords": [{"term": "example", "meaning": "ví dụ"}, {"term": "practice", "meaning": "luyện tập"}],
+             "example": f"Practice {topic} every day for the best results."},
+            {"title": "Tóm tắt & Luyện tập", "practice_phrase": "", "image_query": "student success notebook study",
+             "content": f"Bạn đã hoàn thành bài học về {topic}! Hãy ôn lại từ vựng, luyện tập các ví dụ và bạn sẽ tiến bộ rất nhanh.",
+             "key_points": ["Ôn lại từ vựng đã học", "Luyện tập các ví dụ", "Kiên trì để tiến bộ"],
+             "keywords": [{"term": "review", "meaning": "ôn tập"}, {"term": "progress", "meaning": "tiến bộ"}],
+             "example": "Review and practice are the keys to progress."},
+        ]
     return [
-        {"title": "Welcome & Introduction",
-         "content": f"Welcome to today's lesson about {topic}. This topic is very useful for {level} English learners. Let's explore it step by step together."},
-        {"title": "Key Vocabulary",
-         "content": f"First, let's look at the most important words related to {topic}. Learning these words will help you understand and talk about this topic with confidence."},
-        {"title": "Core Concepts",
-         "content": f"The main ideas behind {topic} can be broken down into a few simple parts. Once you understand each part, the whole picture becomes much clearer."},
-        {"title": "Real-Life Examples",
-         "content": f"Let's see how {topic} appears in everyday English. These examples will show you when and how to use what you have learned today."},
-        {"title": "Summary & Practice Tips",
-         "content": f"Great job reaching the end of our lesson on {topic}! Review today's vocabulary, practice using the examples, and you will improve quickly."},
+        {"title": "Welcome & Introduction", "practice_phrase": "", "image_query": "classroom welcome teacher",
+         "content": f"Welcome to today's lesson about {topic}. This topic is very useful for {level} English learners. Let's explore it step by step together.",
+         "key_points": [f"Today's topic: {topic}", f"Designed for {level} learners", "Step-by-step exploration"],
+         "keywords": [{"term": "lesson", "meaning": "a unit of teaching"}, {"term": "explore", "meaning": "investigate or study"}],
+         "example": f"Today we will explore {topic} together."},
+        {"title": "Key Vocabulary", "practice_phrase": f"Let's learn about {topic}", "image_query": "english vocabulary dictionary book",
+         "content": f"First, let's look at the most important words related to {topic}. Learning these words will help you understand and talk about this topic with confidence.",
+         "key_points": ["Learn the core vocabulary", "Understand meanings and usage", "Speak with confidence"],
+         "keywords": [{"term": "vocabulary", "meaning": "set of words known"}, {"term": "confident", "meaning": "sure of yourself"}],
+         "example": f"Building vocabulary is essential for mastering {topic}."},
+        {"title": "Core Concepts", "practice_phrase": "", "image_query": "concept lightbulb idea brainstorm",
+         "content": f"The main ideas behind {topic} can be broken down into a few simple parts. Once you understand each part, the whole picture becomes much clearer.",
+         "key_points": ["Break down into simple parts", "Understand each piece", "See the whole picture"],
+         "keywords": [{"term": "concept", "meaning": "main idea"}, {"term": "overall", "meaning": "in total"}],
+         "example": "Understanding the basics makes complex ideas clearer."},
+        {"title": "Real-Life Examples", "practice_phrase": f"I want to practice {topic} every day", "image_query": "people conversation real life english",
+         "content": f"Let's see how {topic} appears in everyday English. These examples will show you when and how to use what you have learned today.",
+         "key_points": ["Real-world examples", "Learn usage in context", "Daily practice tips"],
+         "keywords": [{"term": "example", "meaning": "a sample case"}, {"term": "context", "meaning": "the situation around"}],
+         "example": f"You can use {topic} in many everyday situations."},
+        {"title": "Summary & Practice Tips", "practice_phrase": "", "image_query": "student success notebook study",
+         "content": f"Great job reaching the end of our lesson on {topic}! Review today's vocabulary, practice using the examples, and you will improve quickly.",
+         "key_points": ["Review today's vocabulary", "Practice the examples", "Improve through repetition"],
+         "keywords": [{"term": "review", "meaning": "look at again"}, {"term": "improve", "meaning": "get better"}],
+         "example": "Daily review is the fastest way to improve."},
     ]
 
 
-async def _generate_lesson(topic: str, level: str, ollama_url: str, model: str) -> list[dict]:
-    prompt = _LESSON_PROMPT.format(topic=topic, level=level)
+async def _generate_lesson(topic: str, lesson_prompt: str, level: str, language: str, settings) -> list[dict]:
+    prompt_tpl = _LESSON_PROMPT_VI if language == "vi" else _LESSON_PROMPT_EN
+    lesson_focus = lesson_prompt.strip() if lesson_prompt.strip() else f"Teach the topic: {topic}"
+    prompt = prompt_tpl.format(topic=topic, lesson_focus=lesson_focus, level=level)
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(
-                f"{ollama_url}/api/generate",
-                json={"model": model, "prompt": prompt, "stream": False, "options": OLLAMA_OPTIONS},
-            )
-        raw = resp.json().get("response", "")
-        start, end = raw.find("{"), raw.rfind("}") + 1
-        if start >= 0 and end > start:
-            sections = json.loads(raw[start:end]).get("sections", [])
+        raw = await generate_text(
+            prompt, settings,
+            temperature=0.65, max_tokens=6144, timeout=120,
+        )
+        parsed = extract_json_object(raw)
+        if parsed:
+            sections = parsed.get("sections", [])
             if sections:
                 return sections
     except Exception as e:
         print(f"[Livestream] Lesson generation failed: {e}")
-    return _fallback_sections(topic, level)
+    return _fallback_sections(topic, level, language)
 
 
 # ── REST: rooms ────────────────────────────────────────────────────────────────
@@ -262,7 +413,9 @@ async def list_rooms():
                 {
                     "id": room["id"],
                     "topic": room["topic"],
+                    "lesson_prompt": room.get("lesson_prompt", ""),
                     "level": room["level"],
+                    "language": room.get("language", "en"),
                     "level_label": LEVEL_LABELS.get(room["level"], room["level"]),
                     "host_name": room["host_name"],
                     "participant_count": len(_connections.get(room["id"], {})),
@@ -286,7 +439,9 @@ async def create_room(body: CreateRoomRequest):
         room = {
             "id": room_id,
             "topic": body.topic,
+            "lesson_prompt": body.lesson_prompt.strip(),
             "level": body.level,
+            "language": body.language if body.language in ("en", "vi") else "en",
             "host_id": body.host_id,
             "host_name": body.host_name,
             "status": "waiting",
@@ -373,6 +528,60 @@ async def serve_audio(filename: str):
     return FileResponse(path, media_type="audio/mpeg")
 
 
+# ── REST: word translation ────────────────────────────────────────────────────
+
+@router.post("/translate")
+async def translate_word(body: TranslateRequest):
+    from app.config import get_settings
+    settings = get_settings()
+
+    word = body.word.strip()
+    if not word or len(word) > 80:
+        raise HTTPException(400, "Invalid word")
+
+    cache_key = f"livestream:translate:{body.target}:{word.lower()}"
+    r = await _get_redis(settings)
+    try:
+        cached = await r.get(cache_key)
+        if cached:
+            return json.loads(cached)
+
+        if body.target == "vi":
+            prompt = (
+                f'Translate the English word or short phrase "{word}" into Vietnamese.\n'
+                "Respond ONLY with valid JSON, no extra text:\n"
+                '{"meaning": "Vietnamese meaning (1 short line)", "pronunciation": "IPA or empty", "example": "one short English example sentence"}'
+            )
+        else:
+            prompt = (
+                f'Define the English word or short phrase "{word}".\n'
+                "Respond ONLY with valid JSON, no extra text:\n"
+                '{"meaning": "concise English definition", "pronunciation": "IPA or empty", "example": "one short example sentence"}'
+            )
+
+        result = {"word": word, "meaning": "", "pronunciation": "", "example": ""}
+        try:
+            raw = await generate_text(
+                prompt, settings,
+                temperature=0.2, max_tokens=160, timeout=15,
+            )
+            parsed = extract_json_object(raw)
+            if parsed:
+                result["meaning"] = str(parsed.get("meaning", "")).strip()
+                result["pronunciation"] = str(parsed.get("pronunciation", "")).strip()
+                result["example"] = str(parsed.get("example", "")).strip()
+        except Exception as e:
+            print(f"[Translate] LLM error: {e}")
+
+        if not result["meaning"]:
+            result["meaning"] = word  # graceful fallback
+
+        await r.set(cache_key, json.dumps(result), ex=7 * 86400)
+        return result
+    finally:
+        await r.aclose()
+
+
 # ── WebSocket ──────────────────────────────────────────────────────────────────
 
 @router.websocket("/rooms/{room_id}/ws")
@@ -428,6 +637,7 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
             "user_name": user_name,
             "participant_count": len(_connections.get(room_id, {})),
         })
+        await _broadcast_participants(room_id, room["host_id"])
 
         while True:
             msg = await websocket.receive_json()
@@ -448,7 +658,64 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
                 if await _is_rate_limited(r, user_id, settings.questions_per_minute):
                     await websocket.send_json({"type": "error", "message": "Too many questions — please wait."})
                     continue
+                # Auto-lower hand if user was in the queue
+                queue = _raised_hands.get(room_id, [])
+                if user_id in queue:
+                    queue.remove(user_id)
+                    await _broadcast_participants(room_id, room["host_id"])
                 asyncio.create_task(_answer_question(room_id, question, user_name, settings))
+
+            elif msg_type == "reaction":
+                emoji = msg.get("emoji", "")
+                if emoji in ALLOWED_REACTIONS:
+                    await _broadcast(room_id, {
+                        "type": "reaction",
+                        "emoji": emoji,
+                        "user_id": user_id,
+                        "user_name": user_name,
+                    })
+
+            elif msg_type == "raise_hand":
+                queue = _raised_hands.setdefault(room_id, [])
+                if user_id not in queue:
+                    queue.append(user_id)
+                    await _broadcast_participants(room_id, room["host_id"])
+
+            elif msg_type == "lower_hand":
+                queue = _raised_hands.get(room_id, [])
+                if user_id in queue:
+                    queue.remove(user_id)
+                    await _broadcast_participants(room_id, room["host_id"])
+
+            elif msg_type == "invite_speaker":
+                # Host calls on a student who raised their hand
+                room = await _load_room(r, room_id) or room
+                if user_id != room["host_id"]:
+                    continue
+                target_id = msg.get("target_user_id")
+                if not target_id:
+                    continue
+                queue = _raised_hands.get(room_id, [])
+                if target_id in queue:
+                    queue.remove(target_id)
+                target_name = _user_names.get(room_id, {}).get(target_id, "Student")
+                await _broadcast(room_id, {
+                    "type": "speaker_invited",
+                    "target_user_id": target_id,
+                    "target_user_name": target_name,
+                })
+                await _broadcast_participants(room_id, room["host_id"])
+
+            elif msg_type == "practice_result":
+                # Student submitted a practice attempt — broadcast for everyone to see
+                await _broadcast(room_id, {
+                    "type": "practice_result",
+                    "user_id": user_id,
+                    "user_name": user_name,
+                    "phrase": msg.get("phrase", ""),
+                    "transcript": msg.get("transcript", ""),
+                    "score": msg.get("score", 0),
+                })
 
             elif msg_type == "end_room":
                 room = await _load_room(r, room_id) or room
@@ -467,6 +734,9 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
         if user_id:
             _connections.get(room_id, {}).pop(user_id, None)
             _user_names.get(room_id, {}).pop(uid := user_id, None)
+            queue = _raised_hands.get(room_id, [])
+            if uid in queue:
+                queue.remove(uid)
             await _broadcast(room_id, {
                 "type": "participant_leave",
                 "participant_count": len(_connections.get(room_id, {})),
@@ -474,10 +744,12 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
             r2 = await _get_redis(__import__('app.config', fromlist=['get_settings']).get_settings())
             try:
                 room = await _load_room(r2, room_id)
-                if room and uid == room["host_id"] and room["status"] not in ("ended", "completed"):
-                    room["status"] = "ended"
-                    await _save_room(r2, room)
-                    await _broadcast(room_id, {"type": "room_ended"})
+                if room:
+                    await _broadcast_participants(room_id, room["host_id"])
+                    if uid == room["host_id"] and room["status"] not in ("ended", "completed"):
+                        room["status"] = "ended"
+                        await _save_room(r2, room)
+                        await _broadcast(room_id, {"type": "room_ended"})
             finally:
                 await r2.aclose()
 
@@ -491,13 +763,22 @@ async def _deliver_lesson(room_id: str, settings):
         if not room:
             return
 
-        voice = VOICES.get(room["level"], "en-US-AriaNeural")
+        lang = room.get("language", "en")
+        level = room.get("level", "intermediate")
         await _broadcast(room_id, {"type": "lesson_generating"})
 
         sections = await _generate_lesson(
-            room["topic"], room["level"],
-            settings.ollama_base_url, settings.ollama_model,
+            room["topic"], room.get("lesson_prompt", ""), room["level"], lang,
+            settings,
         )
+
+        # Fetch slide images in parallel (graceful if Pexels key missing or fails)
+        image_queries = [str(s.get("image_query", "")).strip() or room["topic"] for s in sections]
+        try:
+            image_urls = await fetch_images_for_queries(image_queries, settings.pexels_api_key)
+        except Exception as e:
+            print(f"[Livestream] Image fetch failed: {e}")
+            image_urls = ["" for _ in sections]
 
         sections_with_timing: list[dict] = []
 
@@ -511,20 +792,50 @@ async def _deliver_lesson(room_id: str, settings):
 
             audio_url = ""
             try:
-                filename = await _tts_to_file(text, voice)
+                filename = await synthesize_to_file(
+                    _normalize_tts(text), level, lang,
+                    provider=settings.tts_provider,
+                    credentials_path=settings.google_application_credentials,
+                )
                 audio_url = f"{settings.audio_base_url}/api/livestream/audio/{filename}"
             except Exception as e:
                 print(f"[TTS] Failed: {e}")
+
+            practice_phrase = str(section.get("practice_phrase", "")).strip()
+            key_points = [str(p).strip() for p in section.get("key_points", []) if str(p).strip()][:5]
+            keywords_raw = section.get("keywords", []) or []
+            keywords: list[dict] = []
+            for kw in keywords_raw[:4]:
+                if isinstance(kw, dict):
+                    term = str(kw.get("term", "")).strip()
+                    meaning = str(kw.get("meaning", "")).strip()
+                    if term and meaning:
+                        keywords.append({"term": term, "meaning": meaning})
+            example = str(section.get("example", "")).strip()
+
+            slide_payload = {
+                "key_points": key_points,
+                "keywords": keywords,
+                "example": example,
+                "image_url": image_urls[i] if i < len(image_urls) else "",
+            }
 
             sections_with_timing.append({
                 "index": i,
                 "title": section["title"],
                 "content": section["content"],
+                "practice_phrase": practice_phrase,
                 "audio_url": audio_url,
                 "duration": duration,
+                **slide_payload,
             })
 
-            room["transcript"].append({"title": section["title"], "content": section["content"]})
+            room["transcript"].append({
+                "title": section["title"],
+                "content": section["content"],
+                "practice_phrase": practice_phrase,
+                **slide_payload,
+            })
             await _save_room(r, room)
 
             await _broadcast(room_id, {
@@ -533,17 +844,36 @@ async def _deliver_lesson(room_id: str, settings):
                 "total": len(sections),
                 "title": section["title"],
                 "content": section["content"],
+                "practice_phrase": practice_phrase,
                 "audio_url": audio_url,
+                **slide_payload,
             })
 
             await asyncio.sleep(duration)
 
         room = await _load_room(r, room_id)
         if room and room["status"] == "live":
-            await _save_recording(r, room, sections_with_timing)
-            room["status"] = "completed"
-            await _save_room(r, room)
-            await _broadcast(room_id, {"type": "lesson_complete"})
+            qa_seconds = 300  # 5-minute open Q&A window
+            await _broadcast(room_id, {
+                "type": "qa_period_start",
+                "duration_seconds": qa_seconds,
+            })
+
+            # Poll every 10 s; exit early if host manually ended the room
+            elapsed = 0
+            while elapsed < qa_seconds:
+                await asyncio.sleep(10)
+                elapsed += 10
+                room = await _load_room(r, room_id)
+                if not room or room["status"] == "ended":
+                    return
+
+            room = await _load_room(r, room_id)
+            if room and room["status"] == "live":
+                await _save_recording(r, room, sections_with_timing)
+                room["status"] = "completed"
+                await _save_room(r, room)
+                await _broadcast(room_id, {"type": "lesson_complete"})
     finally:
         await r.aclose()
 
@@ -559,32 +889,71 @@ async def _answer_question(room_id: str, question: str, user_name: str, settings
 
         await _broadcast(room_id, {"type": "question_asked", "user_name": user_name, "question": question})
 
-        voice = VOICES.get(room["level"], "en-US-AriaNeural")
+        lang = room.get("language", "en")
+        level = room.get("level", "intermediate")
 
-        prompt = (
-            f'You are a friendly English teacher. Student "{user_name}" asked: "{question}"\n'
-            f'Lesson topic: "{room["topic"]}", level: {room["level"]}.\n'
-            "Answer helpfully in 2-3 clear sentences. Plain text only."
-        )
+        lesson_directive = room.get("lesson_prompt", "") or room["topic"]
+        recent_transcript = ""
+        if room.get("transcript"):
+            last_sections = room["transcript"][-2:]
+            recent_transcript = " | ".join(
+                f"{s.get('title','')}: {s.get('content','')[:200]}" for s in last_sections
+            )
+
+        if lang == "vi":
+            prompt = (
+                f'Bạn là giáo viên tiếng Anh trực tiếp đang dạy lớp livestream.\n'
+                f'Tiêu đề bài: "{room["topic"]}". Trình độ học viên: {room["level"]}.\n'
+                f'Nội dung trọng tâm của buổi học: {lesson_directive}\n'
+                + (f'Nội dung vừa giảng gần đây: {recent_transcript}\n' if recent_transcript else '')
+                + f'\nHọc viên "{user_name}" vừa hỏi: "{question}"\n\n'
+                "NHIỆM VỤ: trả lời bằng tiếng Việt, 4-6 câu (khoảng 80-120 từ).\n"
+                "YÊU CẦU:\n"
+                "1. Trả lời TRỰC TIẾP câu hỏi, không vòng vo.\n"
+                "2. Bám sát nội dung trọng tâm của buổi học — đừng lan man.\n"
+                "3. Đưa ra ÍT NHẤT 1 ví dụ tiếng Anh cụ thể (kèm dịch nếu cần).\n"
+                "4. Kết bằng một gợi ý hành động cụ thể (hôm nay/tuần này nên luyện gì).\n"
+                "5. Văn phong ấm áp, thân thiện nhưng đặc thông tin. KHÔNG mở đầu bằng 'Câu hỏi hay lắm', 'Cảm ơn câu hỏi'.\n"
+                "Chỉ trả lời văn xuôi thuần túy, không markdown, không tiêu đề."
+            )
+            fallback = f"Đây là câu hỏi rất sát với chủ đề hôm nay. Bạn thử áp dụng các kỹ thuật vừa học vào câu hỏi này nhé — viết ra giấy 2-3 câu trả lời thử rồi so sánh."
+        else:
+            prompt = (
+                f'You are a live English teacher mid-lesson.\n'
+                f'Lesson title: "{room["topic"]}". Level: {room["level"]}.\n'
+                f'Lesson focus: {lesson_directive}\n'
+                + (f'Recent slides: {recent_transcript}\n' if recent_transcript else '')
+                + f'\nStudent "{user_name}" just asked: "{question}"\n\n'
+                "TASK: answer in 4-6 sentences (around 80-120 words).\n"
+                "REQUIREMENTS:\n"
+                "1. Answer the question DIRECTLY, no preamble.\n"
+                "2. Stay anchored to the lesson focus above — no tangents.\n"
+                "3. Include AT LEAST one concrete English example.\n"
+                "4. Close with a specific actionable next step (something to practice today/this week).\n"
+                "5. Warm but information-dense. Do NOT open with 'Great question' or 'Thanks for asking'.\n"
+                "Plain prose only, no markdown, no headings."
+            )
+            fallback = f"That question is right on track with today's focus. Try applying the techniques from the lesson — write out 2-3 attempts and compare them to spot the pattern."
 
         answer = ""
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(
-                    f"{settings.ollama_base_url}/api/generate",
-                    json={"model": settings.ollama_model, "prompt": prompt, "stream": False,
-                          "options": {"temperature": 0.5, "num_predict": 256}},
-                )
-            answer = resp.json().get("response", "").strip()
+            answer = await generate_text(
+                prompt, settings,
+                temperature=0.55, max_tokens=640, timeout=45,
+            )
         except Exception as e:
-            print(f"[Q&A] Ollama error: {e}")
+            print(f"[Q&A] LLM error: {e}")
 
         if not answer:
-            answer = f"Great question, {user_name}! Keep practicing and you will master it!"
+            answer = fallback
 
         audio_url = ""
         try:
-            filename = await _tts_to_file(answer, voice)
+            filename = await synthesize_to_file(
+                _normalize_tts(answer), level, lang,
+                provider=settings.tts_provider,
+                credentials_path=settings.google_application_credentials,
+            )
             audio_url = f"{settings.audio_base_url}/api/livestream/audio/{filename}"
         except Exception as e:
             print(f"[TTS Q&A] Failed: {e}")

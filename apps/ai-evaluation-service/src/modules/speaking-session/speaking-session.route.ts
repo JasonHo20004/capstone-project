@@ -2,6 +2,12 @@ import { Router, Request, Response } from "express";
 import { SpeakingSessionService } from "./speaking-session.service.js";
 import { s3Service } from "../../services/s3.service.js";
 import { databaseService } from "../../services/database.service.js";
+import { geminiClient } from "../../llm/gemini.client.js";
+import {
+  SPEAKING_VOCAB_SUGGESTIONS_PROMPT,
+  SPEAKING_MODEL_ANSWER_PROMPT,
+  SPEAKING_HIGHLIGHT_ERRORS_PROMPT,
+} from "../../llm/prompts.js";
 
 const router = Router();
 
@@ -235,7 +241,10 @@ router.get("/:id/result", async (req: Request, res: Response) => {
           pronunciation: session.pronunciationScore,
         },
         detailedFeedback: session.detailedFeedback,
+        turns: session.turns ?? [],
+        cueCard: session.cueCard ?? null,
         completedAt: session.completedAt,
+        createdAt: session.createdAt,
       },
     });
   } catch (error: any) {
@@ -266,6 +275,82 @@ router.get("/user/:userId", async (req: Request, res: Response) => {
       success: false,
       error: error.message || "Failed to list sessions",
     });
+  }
+});
+
+/**
+ * POST /api/ai/speaking-sessions/vocab-suggestions
+ * Generate 6 band-7+ vocab items for a topic before the test starts.
+ * Body: { topic: string }
+ */
+router.post("/vocab-suggestions", async (req: Request, res: Response) => {
+  try {
+    const { topic } = req.body;
+    if (!topic) {
+      res.status(400).json({ success: false, error: "topic is required" });
+      return;
+    }
+    const raw = await geminiClient.chatCompletion(
+      SPEAKING_VOCAB_SUGGESTIONS_PROMPT,
+      `Topic: "${topic}"`,
+      { temperature: 0.7 }
+    );
+    const parsed = JSON.parse(raw);
+    res.json({ success: true, data: parsed });
+  } catch (error: any) {
+    console.error("[Speaking] Vocab suggestions error:", error);
+    res.status(500).json({ success: false, error: error.message || "Failed to generate vocab" });
+  }
+});
+
+/**
+ * POST /api/ai/speaking-sessions/model-answer
+ * Generate a Band 8 model answer for a question, given the student's transcript.
+ * Body: { question: string, transcript: string, part: 1|2|3 }
+ */
+router.post("/model-answer", async (req: Request, res: Response) => {
+  try {
+    const { question, transcript, part } = req.body;
+    if (!question) {
+      res.status(400).json({ success: false, error: "question is required" });
+      return;
+    }
+    const user = `Part: ${part || 1}\nExaminer question: "${question}"\nStudent transcript: "${transcript || "(none)"}"`;
+    const raw = await geminiClient.chatCompletion(
+      SPEAKING_MODEL_ANSWER_PROMPT,
+      user,
+      { temperature: 0.6 }
+    );
+    const parsed = JSON.parse(raw);
+    res.json({ success: true, data: parsed });
+  } catch (error: any) {
+    console.error("[Speaking] Model answer error:", error);
+    res.status(500).json({ success: false, error: error.message || "Failed to generate model answer" });
+  }
+});
+
+/**
+ * POST /api/ai/speaking-sessions/highlight-errors
+ * Find grammar/vocab errors in a transcript with verbatim spans for inline highlighting.
+ * Body: { transcript: string }
+ */
+router.post("/highlight-errors", async (req: Request, res: Response) => {
+  try {
+    const { transcript } = req.body;
+    if (!transcript) {
+      res.status(400).json({ success: false, error: "transcript is required" });
+      return;
+    }
+    const raw = await geminiClient.chatCompletion(
+      SPEAKING_HIGHLIGHT_ERRORS_PROMPT,
+      `Transcript: "${transcript}"`,
+      { temperature: 0.2 }
+    );
+    const parsed = JSON.parse(raw);
+    res.json({ success: true, data: parsed });
+  } catch (error: any) {
+    console.error("[Speaking] Highlight errors error:", error);
+    res.status(500).json({ success: false, error: error.message || "Failed to highlight errors" });
   }
 });
 

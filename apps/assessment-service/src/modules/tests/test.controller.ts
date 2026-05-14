@@ -71,6 +71,21 @@ export class TestController {
         res.status(400).json({ message: "No audio file provided" });
         return;
       }
+      const ALLOWED_AUDIO_MIME = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/wave", "audio/x-wav", "audio/webm", "audio/ogg", "audio/mp4", "audio/x-m4a", "audio/aac"];
+      const ALLOWED_AUDIO_EXT = [".mp3", ".wav", ".webm", ".ogg", ".m4a", ".aac", ".mp4"];
+      const name = (file.originalname || "").toLowerCase();
+      const ext = name.includes(".") ? name.slice(name.lastIndexOf(".")) : "";
+      const mimeOk = ALLOWED_AUDIO_MIME.includes((file.mimetype || "").toLowerCase());
+      const extOk = ALLOWED_AUDIO_EXT.includes(ext);
+      if (!mimeOk && !extOk) {
+        res.status(400).json({ message: `Unsupported audio format. Allowed: ${ALLOWED_AUDIO_EXT.join(", ")}` });
+        return;
+      }
+      const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
+      if (file.size > MAX_AUDIO_BYTES) {
+        res.status(400).json({ message: `Audio too large. Max ${Math.round(MAX_AUDIO_BYTES / 1024 / 1024)}MB.` });
+        return;
+      }
       const url = await s3Service.uploadFile(file, "audio");
       res.status(200).json({ message: "Audio uploaded", data: { url } });
     } catch (error) {
@@ -83,6 +98,21 @@ export class TestController {
       const file = (req as any).file;
       if (!file) {
         res.status(400).json({ message: "No image file provided" });
+        return;
+      }
+      const ALLOWED_IMG_MIME = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"];
+      const ALLOWED_IMG_EXT = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+      const name = (file.originalname || "").toLowerCase();
+      const ext = name.includes(".") ? name.slice(name.lastIndexOf(".")) : "";
+      const mimeOk = ALLOWED_IMG_MIME.includes((file.mimetype || "").toLowerCase());
+      const extOk = ALLOWED_IMG_EXT.includes(ext);
+      if (!mimeOk && !extOk) {
+        res.status(400).json({ message: `Unsupported image format. Allowed: ${ALLOWED_IMG_EXT.join(", ")}` });
+        return;
+      }
+      const MAX_IMG_BYTES = 10 * 1024 * 1024;
+      if (file.size > MAX_IMG_BYTES) {
+        res.status(400).json({ message: `Image too large. Max ${Math.round(MAX_IMG_BYTES / 1024 / 1024)}MB.` });
         return;
       }
       const url = await s3Service.uploadFile(file, "images");

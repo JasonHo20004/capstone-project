@@ -9,5 +9,7 @@ httpx
 python-dotenv
 numpy
 edge-tts
+google-cloud-texttospeech
+google-generativeai
 redis[asyncio]
 PyJWT

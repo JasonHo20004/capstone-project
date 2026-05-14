@@ -9,7 +9,14 @@ from functools import lru_cache
 class Settings(BaseSettings):
     rag_service_port: int = 8000
 
-    # Ollama (via bore tunnel from Colab)
+    # LLM provider — "gemini" (Gemini Flash, recommended) or "ollama" (local fallback)
+    llm_provider: str = "gemini"
+
+    # Gemini (Google AI Studio)
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
+
+    # Ollama (via bore tunnel from Colab) — fallback when Gemini key empty/error
     ollama_base_url: str = "http://bore.pub:11434"
     ollama_model: str = "llama3.1"
 
@@ -31,6 +38,15 @@ class Settings(BaseSettings):
     audio_base_url: str = "http://localhost:8000"
     max_room_participants: int = 30
     questions_per_minute: int = 3
+
+    # TTS — "gcloud" (Google Cloud Neural2, premium) or "edge" (free fallback)
+    tts_provider: str = "gcloud"
+    # Path to GCP service-account JSON. If empty/missing, auto-falls back to edge-tts.
+    google_application_credentials: str = ""
+
+    # Pexels image search — free 200 req/hour for slide visuals
+    # Get a free key at https://www.pexels.com/api/
+    pexels_api_key: str = ""
 
     class Config:
         env_file = ".env"

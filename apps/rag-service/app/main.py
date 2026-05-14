@@ -13,6 +13,7 @@ load_dotenv()
 from app.routers import health, generate, explain, reading_gen, livestream
 from app.routers.livestream import AUDIO_DIR, cleanup_audio_loop
 from app.config import get_settings
+from app.services.tts_service import is_gcloud_configured
 
 
 def create_app() -> FastAPI:
@@ -48,8 +49,13 @@ def create_app() -> FastAPI:
     async def startup():
         AUDIO_DIR.mkdir(parents=True, exist_ok=True)
         asyncio.create_task(cleanup_audio_loop())
-        print(f"🚀 RAG Service started on port {settings.rag_service_port}")
-        print(f"🦙 Ollama: {settings.ollama_base_url} (model: {settings.ollama_model})")
+        print(f"RAG Service started on port {settings.rag_service_port}")
+        print(f"Ollama: {settings.ollama_base_url} (model: {settings.ollama_model})")
+        gcloud_ok = is_gcloud_configured(settings.google_application_credentials)
+        if gcloud_ok:
+            print(f"[TTS] Google Cloud Neural2 ACTIVE — credentials: {settings.google_application_credentials}")
+        else:
+            print("[TTS] edge-tts ACTIVE — gcloud not configured (no credentials or package missing)")
 
     return app
 

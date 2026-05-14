@@ -67,6 +67,7 @@ model Section {
   totalQuestions    Int?       @map("total_questions")
   totalScore        Float?     @map("total_score")
   mediaUrl          String?    @map("media_url")
+  audioTranscript   String?    @map("audio_transcript")
   imageUrl          String?    @map("image_url")
   orderIndex        Int?       @map("order_index")
   passages          Passage[]

@@ -121,6 +121,7 @@ export class TestService {
             skill: section.skill,
             durationInSeconds: section.durationInSeconds,
             mediaUrl: (section as any).mediaUrl || undefined,
+            audioTranscript: (section as any).audioTranscript || undefined,
             imageUrl: (section as any).imageUrl || undefined,
             orderIndex: idx,
             passages: (section as any).passageContent
@@ -169,6 +170,7 @@ export class TestService {
       skill?: string;
       durationInSeconds?: number;
       mediaUrl?: string;
+      audioTranscript?: string;
       imageUrl?: string;
       passageContent?: string;
       questions: Array<{
@@ -219,6 +221,7 @@ export class TestService {
                   skill: section.skill as any,
                   durationInSeconds: section.durationInSeconds,
                   mediaUrl: section.mediaUrl || undefined,
+                  audioTranscript: section.audioTranscript || undefined,
                   imageUrl: section.imageUrl || undefined,
                   orderIndex: idx,
                   passages: section.passageContent

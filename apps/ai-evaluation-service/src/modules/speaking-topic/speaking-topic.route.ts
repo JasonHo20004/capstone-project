@@ -4,8 +4,36 @@
 
 import { Router, Request, Response } from "express";
 import { databaseService } from "../../services/database.service.js";
+import { geminiClient } from "../../llm/gemini.client.js";
+import { SPEAKING_TOPIC_AUTOGEN_PROMPT } from "../../llm/prompts.js";
 
 const router = Router();
+
+/**
+ * POST /api/ai/speaking-topics/auto-generate
+ * Generate a full IELTS speaking topic bank from a title using Gemini.
+ * Body: { title: string }
+ * Returns: { part1Questions, part2Topic, part2Bullets, part2FinalPrompt, part3Questions }
+ */
+router.post("/auto-generate", async (req: Request, res: Response) => {
+  try {
+    const { title } = req.body;
+    if (!title || typeof title !== "string") {
+      res.status(400).json({ success: false, error: "title is required" });
+      return;
+    }
+    const raw = await geminiClient.chatCompletion(
+      SPEAKING_TOPIC_AUTOGEN_PROMPT,
+      `Generate a complete IELTS Speaking topic bank for the title: "${title}".`,
+      { temperature: 0.7 }
+    );
+    const parsed = JSON.parse(raw);
+    res.json({ success: true, data: parsed });
+  } catch (error: any) {
+    console.error("[Speaking Topic] Auto-generate error:", error);
+    res.status(500).json({ success: false, error: error.message || "Failed to auto-generate" });
+  }
+});
 
 /**
  * POST /api/ai/speaking-topics
