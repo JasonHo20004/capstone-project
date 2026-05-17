@@ -8,9 +8,9 @@ import { databaseService } from "./services/database.service.js";
 import { EventBusService, EventNames, OrderPaidEvent } from "@capstone/common";
 import { CourseService } from "./modules/courses/services/course.service.js";
 import { startNotificationCron } from "./helpers/notification.cron.js";
+import { SERVICE_NAME } from "./constants.js";
 
 const PORT = process.env.COURSE_SERVICE_PORT || 3002;
-const SERVICE_NAME = "course-service";
 
 let eventBus: EventBusService;
 

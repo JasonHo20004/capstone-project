@@ -6,9 +6,9 @@ import "dotenv/config";
 import app from "./app.js";
 import { databaseService } from "./services/database.service.js";
 import { EventBusService } from "@capstone/common";
+import { SERVICE_NAME } from "./constants.js";
 
 const PORT = process.env.PAYMENT_SERVICE_PORT || 3005;
-const SERVICE_NAME = "payment-service";
 
 let eventBus: EventBusService;
 

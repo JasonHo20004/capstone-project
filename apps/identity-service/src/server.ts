@@ -6,9 +6,9 @@ import "dotenv/config";
 import app from "./app.js";
 import { databaseService, redisService } from "./services/index.js";
 import { EventBusService, EventNames } from "@capstone/common";
+import { SERVICE_NAME } from "./constants.js";
 
 const PORT = process.env.IDENTITY_SERVICE_PORT || 3001;
-const SERVICE_NAME = "identity-service";
 
 let eventBus: EventBusService;
 

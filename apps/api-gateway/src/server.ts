@@ -4,9 +4,9 @@
 
 import "dotenv/config";
 import app from "./app.js";
+import { SERVICE_NAME } from "./constants.js";
 
 const PORT = process.env.GATEWAY_PORT || 3000;
-const SERVICE_NAME = "api-gateway";
 
 async function startServer() {
   try {
