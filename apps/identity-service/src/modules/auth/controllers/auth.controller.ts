@@ -4,11 +4,12 @@
 
 import { Request, Response, NextFunction } from "express";
 import { AuthService } from "../services/auth.service.js";
-import { asyncHandler } from "@capstone/common";
+import { asyncHandler, EventBusService } from "@capstone/common";
 
 import { AuthRepository } from "../repositories/auth.repository.js";
 import { UserRepository } from "../../users/repositories/user.repository.js";
-import { redisService, emailService } from "../../../services/index.js";
+import { redisService } from "../../../services/index.js";
+import { SERVICE_NAME } from "../../../constants.js";
 
 export class AuthController {
   private authService: AuthService;
@@ -18,7 +19,7 @@ export class AuthController {
       new AuthRepository(),
       new UserRepository(),
       redisService,
-      emailService
+      EventBusService.getInstance(SERVICE_NAME)
     );
   }
 
@@ -58,7 +59,7 @@ export class AuthController {
   });
 
   refreshToken = asyncHandler(async (req: Request, res: Response) => {
-    const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
+    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
     
     if (!refreshToken) {
       res.status(401).json({ success: false, error: "Refresh token required" });
@@ -94,15 +95,38 @@ export class AuthController {
 
   verifyEmail = asyncHandler(async (req: Request, res: Response) => {
     const { token } = req.query as { token: string };
-    await this.authService.verifyEmail(token);
-    
-    res.json({ success: true, message: "Email verified successfully" });
+    const result = await this.authService.verifyEmail(token);
+
+    res.cookie("refreshToken", result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
+    });
+
+    res.json({
+      success: true,
+      message: "Email verified successfully",
+      data: {
+        accessToken: result.accessToken,
+        userId: result.userId,
+        email: result.email,
+        fullName: result.fullName,
+        role: result.role,
+      },
+    });
   });
 
   resendVerification = asyncHandler(async (req: Request, res: Response) => {
-    const { userId } = req.body;
-    await this.authService.sendVerificationEmail(userId);
-    
-    res.json({ success: true, message: "Verification email sent" });
+    const { email } = req.body as { email: string };
+    await this.authService.resendVerificationByEmail(email);
+
+    // Always return the same success message, regardless of whether the email
+    // exists — avoids leaking account existence.
+    res.json({
+      success: true,
+      message: "If an unverified account exists for this email, a new verification link has been sent.",
+    });
   });
 }

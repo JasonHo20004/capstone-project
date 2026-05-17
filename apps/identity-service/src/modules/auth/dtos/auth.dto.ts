@@ -33,9 +33,16 @@ export const verifyEmailSchema = {
   }),
 };
 
+export const resendVerificationSchema = {
+  body: z.object({
+    email: z.string().email("Invalid email format"),
+  }),
+};
+
 export type LoginInput = z.infer<typeof loginSchema.body>;
 export type RegisterInput = z.infer<typeof registerSchema.body>;
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema.body>;
+export type ResendVerificationInput = z.infer<typeof resendVerificationSchema.body>;
 
 export interface LoginResponse {
   accessToken: string;
