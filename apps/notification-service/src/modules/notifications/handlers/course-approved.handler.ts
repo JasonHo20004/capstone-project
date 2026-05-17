@@ -1,6 +1,6 @@
 import { EventBusService, EventNames, CoursePublishedEvent, DomainEvent } from "@capstone/common";
-
-const SERVICE_NAME = "notification-service";
+import { registerEmailVerificationHandler } from "./email-verification.handler.js";
+import { SERVICE_NAME } from "../../../constants.js";
 let eventBus: EventBusService;
 
 export function getNotificationEventBus(): EventBusService {
@@ -17,7 +17,7 @@ export const initializeEventHandlers = async (dbService: any) => {
       const payload = event.payload;
       console.log(`📥 [${SERVICE_NAME}] Received EVENT ${EventNames.COURSE_PUBLISHED} for Course ${payload.courseId}`);
       const prisma = dbService.getClient();
-      
+
       // Create an In-app notification for the instructor
       await prisma.inAppNotification.create({
         data: {
@@ -32,6 +32,8 @@ export const initializeEventHandlers = async (dbService: any) => {
       console.log(`✅ [${SERVICE_NAME}] InAppNotification created for Seller ${payload.sellerId}`);
     }
   );
-  
+
+  await registerEmailVerificationHandler(eventBus);
+
   console.log(`🐰 [${SERVICE_NAME}] RabbitMQ Event Handlers Initialized.`);
 };

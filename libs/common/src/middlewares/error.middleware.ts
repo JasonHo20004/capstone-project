@@ -46,6 +46,15 @@ export class ConflictError extends AppError {
   }
 }
 
+export class TooManyRequestsError extends AppError {
+  public readonly retryAfterSeconds?: number;
+
+  constructor(message: string = "Too many requests", retryAfterSeconds?: number) {
+    super(message, 429);
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
 /**
  * Global error handler middleware
  */
@@ -56,9 +65,15 @@ export const errorHandler = (
   _next: NextFunction
 ): void => {
   if (err instanceof AppError) {
+    if (err instanceof TooManyRequestsError && err.retryAfterSeconds) {
+      res.setHeader("Retry-After", String(err.retryAfterSeconds));
+    }
     res.status(err.statusCode).json({
       success: false,
       error: err.message,
+      ...(err instanceof TooManyRequestsError && err.retryAfterSeconds
+        ? { retryAfterSeconds: err.retryAfterSeconds }
+        : {}),
       ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
     });
     return;

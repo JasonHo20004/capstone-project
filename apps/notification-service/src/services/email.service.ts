@@ -1,5 +1,5 @@
 // =============================================================================
-// Identity Service - Email Service
+// Notification Service - Email Service (SMTP transport)
 // =============================================================================
 
 import nodemailer from "nodemailer";
@@ -34,18 +34,13 @@ export class EmailService {
   }
 
   public async sendMail(options: SendMailOptions): Promise<void> {
-    try {
-      await this.transporter.sendMail({
-        from: process.env.SMTP_FROM || "noreply@example.com",
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
-      });
-      console.log(`📧 [Identity Service] Email sent to ${options.to}`);
-    } catch (error) {
-      console.error("❌ [Identity Service] Failed to send email:", error);
-      throw error;
-    }
+    await this.transporter.sendMail({
+      from: process.env.SMTP_FROM || "noreply@example.com",
+      to: options.to,
+      subject: options.subject,
+      html: options.html,
+    });
+    console.log(`📧 [notification-service] Email sent to ${options.to}`);
   }
 }
 

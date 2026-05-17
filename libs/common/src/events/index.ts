@@ -8,6 +8,7 @@ export enum EventNames {
   USER_REGISTERED = "identity.user.registered",
   USER_VERIFIED = "identity.user.verified",
   USER_UPDATED = "identity.user.updated",
+  EMAIL_VERIFICATION_REQUESTED = "identity.email.verification_requested",
   SELLER_APPROVED = "identity.seller.approved",
   SELLER_REJECTED = "identity.seller.rejected",
 
@@ -60,6 +61,14 @@ export interface UserRegisteredEvent {
 export interface UserVerifiedEvent {
   userId: string;
   email: string;
+}
+
+export interface EmailVerificationRequestedEvent {
+  userId: string;
+  email: string;
+  fullName: string;
+  verificationUrl: string;
+  expiresInMinutes: number;
 }
 
 export interface SellerApprovedEvent {
