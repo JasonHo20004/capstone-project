@@ -8,7 +8,8 @@ export const updateUserSchema = {
   body: z.object({
     fullName: z.string().min(1).optional(),
     phoneNumber: z.string().optional(),
-    profilePicture: z.string().url().optional(),
+    profilePicture: z.string().optional(),
+    dateOfBirth: z.string().optional(),
     englishLevel: z.string().optional(),
     learningGoals: z.array(z.string()).optional(),
   }),
