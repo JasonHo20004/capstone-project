@@ -41,6 +41,23 @@ export class CartController {
     res.json({ success: true, data: result, message: "Checkout successful" });
   });
 
+  removeFromCart = asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.userId;
+    const rawId = req.params.cartItemId;
+    const cartItemId = Array.isArray(rawId) ? rawId[0] : rawId;
+    if (!cartItemId) {
+      throw new Error("cartItemId is required");
+    }
+    const cart = await this.cartService.removeFromCart(userId, cartItemId);
+    res.json({ success: true, data: cart, message: "Removed from cart" });
+  });
+
+  clearCart = asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.userId;
+    const cart = await this.cartService.clearCart(userId);
+    res.json({ success: true, data: cart, message: "Cart cleared" });
+  });
+
   directBuy = asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.userId;
     const { courseId } = req.body;

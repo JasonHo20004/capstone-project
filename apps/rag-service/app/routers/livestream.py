@@ -772,13 +772,37 @@ async def _deliver_lesson(room_id: str, settings):
             settings,
         )
 
-        # Fetch slide images in parallel (graceful if Pexels key missing or fails)
+        # Kick off image fetch AND TTS synth for all sections in parallel.
+        # Without this, each section had to wait for the next section's TTS to finish
+        # (~5-10s gap of silence between sections). Doing them all upfront removes the gap.
         image_queries = [str(s.get("image_query", "")).strip() or room["topic"] for s in sections]
+        section_texts = [f"{s['title']}. {s['content']}" for s in sections]
+
+        async def _safe_synth(text: str) -> str:
+            try:
+                return await synthesize_to_file(
+                    _normalize_tts(text), level, lang,
+                    provider=settings.tts_provider,
+                    credentials_path=settings.google_application_credentials,
+                )
+            except Exception as e:
+                print(f"[TTS] Pre-synth failed: {e}")
+                return ""
+
+        image_task = asyncio.create_task(
+            fetch_images_for_queries(image_queries, settings.pexels_api_key)
+        )
+        tts_filenames = await asyncio.gather(*(_safe_synth(t) for t in section_texts))
         try:
-            image_urls = await fetch_images_for_queries(image_queries, settings.pexels_api_key)
+            image_urls = await image_task
         except Exception as e:
             print(f"[Livestream] Image fetch failed: {e}")
             image_urls = ["" for _ in sections]
+
+        audio_urls = [
+            f"{settings.audio_base_url}/api/livestream/audio/{fn}" if fn else ""
+            for fn in tts_filenames
+        ]
 
         sections_with_timing: list[dict] = []
 
@@ -787,19 +811,9 @@ async def _deliver_lesson(room_id: str, settings):
             if not room or room["status"] == "ended":
                 break
 
-            text = f"{section['title']}. {section['content']}"
+            text = section_texts[i]
             duration = max(4.0, len(text.split()) / 2.3)
-
-            audio_url = ""
-            try:
-                filename = await synthesize_to_file(
-                    _normalize_tts(text), level, lang,
-                    provider=settings.tts_provider,
-                    credentials_path=settings.google_application_credentials,
-                )
-                audio_url = f"{settings.audio_base_url}/api/livestream/audio/{filename}"
-            except Exception as e:
-                print(f"[TTS] Failed: {e}")
+            audio_url = audio_urls[i]
 
             practice_phrase = str(section.get("practice_phrase", "")).strip()
             key_points = [str(p).strip() for p in section.get("key_points", []) if str(p).strip()][:5]
@@ -907,16 +921,27 @@ async def _answer_question(room_id: str, question: str, user_name: str, settings
                 f'Nội dung trọng tâm của buổi học: {lesson_directive}\n'
                 + (f'Nội dung vừa giảng gần đây: {recent_transcript}\n' if recent_transcript else '')
                 + f'\nHọc viên "{user_name}" vừa hỏi: "{question}"\n\n'
-                "NHIỆM VỤ: trả lời bằng tiếng Việt, 4-6 câu (khoảng 80-120 từ).\n"
+                "NHIỆM VỤ: trả lời ĐẦY ĐỦ và CHI TIẾT bằng tiếng Việt.\n"
                 "YÊU CẦU:\n"
-                "1. Trả lời TRỰC TIẾP câu hỏi, không vòng vo.\n"
-                "2. Bám sát nội dung trọng tâm của buổi học — đừng lan man.\n"
-                "3. Đưa ra ÍT NHẤT 1 ví dụ tiếng Anh cụ thể (kèm dịch nếu cần).\n"
-                "4. Kết bằng một gợi ý hành động cụ thể (hôm nay/tuần này nên luyện gì).\n"
-                "5. Văn phong ấm áp, thân thiện nhưng đặc thông tin. KHÔNG mở đầu bằng 'Câu hỏi hay lắm', 'Cảm ơn câu hỏi'.\n"
-                "Chỉ trả lời văn xuôi thuần túy, không markdown, không tiêu đề."
+                "1. PHẢI giải đáp TẤT CẢ các ý có trong câu hỏi — không bỏ sót phần nào. "
+                "Nếu câu hỏi có nhiều phần (vd 'A là gì và làm sao B'), trả lời riêng từng phần.\n"
+                "2. Độ dài tự điều chỉnh theo độ phức tạp của câu hỏi:\n"
+                "   - Câu hỏi đơn giản (định nghĩa, yes/no, 1 ý) → 4-6 câu.\n"
+                "   - Câu hỏi how-to / nhiều phần → 8-15 câu, chia 2-3 đoạn, các đoạn cách nhau bằng dòng trống.\n"
+                "   - Câu hỏi sâu (so sánh, phân tích, lộ trình) → 15-30 câu, chia 3-5 đoạn rõ ràng.\n"
+                "3. Bám sát nội dung trọng tâm buổi học — KHÔNG lan man sang chủ đề khác.\n"
+                "4. Đưa ra ÍT NHẤT 1 ví dụ tiếng Anh cụ thể (kèm dịch nếu cần). Câu hỏi phức tạp → 2-3 ví dụ.\n"
+                "5. Kết bằng gợi ý hành động cụ thể (việc nên làm trong 24h hoặc tuần này).\n"
+                "6. Văn phong ấm áp, hội thoại, thân thiện nhưng ĐẶC THÔNG TIN. "
+                "KHÔNG mở đầu bằng 'Câu hỏi hay lắm', 'Cảm ơn câu hỏi', 'Đây là một câu hỏi…'.\n"
+                "7. Văn xuôi thuần tuý — KHÔNG dùng markdown, KHÔNG dùng dấu *, #, hay danh sách bullet. "
+                "Phân đoạn bằng dòng trống.\n"
+                "8. TUYỆT ĐỐI không dừng giữa chừng. Trả lời PHẢI có mở-thân-kết hoàn chỉnh."
             )
-            fallback = f"Đây là câu hỏi rất sát với chủ đề hôm nay. Bạn thử áp dụng các kỹ thuật vừa học vào câu hỏi này nhé — viết ra giấy 2-3 câu trả lời thử rồi so sánh."
+            fallback = (
+                "Đây là câu hỏi rất sát với chủ đề hôm nay. Bạn thử áp dụng các kỹ thuật "
+                "vừa học vào câu hỏi này nhé — viết ra giấy 2-3 câu trả lời thử rồi so sánh."
+            )
         else:
             prompt = (
                 f'You are a live English teacher mid-lesson.\n'
@@ -924,22 +949,32 @@ async def _answer_question(room_id: str, question: str, user_name: str, settings
                 f'Lesson focus: {lesson_directive}\n'
                 + (f'Recent slides: {recent_transcript}\n' if recent_transcript else '')
                 + f'\nStudent "{user_name}" just asked: "{question}"\n\n'
-                "TASK: answer in 4-6 sentences (around 80-120 words).\n"
+                "TASK: answer THOROUGHLY and COMPLETELY in English.\n"
                 "REQUIREMENTS:\n"
-                "1. Answer the question DIRECTLY, no preamble.\n"
-                "2. Stay anchored to the lesson focus above — no tangents.\n"
-                "3. Include AT LEAST one concrete English example.\n"
-                "4. Close with a specific actionable next step (something to practice today/this week).\n"
-                "5. Warm but information-dense. Do NOT open with 'Great question' or 'Thanks for asking'.\n"
-                "Plain prose only, no markdown, no headings."
+                "1. You MUST address EVERY part of the question — leave nothing out. "
+                "If the question has multiple parts, answer each part separately.\n"
+                "2. Length adapts to complexity:\n"
+                "   - Simple question (definition, yes/no, single point) → 4-6 sentences.\n"
+                "   - How-to / multi-part question → 8-15 sentences, 2-3 paragraphs separated by blank lines.\n"
+                "   - Deep question (comparison, analysis, roadmap) → 15-30 sentences, 3-5 clear paragraphs.\n"
+                "3. Stay anchored to the lesson focus — no tangents.\n"
+                "4. Include AT LEAST one concrete English example. Complex questions → 2-3 examples.\n"
+                "5. Close with a specific actionable next step (something to practice in the next 24 hours / this week).\n"
+                "6. Warm, conversational, friendly — but INFORMATION-DENSE. "
+                "Do NOT open with 'Great question', 'Thanks for asking', 'That's a great question…'.\n"
+                "7. Plain prose only — NO markdown, NO *, #, no bullet lists. Separate paragraphs with blank lines.\n"
+                "8. NEVER stop midway. Your answer MUST have a complete opening, body, and conclusion."
             )
-            fallback = f"That question is right on track with today's focus. Try applying the techniques from the lesson — write out 2-3 attempts and compare them to spot the pattern."
+            fallback = (
+                "That question is right on track with today's focus. Try applying the techniques "
+                "from the lesson — write out 2-3 attempts and compare them to spot the pattern."
+            )
 
         answer = ""
         try:
             answer = await generate_text(
                 prompt, settings,
-                temperature=0.55, max_tokens=640, timeout=45,
+                temperature=0.55, max_tokens=2048, timeout=90,
             )
         except Exception as e:
             print(f"[Q&A] LLM error: {e}")

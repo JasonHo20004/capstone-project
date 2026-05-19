@@ -1,6 +1,6 @@
 import { BadRequestError } from "@capstone/common";
 import { databaseService } from "../../../services/database.service.js";
-import { vnpayService } from "../../../services/vnpay.service.js";
+import { stripeService } from "../../../services/stripe.service.js";
 import type {
   OrderStatus,
   PaymentMethod,
@@ -13,7 +13,7 @@ const MINIMUM_TOPUP_VND = 10000;
 export class TopupService {
   private prisma = databaseService.getClient();
 
-  async createOrder(userId: string, realMoney: number, ipAddr: string) {
+  async createOrder(userId: string, realMoney: number) {
     if (!Number.isFinite(realMoney) || realMoney < MINIMUM_TOPUP_VND) {
       throw new BadRequestError(
         `Số tiền nạp tối thiểu là ${MINIMUM_TOPUP_VND.toLocaleString("vi-VN")} VND.`
@@ -21,99 +21,72 @@ export class TopupService {
     }
 
     const normalizedAmount = Math.round(realMoney);
-    const txnRef = `${Date.now()}_${userId.slice(0, 8)}`;
 
     const topupOrder = await this.prisma.topupOrder.create({
       data: {
         userId,
         realMoney: normalizedAmount,
-        paymentMethod: "VNPAY" as PaymentMethod,
+        paymentMethod: "STRIPE" as PaymentMethod,
         status: "PENDING" as OrderStatus,
-        vnpayTxnRef: txnRef,
       },
     });
 
-    const paymentUrl = vnpayService.createPaymentUrl({
+    const backendUrl = process.env.BACKEND_URL ?? "http://localhost:3000";
+    const session = await stripeService.createCheckoutSession({
       amount: normalizedAmount,
-      orderInfo: `Nap tien vi - ${txnRef}`,
-      txnRef,
-      ipAddr,
+      topupOrderId: topupOrder.id,
+      userId,
+      successUrl: `${backendUrl}/api/topup-orders/stripe-return`,
+      cancelUrl: `${backendUrl}/api/topup-orders/stripe-cancel`,
     });
+
+    await this.prisma.topupOrder.update({
+      where: { id: topupOrder.id },
+      data: { stripeSessionId: session.id },
+    });
+
+    if (!session.url) {
+      throw new Error("Stripe session created without URL");
+    }
 
     return {
       orderId: topupOrder.id,
-      paymentUrl,
-      txnRef,
+      paymentUrl: session.url,
+      txnRef: session.id,
       amount: normalizedAmount,
       currency: "VND",
       minimumAmount: MINIMUM_TOPUP_VND,
     };
   }
 
-  async handleIpn(params: Record<string, string>) {
-    const isValid = vnpayService.verifySignature(params);
-
-    if (!isValid) {
-      return { RspCode: "97", Message: "Invalid Checksum" };
-    }
-
-    const txnRef = params["vnp_TxnRef"];
-    const responseCode = params["vnp_ResponseCode"];
-    const transactionNo = params["vnp_TransactionNo"];
-    const amount = Math.round(Number(params["vnp_Amount"]) / 100);
-    const bankCode = params["vnp_BankCode"];
+  async confirmStripeSession(sessionId: string) {
+    const session = await stripeService.retrieveSession(sessionId);
 
     const topupOrder = await this.prisma.topupOrder.findUnique({
-      where: { vnpayTxnRef: txnRef },
+      where: { stripeSessionId: sessionId },
     });
 
     if (!topupOrder) {
-      return { RspCode: "01", Message: "Order not found" };
+      return { success: false, message: "Không tìm thấy đơn nạp tiền", txnRef: sessionId };
     }
 
-    if (topupOrder.status !== "PENDING") {
-      return { RspCode: "02", Message: "Order already confirmed" };
-    }
+    const isPaid = session.payment_status === "paid";
+    const paymentIntentId =
+      typeof session.payment_intent === "string"
+        ? session.payment_intent
+        : session.payment_intent?.id;
 
-    if (Number(topupOrder.realMoney) !== amount) {
-      return { RspCode: "04", Message: "Invalid amount" };
-    }
+    const paymentMethodType =
+      session.payment_method_types?.[0] ?? undefined;
 
-    if (responseCode === "00") {
-      await this.processSuccessfulPayment(topupOrder, amount, transactionNo, bankCode);
-    } else {
-      await this.prisma.topupOrder.update({
-        where: { id: topupOrder.id },
-        data: { status: "FAILED" as OrderStatus },
-      });
-    }
-
-    return { RspCode: "00", Message: "Confirm Success" };
-  }
-
-  async verifyReturn(params: Record<string, string>) {
-    const isValid = vnpayService.verifySignature(params);
-    const txnRef = params["vnp_TxnRef"];
-    const responseCode = params["vnp_ResponseCode"];
-    const transactionNo = params["vnp_TransactionNo"];
-    const amount = Math.round(Number(params["vnp_Amount"]) / 100);
-    const bankCode = params["vnp_BankCode"];
-
-    if (!isValid) {
-      return { success: false, message: "Chữ ký không hợp lệ", txnRef };
-    }
-
-    const topupOrder = await this.prisma.topupOrder.findUnique({
-      where: { vnpayTxnRef: txnRef },
-    });
-
-    if (!topupOrder) {
-      return { success: false, message: "Không tìm thấy đơn nạp tiền", txnRef };
-    }
-
-    if (responseCode === "00") {
-      // Credit wallet via return URL too — idempotent, safe even if IPN already ran
-      await this.processSuccessfulPayment(topupOrder, amount, transactionNo, bankCode);
+    if (isPaid) {
+      // Credit wallet — idempotent via updateMany guard.
+      await this.processSuccessfulPayment(
+        topupOrder,
+        Number(topupOrder.realMoney),
+        paymentIntentId,
+        paymentMethodType
+      );
     } else if (topupOrder.status === "PENDING") {
       await this.prisma.topupOrder.update({
         where: { id: topupOrder.id },
@@ -122,20 +95,42 @@ export class TopupService {
     }
 
     return {
-      success: responseCode === "00",
+      success: isPaid,
       orderId: topupOrder.id,
-      status: topupOrder.status,
+      status: isPaid ? "SUCCESS" : "FAILED",
       amount: Number(topupOrder.realMoney),
-      message: responseCode === "00" ? "Thanh toán thành công" : "Thanh toán thất bại",
-      txnRef,
+      message: isPaid ? "Thanh toán thành công" : "Thanh toán thất bại",
+      txnRef: sessionId,
+    };
+  }
+
+  async cancelStripeSession(sessionId: string) {
+    const topupOrder = await this.prisma.topupOrder.findUnique({
+      where: { stripeSessionId: sessionId },
+    });
+
+    if (topupOrder && topupOrder.status === "PENDING") {
+      await this.prisma.topupOrder.update({
+        where: { id: topupOrder.id },
+        data: { status: "FAILED" as OrderStatus },
+      });
+    }
+
+    return {
+      success: false,
+      orderId: topupOrder?.id ?? "",
+      status: "FAILED",
+      amount: topupOrder ? Number(topupOrder.realMoney) : 0,
+      message: "Bạn đã huỷ thanh toán",
+      txnRef: sessionId,
     };
   }
 
   private async processSuccessfulPayment(
     topupOrder: { id: string; userId: string; realMoney: unknown },
     amount: number,
-    transactionNo: string | undefined,
-    bankCode: string | undefined
+    paymentIntentId: string | undefined,
+    paymentMethodType: string | undefined
   ) {
     const userId = topupOrder.userId;
 
@@ -145,8 +140,8 @@ export class TopupService {
         data: {
           status: "SUCCESS" as OrderStatus,
           realAmount: amount,
-          vnpayTransactionNo: transactionNo,
-          vnpayBankCode: bankCode,
+          stripePaymentIntentId: paymentIntentId,
+          stripePaymentMethodType: paymentMethodType,
         },
       });
 
@@ -171,7 +166,7 @@ export class TopupService {
           amount,
           transactionType: "DEPOSIT" as TransactionType,
           status: "SUCCESS" as TransactionStatus,
-          description: `Nạp tiền qua VNPay (TxnRef: ${topupOrder.id})`,
+          description: `Nạp tiền qua Stripe (Order: ${topupOrder.id})`,
           topupOrderId: topupOrder.id,
         },
       });
@@ -198,7 +193,7 @@ export class TopupService {
       status: topupOrder.status,
       paymentMethod: topupOrder.paymentMethod,
       amount: Number(topupOrder.realMoney),
-      txnRef: topupOrder.vnpayTxnRef,
+      txnRef: topupOrder.stripeSessionId,
     };
   }
 }

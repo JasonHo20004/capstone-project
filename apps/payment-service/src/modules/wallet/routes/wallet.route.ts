@@ -3,10 +3,11 @@
 // =============================================================================
 
 import { Router } from "express";
+import type { Router as ExpressRouter } from "express";
 import { WalletController } from "../controllers/wallet.controller.js";
 import { authenticateToken } from "@capstone/common";
 
-const router = Router();
+const router: ExpressRouter = Router();
 const walletController = new WalletController();
 
 router.get("/", authenticateToken, walletController.getWallet);

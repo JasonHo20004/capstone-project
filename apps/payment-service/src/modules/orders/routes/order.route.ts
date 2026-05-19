@@ -3,10 +3,11 @@
 // =============================================================================
 
 import { Router } from "express";
+import type { Router as ExpressRouter } from "express";
 import { OrderController } from "../controllers/order.controller.js";
 import { authenticateToken } from "@capstone/common";
 
-const router = Router();
+const router: ExpressRouter = Router();
 const orderController = new OrderController();
 
 router.post("/", authenticateToken, orderController.createOrder);

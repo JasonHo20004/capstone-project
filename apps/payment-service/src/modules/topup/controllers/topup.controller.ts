@@ -8,17 +8,13 @@ export class TopupController {
   createOrder = asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.userId;
     const { realMoney } = req.body;
-    const ipAddr =
-      (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
-      req.socket.remoteAddress ||
-      "127.0.0.1";
 
-    const result = await this.topupService.createOrder(userId, Number(realMoney), ipAddr);
+    const result = await this.topupService.createOrder(userId, Number(realMoney));
 
     res.status(201).json({
       success: true,
       data: result,
-      message: "VNPay payment URL created",
+      message: "Stripe checkout URL created",
     });
   });
 
@@ -31,26 +27,36 @@ export class TopupController {
     res.json({ success: true, data: result });
   });
 
-  // VNPay IPN — server-to-server callback, must respond quickly with RspCode
-  handleIpn = asyncHandler(async (req: Request, res: Response) => {
-    const params = req.query as Record<string, string>;
-    const result = await this.topupService.handleIpn(params);
-    res.json(result);
-  });
-
-  // VNPay return — browser redirect after payment, redirects user to frontend
-  handleReturn = asyncHandler(async (req: Request, res: Response) => {
-    const params = req.query as Record<string, string>;
-    const result = await this.topupService.verifyReturn(params);
-
+  // Stripe success redirect — browser arrives here with ?session_id=cs_test_...
+  handleStripeReturn = asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = String(req.query.session_id ?? "");
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+
+    if (!sessionId) {
+      return res.redirect(`${frontendUrl}/payment/result?status=failed`);
+    }
+
+    const result = await this.topupService.confirmStripeSession(sessionId);
     const status = result.success ? "success" : "failed";
-    const orderId = "orderId" in result ? result.orderId : "";
-    const txnRef = result.txnRef ?? "";
-    const amount = "amount" in result && result.amount ? String(result.amount) : "";
+    const orderId = result.orderId ?? "";
+    const amount = result.amount ? String(result.amount) : "";
 
     res.redirect(
-      `${frontendUrl}/payment/result?status=${status}&orderId=${orderId}&txnRef=${encodeURIComponent(txnRef)}&amount=${amount}`
+      `${frontendUrl}/payment/result?status=${status}&orderId=${orderId}&txnRef=${encodeURIComponent(sessionId)}&amount=${amount}`
+    );
+  });
+
+  // Stripe cancel redirect — user clicked back on Stripe Checkout.
+  handleStripeCancel = asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = String(req.query.session_id ?? "");
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+
+    if (sessionId) {
+      await this.topupService.cancelStripeSession(sessionId);
+    }
+
+    res.redirect(
+      `${frontendUrl}/payment/result?status=failed&txnRef=${encodeURIComponent(sessionId)}`
     );
   });
 }

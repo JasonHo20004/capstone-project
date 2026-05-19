@@ -164,6 +164,43 @@ export class CartService {
     };
   }
 
+  async removeFromCart(userId: string, cartItemId: string) {
+    const cart = await this.prisma.cart.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!cart) {
+      throw new Error("Cart not found");
+    }
+
+    const item = await this.prisma.cartItem.findFirst({
+      where: { id: cartItemId, cartId: cart.id },
+    });
+
+    if (!item) {
+      throw new Error("Cart item not found");
+    }
+
+    await this.prisma.cartItem.delete({ where: { id: cartItemId } });
+
+    return this.getCart(userId);
+  }
+
+  async clearCart(userId: string) {
+    const cart = await this.prisma.cart.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (!cart) {
+      return this.getCart(userId);
+    }
+
+    await this.prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
+    return this.getCart(userId);
+  }
+
   async directBuy(userId: string, courseId: string) {
     const course = await getCourseById(courseId);
     if (!course || course.price <= 0) {

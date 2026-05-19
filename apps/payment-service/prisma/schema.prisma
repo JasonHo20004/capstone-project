@@ -48,9 +48,10 @@ model TopupOrder {
   currency           String        @default("VND") @db.VarChar(10)
   paymentMethod      PaymentMethod @map("payment_method")
   status             OrderStatus
-  vnpayTxnRef        String?       @unique @map("vnpay_txn_ref") @db.VarChar(255)
-  vnpayTransactionNo String?       @map("vnpay_transaction_no") @db.VarChar(255)
-  vnpayBankCode      String?       @map("vnpay_bank_code") @db.VarChar(50)
+  // @map keeps original column names → no DB migration needed when swapping providers.
+  stripeSessionId         String? @unique @map("vnpay_txn_ref") @db.VarChar(255)
+  stripePaymentIntentId   String? @map("vnpay_transaction_no") @db.VarChar(255)
+  stripePaymentMethodType String? @map("vnpay_bank_code") @db.VarChar(50)
   createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   transactions       Transaction[]
 

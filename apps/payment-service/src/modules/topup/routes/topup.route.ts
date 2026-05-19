@@ -6,9 +6,9 @@ import { TopupController } from "../controllers/topup.controller.js";
 const router: ExpressRouter = Router();
 const topupController = new TopupController();
 
-// VNPay callbacks — no auth, must be before authenticated routes
-router.get("/vnpay-return", topupController.handleReturn);
-router.get("/ipn", topupController.handleIpn);
+// Stripe redirects — no auth, must be before authenticated routes.
+router.get("/stripe-return", topupController.handleStripeReturn);
+router.get("/stripe-cancel", topupController.handleStripeCancel);
 
 router.post("/create", authenticateToken, topupController.createOrder);
 router.get("/:orderId", authenticateToken, topupController.getOrderStatus);
