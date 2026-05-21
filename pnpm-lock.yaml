@@ -130,6 +130,9 @@ importers:
       '@capstone/common':
         specifier: workspace:*
         version: link:../../libs/common
+      '@google/genai':
+        specifier: ^1.45.0
+        version: 1.45.0
       '@prisma/client':
         specifier: ^6.17.0
         version: 6.19.2(prisma@6.19.2(typescript@5.9.3))(typescript@5.9.3)
@@ -457,7 +460,7 @@ importers:
         specifier: ^5.10.0
         version: 5.10.0
       stripe:
-        specifier: ^17.5.0
+        specifier: ^17.7.0
         version: 17.7.0
       zod:
         specifier: ^4.1.12

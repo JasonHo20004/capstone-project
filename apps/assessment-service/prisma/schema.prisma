@@ -307,3 +307,95 @@ model TutorMessage {
   @@index([tutorSessionId])
   @@map("tutor_messages")
 }
+
+// ─── Placement Test (English level evaluation) ────────────────────────────────
+
+model PlacementQuestion {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  section       Int
+  difficulty    String   @db.VarChar(10)
+  type          String   @db.VarChar(20)
+  skillTag      String?  @map("skill_tag") @db.VarChar(100)
+
+  context       String?
+  instruction   String
+  prompt        String
+
+  optionA       String?  @map("option_a")
+  optionB       String?  @map("option_b")
+  optionC       String?  @map("option_c")
+  correctAnswer String?  @map("correct_answer") @db.VarChar(1)
+
+  passage       String?
+
+  fixedFragment String?  @map("fixed_fragment")
+  fragmentA     String?  @map("fragment_a")
+  fragmentB     String?  @map("fragment_b")
+  fragmentC     String?  @map("fragment_c")
+  correctOrder  String?  @map("correct_order") @db.VarChar(5)
+
+  audioContext  String?  @map("audio_context")
+  audioScript   String?  @map("audio_script")
+  audioUrl      String?  @map("audio_url")
+
+  timeLimit     Int      @default(30) @map("time_limit")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  answers       PlacementAnswer[]
+
+  @@index([section, difficulty, isActive], name: "idx_pq_section_difficulty_active")
+  @@index([type], name: "idx_pq_type")
+  @@map("placement_questions")
+}
+
+model PlacementSession {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+
+  status            String    @default("in_progress") @db.VarChar(20)
+
+  questionIds       String[]  @map("question_ids") @db.Uuid
+
+  rawScore          Int?      @map("raw_score")
+  maxScore          Int?      @map("max_score")
+  percentage        Decimal?  @db.Decimal(5, 2)
+  cefrLevel         String?   @map("cefr_level") @db.VarChar(10)
+
+  sectionScores     Json?     @map("section_scores")
+
+  lastQuestionIndex Int       @default(0) @map("last_question_index")
+
+  startedAt         DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  answers           PlacementAnswer[]
+
+  @@index([userId, status], name: "idx_ps_user_status")
+  @@map("placement_sessions")
+}
+
+model PlacementAnswer {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId      String   @map("session_id") @db.Uuid
+  questionId     String   @map("question_id") @db.Uuid
+  questionIndex  Int      @map("question_index")
+
+  selectedOption String?  @map("selected_option") @db.VarChar(1)
+  selectedOrder  String?  @map("selected_order") @db.VarChar(5)
+
+  isCorrect      Boolean? @map("is_correct")
+  pointsEarned   Int      @default(0) @map("points_earned")
+  timeSpent      Int?     @map("time_spent")
+
+  answeredAt     DateTime @default(now()) @map("answered_at") @db.Timestamptz(6)
+
+  session        PlacementSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  question       PlacementQuestion @relation(fields: [questionId], references: [id])
+
+  @@index([sessionId], name: "idx_pa_session")
+  @@map("placement_answers")
+}
