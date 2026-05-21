@@ -30,8 +30,8 @@ app.use(
   })
 );
 
-// Body parsing
-app.use(express.json());
+// Body parsing — 5mb limit to support base64 avatar images in profile updates
+app.use(express.json({ limit: "5mb" }));
 app.use(cookieParser());
 
 // Health check

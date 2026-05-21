@@ -84,7 +84,12 @@ export class UserService {
   }
 
   async update(id: string, data: UpdateUserInput): Promise<UserResponse> {
-    const user = await this.userRepository.update(id, data);
+    const { dateOfBirth, ...rest } = data;
+    const updateData: Record<string, unknown> = { ...rest };
+    if (dateOfBirth) {
+      updateData.dateOfBirth = new Date(dateOfBirth);
+    }
+    const user = await this.userRepository.update(id, updateData as any);
 
     return {
       id: user.id,
