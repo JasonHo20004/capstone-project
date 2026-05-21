@@ -3,6 +3,7 @@
 // =============================================================================
 
 import { databaseService } from "../../../services/database.service.js";
+import { getSellerStatus } from "../../../clients/identity.client.js";
 import type {
   TransactionType,
   TransactionStatus,
@@ -15,14 +16,42 @@ interface BankDetails {
   accountNumber: string;
 }
 
+// Withdrawal limits (VND). Override via env if business rules change.
+const MIN_WITHDRAWAL_AMOUNT = Number(process.env.MIN_WITHDRAWAL_AMOUNT ?? 50_000);
+const MAX_WITHDRAWAL_AMOUNT = Number(process.env.MAX_WITHDRAWAL_AMOUNT ?? 50_000_000);
+
 export class WithdrawalService {
   private prisma = databaseService.getClient();
 
   // ── [SELLER] Request a withdrawal ─────────────────────────────────────────
 
   async requestWithdrawal(sellerId: string, amount: number, bankDetails: BankDetails) {
-    if (amount <= 0) {
-      throw new Error("Amount must be greater than zero");
+    if (amount < MIN_WITHDRAWAL_AMOUNT) {
+      throw new Error(
+        `Minimum withdrawal amount is ${MIN_WITHDRAWAL_AMOUNT.toLocaleString("vi-VN")}đ`
+      );
+    }
+    if (amount > MAX_WITHDRAWAL_AMOUNT) {
+      throw new Error(
+        `Maximum withdrawal amount per request is ${MAX_WITHDRAWAL_AMOUNT.toLocaleString("vi-VN")}đ`
+      );
+    }
+
+    // Bank-detail sanity checks (catch typos before admin manual transfer).
+    if (!/^\d{6,20}$/.test(bankDetails.accountNumber)) {
+      throw new Error("Bank account number must be 6-20 digits");
+    }
+    if (bankDetails.accountName.trim().length < 2) {
+      throw new Error("Account name is required");
+    }
+    if (bankDetails.bankName.trim().length < 2) {
+      throw new Error("Bank name is required");
+    }
+
+    // Block banned/inactive sellers from cashing out.
+    const sellerStatus = await getSellerStatus(sellerId);
+    if (sellerStatus && sellerStatus.hasProfile && !sellerStatus.active) {
+      throw new Error("Your seller account has been deactivated. Contact support.");
     }
 
     return await databaseService.transaction(async (tx) => {

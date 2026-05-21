@@ -48,7 +48,6 @@ export class WalletRepository {
     description?: string;
     orderId?: string;
     topupOrderId?: string;
-    subscriptionContractId?: string;
   }) {
     return await this.prisma.transaction.create({
       data: {
@@ -59,7 +58,6 @@ export class WalletRepository {
         description: data.description,
         orderId: data.orderId,
         topupOrderId: data.topupOrderId,
-        subscriptionContractId: data.subscriptionContractId,
       },
     });
   }

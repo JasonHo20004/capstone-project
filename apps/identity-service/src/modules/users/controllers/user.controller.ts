@@ -45,6 +45,14 @@ export class UserController {
     res.json({ success: true, data: user });
   });
 
+  // Internal endpoint: check seller active status (used by course/payment services
+  // to gate publish/withdraw actions for banned/inactive sellers)
+  getSellerStatus = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const status = await this.userService.getSellerStatus(id as string);
+    res.json({ success: true, data: status });
+  });
+
   // Internal batch endpoint for other services
   getBasicInfoBatch = asyncHandler(async (req: Request, res: Response) => {
     const { ids } = req.body;

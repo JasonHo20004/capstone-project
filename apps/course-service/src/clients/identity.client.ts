@@ -65,6 +65,24 @@ export class IdentityClient {
       return null;
     }
   }
+
+  /**
+   * Check whether `userId` has an active seller profile.
+   * Returns null on transport error so callers can decide to fail-open or fail-closed.
+   */
+  async getSellerStatus(userId: string): Promise<{ hasProfile: boolean; active: boolean } | null> {
+    try {
+      const response = await fetch(
+        `${IDENTITY_SERVICE_URL}/api/users/internal/${userId}/seller-status`
+      );
+      if (!response.ok) return null;
+      const data = await response.json() as { data: { hasProfile: boolean; active: boolean } };
+      return data.data;
+    } catch (error) {
+      console.error(`[Course Service] Error fetching seller status:`, error);
+      return null;
+    }
+  }
 }
 
 export const identityClient = IdentityClient.getInstance();

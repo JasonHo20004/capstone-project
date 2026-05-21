@@ -10,6 +10,7 @@ import cartRouter from "./modules/carts/routes/cart.route.js";
 import subscriptionRouter from "./modules/subscription/routes/user-subscription.route.js";
 import commissionRouter from "./modules/commission/routes/commission.routes.js";
 import withdrawalRouter from "./modules/withdrawal/routes/withdrawal.routes.js";
+import stripeWebhookRouter from "./modules/webhooks/stripe.webhook.js";
 
 const app: Express = express();
 
@@ -25,6 +26,10 @@ app.use(
     credentials: true,
   })
 );
+
+// Stripe webhook needs the raw body for signature verification, so it MUST
+// be mounted before express.json() applies its body parser to all routes.
+app.use("/api/webhooks", stripeWebhookRouter);
 
 app.use(express.json());
 

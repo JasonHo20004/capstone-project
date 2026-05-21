@@ -26,6 +26,16 @@ export const getUsersQuerySchema = {
 export type UpdateUserInput = z.infer<typeof updateUserSchema.body>;
 export type GetUsersQuery = z.infer<typeof getUsersQuerySchema.query>;
 
+export interface CourseSellerApplicationSummary {
+  id: string;
+  status: string;
+  certification: string[];
+  expertise: string[];
+  message: string | null;
+  rejectionReason: string | null;
+  createdAt: Date;
+}
+
 export interface UserResponse {
   id: string;
   email: string;
@@ -38,6 +48,7 @@ export interface UserResponse {
   role: string | null;
   isEmailVerified: boolean;
   createdAt: Date;
+  courseSellerApplication?: CourseSellerApplicationSummary | null;
 }
 
 export interface UserBasicResponse {

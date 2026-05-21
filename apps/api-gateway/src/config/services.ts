@@ -146,6 +146,13 @@ export const services: ServiceConfig[] = [
     url: process.env.NOTIFICATION_SERVICE_URL || "http://localhost:3006",
     prefix: "/api/notifications",
   },
+  // Admin seller-applications routes - identity-service (must come BEFORE generic /api/admin)
+  {
+    name: "identity-service",
+    url: process.env.IDENTITY_SERVICE_URL || "http://localhost:3001",
+    prefix: "/api/admin",
+    pathFilter: "/api/admin/seller-applications",
+  },
   {
     name: "course-service",
     url: process.env.COURSE_SERVICE_URL || "http://localhost:3002",

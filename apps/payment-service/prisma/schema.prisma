@@ -29,11 +29,9 @@ model Transaction {
   walletId               String                @map("wallet_id") @db.Uuid
   transactionType        TransactionType       @map("transaction_type")
   topupOrderId           String?               @map("topup_order_id") @db.Uuid
-  subscriptionContractId String?               @map("subscription_contract_id") @db.Uuid
   orderId                String?               @unique @map("order_id") @db.Uuid
-  
+
   order                  Order?                @relation(fields: [orderId], references: [id])
-  subscriptionContract   SubscriptionContract? @relation(fields: [subscriptionContractId], references: [id])
   topupOrder             TopupOrder?           @relation(fields: [topupOrderId], references: [id])
   wallet                 Wallet                @relation(fields: [walletId], references: [id])
 
@@ -72,7 +70,7 @@ model CartItem {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   courseId    String   @map("course_id") @db.Uuid
   addedAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  priceAtTime Float    @map("price_at_time")
+  priceAtTime Decimal  @map("price_at_time") @db.Decimal(12, 2)
   cartId      String   @map("cart_id") @db.Uuid
   cart        Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
 
@@ -82,42 +80,13 @@ model CartItem {
 model Order {
   id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId      String       @map("user_id") @db.Uuid
-  totalAmount Float        @map("total_amount")
+  totalAmount Decimal      @map("total_amount") @db.Decimal(12, 2)
   createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   cartId      String       @map("cart_id") @db.Uuid
   cart        Cart         @relation(fields: [cartId], references: [id], onDelete: Cascade)
   transaction Transaction?
 
   @@map("orders")
-}
-
-model SubscriptionPlan {
-  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                  String                 @unique @db.VarChar(255)
-  description           String?
-  maxCourses            Int                    @map("max_courses")
-  monthlyFee            Decimal                @map("monthly_fee") @db.Decimal(10, 2)
-  subscriptionContracts SubscriptionContract[]
-
-  @@map("subscription_plans")
-}
-
-model SubscriptionContract {
-  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  courseSellerId     String           @map("course_seller_id") @db.Uuid
-  status             Boolean          @default(true)
-  subscriptionPlanId String           @map("subscription_plan_id") @db.Uuid
-  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  expiresAt          DateTime         @map("expires_at") @db.Timestamptz(6)
-  updatedAt          DateTime?        @updatedAt @map("updated_at") @db.Timestamptz(6)
-  renewalCount       Int              @default(0) @map("renewal_count")
-  lastRenewalAt      DateTime?        @map("last_renewal_at") @db.Timestamptz(6)
-  notes              String?
-  lastNotificationAt DateTime?        @map("last_notification_at") @db.Timestamptz(6)
-  subscriptionPlan   SubscriptionPlan @relation(fields: [subscriptionPlanId], references: [id])
-  transactions       Transaction[]
-
-  @@map("subscription_contracts")
 }
 
 enum UserPlanType {
@@ -193,6 +162,7 @@ enum EarningStatus {
   PENDING
   AVAILABLE
   RELEASED
+  REFUNDED
 }
 
 enum PaymentMethod {
@@ -207,12 +177,12 @@ enum OrderStatus {
   PENDING
   SUCCESS
   FAILED
+  REFUNDED
 }
 
 enum TransactionType {
   DEPOSIT
   PAYMENT
-  MONTHLYFEE
   WITHDRAW
   SUBSCRIPTION
   COMMISSION

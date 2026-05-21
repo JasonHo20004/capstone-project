@@ -113,7 +113,7 @@ export class SellerRepository {
   }
 
   /**
-   * Update application status (approve/reject)
+   * Update application status (approve/reject) with audit fields.
    */
   async updateApplicationStatus(
     applicationId: string,
@@ -121,6 +121,8 @@ export class SellerRepository {
       status: ApplicationStatus;
       rejectionReason?: string;
       message?: string;
+      approvedBy?: string;
+      approvedAt?: Date;
     }
   ) {
     return this.db.getClient().courseSellerApplication.update({
@@ -129,6 +131,8 @@ export class SellerRepository {
         status: data.status,
         rejectionReason: data.rejectionReason,
         message: data.message,
+        approvedBy: data.approvedBy,
+        approvedAt: data.approvedAt,
       },
       include: {
         user: {

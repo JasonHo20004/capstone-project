@@ -1,18 +1,32 @@
 import { Router } from "express";
+import multer from "multer";
 import { SellerController } from "../controllers/seller.controller.js";
-import { authenticateToken, validate } from "@capstone/common";
-import { applyForSellerSchema } from "../dtos/seller.dto.js";
+import { authenticateToken } from "@capstone/common";
 
 const router: Router = Router();
 const controller = new SellerController();
 
+// In-memory storage; files uploaded to S3 in controller.
+// Limits: max 5MB per file, max 10 files, image MIME only.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 10 },
+  fileFilter: (_req, file, cb) => {
+    if (/^image\/(jpeg|png|webp)$/.test(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only JPEG, PNG or WebP images are allowed"));
+    }
+  },
+});
+
 // ===== User Routes (Authenticated) =====
 
-// Apply to become a course seller
+// Apply to become a course seller (multipart: images[], expertise[], message?)
 router.post(
   "/apply",
   authenticateToken,
-  validate({ body: applyForSellerSchema }),
+  upload.array("images", 10),
   controller.applyForSeller
 );
 

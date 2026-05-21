@@ -42,9 +42,6 @@ export enum EventNames {
   ORDER_CREATED = "payment.order.created",
   ORDER_PAID = "payment.order.paid",
   TOPUP_COMPLETED = "payment.topup.completed",
-  SUBSCRIPTION_RENEWED = "payment.subscription.renewed",
-  SUBSCRIPTION_EXPIRED = "payment.subscription.expired",
-  SUBSCRIPTION_EXPIRING_SOON = "payment.subscription.expiring_soon",
 
   // Notification Events
   NOTIFICATION_CREATED = "notification.created",
@@ -120,13 +117,6 @@ export interface OrderPaidEvent {
   orderId: string;
   courseIds: string[];
   totalAmount: number;
-}
-
-export interface SubscriptionExpiringEvent {
-  userId: string;
-  contractId: string;
-  expiresAt: Date;
-  daysRemaining: number;
 }
 
 export interface NotificationEvent {
