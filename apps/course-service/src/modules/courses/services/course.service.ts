@@ -20,6 +20,22 @@ export class CourseService {
     this.eventBus = EventBusService.getInstance("course-service");
   }
 
+  /**
+   * Throws if the seller is missing a CourseSellerProfile or has been deactivated.
+   * Network error to identity-service is treated as fail-open to avoid taking
+   * down course actions when identity-service is briefly unavailable.
+   */
+  private async assertActiveSeller(sellerId: string): Promise<void> {
+    const status = await identityClient.getSellerStatus(sellerId);
+    if (status === null) return; // fail-open on transport error
+    if (!status.hasProfile) {
+      throw Object.assign(new Error("You don't have a course-seller profile"), { statusCode: 403 });
+    }
+    if (!status.active) {
+      throw Object.assign(new Error("Your seller account has been deactivated"), { statusCode: 403 });
+    }
+  }
+
   async getById(id: string): Promise<CourseResponse | null> {
     const course = await this.courseRepository.findById(id);
     if (!course) return null;
@@ -45,6 +61,7 @@ export class CourseService {
   }
 
   async create(sellerId: string, input: CreateCourseInput): Promise<CourseResponse> {
+    await this.assertActiveSeller(sellerId);
     const course = await this.courseRepository.create({
       title: input.title,
       description: input.description ? DOMPurify.sanitize(input.description, { ALLOWED_TAGS: [] }) : input.description,
@@ -117,6 +134,29 @@ export class CourseService {
   }
 
   async publish(id: string, sellerId: string): Promise<CourseResponse> {
+    await this.assertActiveSeller(sellerId);
+
+    // Pre-publish requirements: at least one lesson + a thumbnail.
+    const existing = await this.courseRepository.findById(id);
+    if (!existing) {
+      throw Object.assign(new Error("Course not found"), { statusCode: 404 });
+    }
+    if (existing.courseSellerId !== sellerId) {
+      throw Object.assign(new Error("Not authorized to publish this course"), { statusCode: 403 });
+    }
+    if (!existing.thumbnailUrl) {
+      throw Object.assign(
+        new Error("Course must have a thumbnail before publishing"),
+        { statusCode: 400 }
+      );
+    }
+    if (!existing.lessons || existing.lessons.length === 0) {
+      throw Object.assign(
+        new Error("Course must have at least one lesson before publishing"),
+        { statusCode: 400 }
+      );
+    }
+
     const course = await this.update(id, sellerId, { status: "ACTIVE" });
 
     // Publish event for other services
@@ -356,6 +396,7 @@ export class CourseService {
     moduleId?: string;
     videoUrl?: string;
   }) {
+    await this.assertActiveSeller(sellerId);
     const course = await this.courseRepository.findById(courseId);
     if (!course) throw new Error("Course not found");
     if (course.courseSellerId !== sellerId) throw new Error("Not authorized");

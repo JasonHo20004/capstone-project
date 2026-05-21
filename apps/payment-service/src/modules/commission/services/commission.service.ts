@@ -197,6 +197,110 @@ export class CommissionService {
     return { released: matured.length, totalAmount, sellers: sellerAmounts.size };
   }
 
+  // ── Refund a course (called when admin sets course REFUSE / INACTIVE) ──
+  //
+  // For every SellerEarning attached to the course:
+  //   - reverse the seller's wallet (pendingBalance if PENDING, allowance otherwise)
+  //   - reverse the system wallet's commission income
+  //   - refund the buyer's allowance by the full price they paid
+  //   - mark the earning REFUNDED so it won't be processed again
+  //
+  // Earnings already in REFUNDED state are skipped (idempotent).
+
+  async refundCourseEarnings(courseId: string, reason?: string) {
+    const earnings = await this.prisma.sellerEarning.findMany({
+      where: { courseId, status: { not: "REFUNDED" as EarningStatus } },
+    });
+
+    if (earnings.length === 0) {
+      return { refunded: 0, totalRefunded: 0, buyers: 0 };
+    }
+
+    const buyerSet = new Set<string>();
+    let totalRefunded = 0;
+
+    await databaseService.transaction(async (tx) => {
+      for (const e of earnings) {
+        const sellerAmount = Number(e.sellerAmount);
+        const commissionAmount = Number(e.commissionAmount);
+        const buyerRefund = Number(e.totalAmount);
+
+        // 1. Reverse seller wallet (bucket depends on earning status).
+        const sellerWallet = await this.walletRepo.getOrCreate(e.sellerId);
+        if (e.status === "PENDING") {
+          await tx.wallet.update({
+            where: { id: sellerWallet.id },
+            data: { pendingBalance: { decrement: sellerAmount } },
+          });
+        } else {
+          // AVAILABLE / RELEASED — already in allowance (or partially withdrawn).
+          // Can drive allowance negative if seller already withdrew; finance
+          // team handles recovery via withdrawal reconciliation.
+          await tx.wallet.update({
+            where: { id: sellerWallet.id },
+            data: { allowance: { decrement: sellerAmount } },
+          });
+        }
+        await tx.transaction.create({
+          data: {
+            walletId: sellerWallet.id,
+            amount: -sellerAmount,
+            transactionType: "SELLER_EARNING" as TransactionType,
+            status: "FAILED" as TransactionStatus,
+            description: `Earning reversed (course refunded${reason ? `: ${reason}` : ""})`,
+            orderId: e.orderId,
+          },
+        });
+
+        // 2. Reverse system commission.
+        if (commissionAmount > 0) {
+          const adminWallet = await this.walletRepo.getOrCreate(SYSTEM_WALLET_USER_ID);
+          await tx.wallet.update({
+            where: { id: adminWallet.id },
+            data: { allowance: { decrement: commissionAmount } },
+          });
+          await tx.transaction.create({
+            data: {
+              walletId: adminWallet.id,
+              amount: -commissionAmount,
+              transactionType: "COMMISSION" as TransactionType,
+              status: "FAILED" as TransactionStatus,
+              description: `Commission reversed (course refunded${reason ? `: ${reason}` : ""})`,
+            },
+          });
+        }
+
+        // 3. Credit buyer's wallet with the full purchase amount.
+        const buyerWallet = await this.walletRepo.getOrCreate(e.buyerId);
+        await tx.wallet.update({
+          where: { id: buyerWallet.id },
+          data: { allowance: { increment: buyerRefund } },
+        });
+        await tx.transaction.create({
+          data: {
+            walletId: buyerWallet.id,
+            amount: buyerRefund,
+            transactionType: "DEPOSIT" as TransactionType,
+            status: "SUCCESS" as TransactionStatus,
+            description: `Refund for course (${reason ?? "removed from marketplace"})`,
+            orderId: e.orderId,
+          },
+        });
+
+        // 4. Mark earning as REFUNDED.
+        await tx.sellerEarning.update({
+          where: { id: e.id },
+          data: { status: "REFUNDED" as EarningStatus, releasedAt: e.releasedAt ?? new Date() },
+        });
+
+        buyerSet.add(e.buyerId);
+        totalRefunded += buyerRefund;
+      }
+    });
+
+    return { refunded: earnings.length, totalRefunded, buyers: buyerSet.size };
+  }
+
   // ── Seller: view earnings ───────────────────────────────────────────────
 
   async getSellerEarnings(sellerId: string, page: number = 1, limit: number = 10) {

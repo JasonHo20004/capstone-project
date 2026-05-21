@@ -108,11 +108,13 @@ export class SellerService {
   }
 
   /**
-   * Approve or reject an application (Admin only)
+   * Approve or reject an application (Admin only).
+   * `adminId` is recorded for audit (who actioned the application + when).
    */
   async updateApplicationStatus(
     applicationId: string,
-    data: UpdateApplicationStatusInput
+    data: UpdateApplicationStatusInput,
+    adminId?: string
   ) {
     const application = await this.repository.findApplicationById(applicationId);
     if (!application) {
@@ -123,12 +125,16 @@ export class SellerService {
       throw new Error("This application has already been processed");
     }
 
+    const processedAt = new Date();
+
     if (data.status === "APPROVED") {
-      // Update application status
+      // Update application status (with audit fields)
       await this.repository.updateApplicationStatus(applicationId, {
         status: "APPROVED",
         rejectionReason: undefined,
         message: data.message,
+        approvedBy: adminId,
+        approvedAt: processedAt,
       });
 
       // Update user role
@@ -165,6 +171,8 @@ export class SellerService {
         status: "REJECTED",
         rejectionReason: data.rejectionReason,
         message: data.message,
+        approvedBy: adminId,
+        approvedAt: processedAt,
       });
 
       // Publish event

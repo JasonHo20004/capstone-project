@@ -14,6 +14,7 @@ export class UserRepository {
       include: {
         courseSellerProfile: true,
         administratorProfile: true,
+        courseSellerApplication: true,
       },
     });
   }
@@ -90,8 +91,8 @@ export class UserRepository {
 
   async countPendingApplications() {
     try {
-      return await this.prisma.sellerApplication.count({
-        where: { status: "PENDING" as any },
+      return await this.prisma.courseSellerApplication.count({
+        where: { status: "PENDING" },
       });
     } catch {
       return 0;

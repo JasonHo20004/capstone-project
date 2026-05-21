@@ -60,6 +60,37 @@ export class PaymentClient {
     const data = await response.json() as { data: WithdrawalResult };
     return data.data;
   }
+
+  /**
+   * Reverse all seller earnings tied to a course and refund every buyer.
+   * Called when admin moves a course to REFUSE/INACTIVE.
+   */
+  async refundCourse(
+    courseId: string,
+    reason?: string
+  ): Promise<{ refunded: number; totalRefunded: number; buyers: number }> {
+    const response = await fetch(
+      `${PAYMENT_SERVICE_URL}/api/commission/internal/refund-course/${courseId}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-internal-service": "course-service",
+        },
+        body: JSON.stringify({ reason }),
+      }
+    );
+
+    if (!response.ok) {
+      const err = (await response.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error || `refundCourse failed: ${response.status}`);
+    }
+
+    const data = (await response.json()) as {
+      data: { refunded: number; totalRefunded: number; buyers: number };
+    };
+    return data.data;
+  }
 }
 
 export const paymentClient = PaymentClient.getInstance();

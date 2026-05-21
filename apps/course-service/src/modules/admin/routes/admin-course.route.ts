@@ -7,7 +7,13 @@ import { authenticateToken, requireAdmin, asyncHandler, EventNames, CoursePublis
 import { getEventBus } from "../../../server.js";
 import { databaseService } from "../../../services/database.service.js";
 import { identityClient } from "../../../clients/identity.client.js";
+import { paymentClient } from "../../../clients/payment.client.js";
 import type { CourseStatus } from "../../../../generated/prisma/index.js";
+
+const REVOKE_STATUSES = new Set<CourseStatus>([
+  "REFUSE" as CourseStatus,
+  "INACTIVE" as CourseStatus,
+]);
 
 const router: ReturnType<typeof Router> = Router();
 
@@ -147,7 +153,7 @@ router.put(
         title: course.title,
         price: Number(course.price)
       };
-      
+
       const eventBus = getEventBus();
       if (eventBus) {
         console.log(`🐰 [CourseService] Publishing ${EventNames.COURSE_PUBLISHED}`);
@@ -155,6 +161,32 @@ router.put(
           console.error("Failed to publish COURSE_PUBLISHED via RabbitMQ:", err);
         });
       }
+    }
+
+    // Course moved to REFUSE/INACTIVE → revoke buyer access + refund earnings.
+    if (
+      updateData.status &&
+      REVOKE_STATUSES.has(updateData.status as CourseStatus) &&
+      !REVOKE_STATUSES.has(existing.status as CourseStatus)
+    ) {
+      const reason = `course status changed to ${updateData.status}`;
+      try {
+        const refund = await paymentClient.refundCourse(id, reason);
+        console.log(
+          `💸 [CourseService] Refunded ${refund.refunded} earnings ` +
+            `(${refund.totalRefunded}đ to ${refund.buyers} buyers) for course ${id}`
+        );
+      } catch (err) {
+        console.error(
+          `⚠️ [CourseService] refundCourse failed for ${id}, status change kept:`,
+          err
+        );
+      }
+
+      const deleted = await prisma.userActivity.deleteMany({ where: { courseId: id } });
+      console.log(
+        `🚫 [CourseService] Revoked access for ${deleted.count} learners on course ${id}`
+      );
     }
 
     res.json({
@@ -187,6 +219,23 @@ router.delete(
       where: { id },
       data: { status: "INACTIVE" as CourseStatus },
     });
+
+    // Same revoke + refund flow as PUT when status transitions to INACTIVE.
+    if (!REVOKE_STATUSES.has(existing.status as CourseStatus)) {
+      try {
+        const refund = await paymentClient.refundCourse(id, "course deleted by admin");
+        console.log(
+          `💸 [CourseService] Refunded ${refund.refunded} earnings ` +
+            `(${refund.totalRefunded}đ to ${refund.buyers} buyers) for course ${id}`
+        );
+      } catch (err) {
+        console.error(`⚠️ [CourseService] refundCourse failed for ${id}:`, err);
+      }
+      const deleted = await prisma.userActivity.deleteMany({ where: { courseId: id } });
+      console.log(
+        `🚫 [CourseService] Revoked access for ${deleted.count} learners on course ${id}`
+      );
+    }
 
     res.json({ success: true, message: "Course deleted" });
   })

@@ -20,4 +20,7 @@ router.put("/config", authenticateToken, requireAdmin, controller.updateGlobalRa
 router.patch("/config", authenticateToken, requireAdmin, controller.updateConfig);
 router.post("/admin/release-earnings", authenticateToken, requireAdmin, controller.releaseEarnings);
 
+// Internal service-to-service endpoint (called by course-service on REFUSE/INACTIVE)
+router.post("/internal/refund-course/:courseId", controller.refundCourse);
+
 export default router;

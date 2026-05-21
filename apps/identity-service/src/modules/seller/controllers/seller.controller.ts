@@ -1,14 +1,29 @@
 import { Request, Response } from "express";
 import { SellerService } from "../services/seller.service";
+import { s3Service } from "../../../services/s3.service.js";
+
+const toStringArray = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.map((v) => String(v).trim()).filter((v) => v.length > 0);
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    return [value.trim()];
+  }
+  return [];
+};
 
 export class SellerController {
   private service = new SellerService();
 
   /**
    * Apply to become a course seller
-   * POST /api/seller/apply
+   * POST /api/seller/apply  (multipart/form-data)
+   *   - images[]:    certificate image files (1..10, <=5MB each)
+   *   - expertise[]: at least one string
+   *   - message:     optional string
    */
-    applyForSeller = async (req: Request, res: Response): Promise<void> => {
+  applyForSeller = async (req: Request, res: Response): Promise<void> => {
+    const uploadedUrls: string[] = [];
     try {
       const userId = req.user?.userId;
       if (!userId) {
@@ -16,13 +31,39 @@ export class SellerController {
         return;
       }
 
-      const result = await this.service.applyForSeller(userId, req.body);
+      const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+      const expertise = toStringArray(req.body?.expertise);
+      const message = typeof req.body?.message === "string" ? req.body.message.trim() : undefined;
+
+      if (files.length === 0) {
+        res.status(400).json({ success: false, error: "At least one certificate image is required" });
+        return;
+      }
+      if (expertise.length === 0) {
+        res.status(400).json({ success: false, error: "At least one expertise area is required" });
+        return;
+      }
+
+      // Upload all files to S3 first; collect URLs so we can roll back on error.
+      for (const file of files) {
+        const url = await s3Service.uploadFile(file, "seller-certifications");
+        uploadedUrls.push(url);
+      }
+
+      const result = await this.service.applyForSeller(userId, {
+        certification: uploadedUrls,
+        expertise,
+        message,
+      });
+
       res.status(201).json({
         success: true,
         message: "Application submitted successfully",
         data: result,
       });
     } catch (error) {
+      // Best-effort cleanup of any successfully uploaded files
+      await Promise.all(uploadedUrls.map((u) => s3Service.deleteFile(u)));
       res.status(400).json({
         success: false,
         error: error instanceof Error ? error.message : "Failed to submit application",
@@ -153,7 +194,8 @@ export class SellerController {
   updateApplicationStatus = async (req: Request, res: Response): Promise<void> => {
     try {
       const applicationId = req.params.id as string;
-      const result = await this.service.updateApplicationStatus(applicationId, req.body);
+      const adminId = req.user?.userId;
+      const result = await this.service.updateApplicationStatus(applicationId, req.body, adminId);
       res.status(200).json({
         success: true,
         message: result.message,

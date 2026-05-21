@@ -64,4 +64,17 @@ export class CommissionController {
     const result = await this.commissionService.releaseMaturedEarnings();
     res.json({ success: true, data: result, message: `Released ${result.released} earnings` });
   });
+
+  // ── Internal endpoint (service-to-service) ─────────────────────────────
+  // Called by course-service when a course is set to REFUSE/INACTIVE so
+  // earnings get reversed and buyers refunded.
+  refundCourse = asyncHandler(async (req: Request, res: Response) => {
+    const { courseId } = req.params;
+    const { reason } = req.body ?? {};
+    const result = await this.commissionService.refundCourseEarnings(
+      courseId as string,
+      typeof reason === "string" ? reason : undefined
+    );
+    res.json({ success: true, data: result });
+  });
 }

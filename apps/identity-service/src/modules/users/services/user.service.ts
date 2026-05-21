@@ -26,6 +26,17 @@ export class UserService {
       role: user.role,
       isEmailVerified: user.isEmailVerified,
       createdAt: user.createdAt,
+      courseSellerApplication: user.courseSellerApplication
+        ? {
+            id: user.courseSellerApplication.id,
+            status: user.courseSellerApplication.status,
+            certification: user.courseSellerApplication.certification,
+            expertise: user.courseSellerApplication.expertise,
+            message: user.courseSellerApplication.message,
+            rejectionReason: user.courseSellerApplication.rejectionReason,
+            createdAt: user.courseSellerApplication.createdAt,
+          }
+        : null,
     };
   }
 
@@ -40,6 +51,22 @@ export class UserService {
       role: user.role,
       profilePicture: user.profilePicture,
     };
+  }
+
+  /**
+   * Check seller active status. Returns:
+   *   - hasProfile: true if user has a CourseSellerProfile row
+   *   - active:     true if profile exists AND CourseSellerProfile.isActive
+   * Used by other services to block actions from banned/inactive sellers.
+   */
+  async getSellerStatus(id: string): Promise<{ hasProfile: boolean; active: boolean }> {
+    const user = await this.userRepository.findById(id);
+    if (!user) return { hasProfile: false, active: false };
+
+    const profile = user.courseSellerProfile;
+    if (!profile) return { hasProfile: false, active: false };
+
+    return { hasProfile: true, active: profile.isActive };
   }
 
   async getBasicInfoBatch(ids: string[]): Promise<UserBasicResponse[]> {

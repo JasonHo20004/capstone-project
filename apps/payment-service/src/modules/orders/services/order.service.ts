@@ -32,7 +32,7 @@ export class OrderService {
       throw new Error("Cart is empty");
     }
 
-    const totalAmount = cart.cartItems.reduce((sum, item) => sum + item.priceAtTime, 0);
+    const totalAmount = cart.cartItems.reduce((sum, item) => sum + Number(item.priceAtTime), 0);
 
     const order = await this.prisma.order.create({
       data: {
@@ -71,7 +71,7 @@ export class OrderService {
     // Deduct from wallet
     await this.walletService.deduct(
       userId,
-      order.totalAmount,
+      Number(order.totalAmount),
       `Payment for order ${orderId}`,
       orderId
     );
@@ -140,7 +140,7 @@ export class OrderService {
 
     await this.walletService.deduct(
       userId,
-      order.totalAmount,
+      Number(order.totalAmount),
       `Payment for order ${orderId}`,
       orderId
     );

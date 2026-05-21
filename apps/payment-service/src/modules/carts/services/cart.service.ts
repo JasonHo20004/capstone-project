@@ -131,7 +131,7 @@ export class CartService {
       throw new Error("Some selected items not found in cart");
     }
 
-    const totalAmount = selectedItems.reduce((sum, i) => sum + i.priceAtTime, 0);
+    const totalAmount = selectedItems.reduce((sum, i) => sum + Number(i.priceAtTime), 0);
     const courseIds = selectedItems.map((i) => i.courseId);
 
     const order = await this.prisma.order.create({
