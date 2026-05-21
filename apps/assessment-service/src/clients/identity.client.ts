@@ -33,7 +33,6 @@ export class IdentityClient {
     if (!userIds.length) return result;
 
     try {
-      // Use batch endpoint for single DB query instead of N requests
       const response = await fetch(`${IDENTITY_SERVICE_URL}/api/users/internal/batch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -44,7 +43,6 @@ export class IdentityClient {
       const users = (data.data || []) as UserBasicInfo[];
       users.forEach((u) => result.set(u.id, u));
     } catch (error) {
-      // Fallback to individual requests if batch fails
       console.warn("[Assessment Service] Batch fetch failed, falling back:", error);
       const promises = userIds.map((id) => this.getUserBasicInfo(id));
       const users = await Promise.all(promises);
@@ -54,6 +52,23 @@ export class IdentityClient {
     }
 
     return result;
+  }
+
+  async updateEnglishLevel(userId: string, englishLevel: string): Promise<boolean> {
+    try {
+      const response = await fetch(
+        `${IDENTITY_SERVICE_URL}/api/users/internal/${userId}/english-level`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ englishLevel }),
+        }
+      );
+      return response.ok;
+    } catch (error) {
+      console.error(`[Assessment Service] Error updating englishLevel:`, error);
+      return false;
+    }
   }
 }
 

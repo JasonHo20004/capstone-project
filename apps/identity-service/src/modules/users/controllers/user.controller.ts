@@ -33,6 +33,31 @@ export class UserController {
     res.json({ success: true, data: user });
   });
 
+  // Internal endpoint for other services to update User.englishLevel
+  updateEnglishLevelInternal = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { englishLevel } = req.body as { englishLevel?: string };
+
+    if (!englishLevel || typeof englishLevel !== "string") {
+      res.status(400).json({ success: false, error: "englishLevel is required" });
+      return;
+    }
+
+    const prisma = databaseService.getClient();
+    const existing = await prisma.user.findUnique({ where: { id: id as string } });
+    if (!existing) {
+      throw new NotFoundError("User not found");
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: id as string },
+      data: { englishLevel },
+      select: { id: true, englishLevel: true },
+    });
+
+    res.json({ success: true, data: updated });
+  });
+
   // Internal endpoint for other services to get basic user info
   getBasicInfo = asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;

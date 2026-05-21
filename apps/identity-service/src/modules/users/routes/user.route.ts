@@ -19,6 +19,7 @@ router.post("/internal/batch", userController.getBasicInfoBatch);
 router.get("/internal/stats", userController.getStats);
 router.get("/internal/:id/seller-status", userController.getSellerStatus);
 router.get("/internal/:id", userController.getBasicInfo);
+router.patch("/internal/:id/english-level", userController.updateEnglishLevelInternal);
 
 // Admin routes
 router.get("/", authenticateToken, requireAdmin, validate(getUsersQuerySchema), userController.getMany);

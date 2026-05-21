@@ -10,7 +10,7 @@ export class TutorController {
   public async getSessions(req: Request, res: Response, next: NextFunction) {
     try {
       const { practiceSessionId } = req.query;
-      const userId = (req as any).userId;
+      const userId = req.user?.userId;
 
       if (!practiceSessionId || !userId) {
         return res.status(400).json({ success: false, error: "practiceSessionId and auth required" });
@@ -35,7 +35,7 @@ export class TutorController {
   public async getOrCreateSession(req: Request, res: Response, next: NextFunction) {
     try {
       const { practiceSessionId, questionId } = req.body;
-      const userId = (req as any).userId;
+      const userId = req.user?.userId;
 
       if (!practiceSessionId || !questionId || !userId) {
         return res.status(400).json({ success: false, error: "practiceSessionId, questionId, and auth required" });
