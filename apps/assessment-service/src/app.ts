@@ -10,6 +10,7 @@ import sessionRouter from "./modules/sessions/session.route.js";
 import dictationRouter from "./modules/dictation/dictation.route.js";
 import commentRouter from "./modules/comments/comment.route.js";
 import tutorRouter from "./modules/tutor/tutor.route.js";
+import placementRouter from "./modules/placement/placement.route.js";
 
 const app: Express = express();
 
@@ -43,6 +44,7 @@ app.use("/api/sessions", sessionRouter);
 app.use("/api/dictation", dictationRouter);
 app.use("/api/test-comments", commentRouter);
 app.use("/api/tutor", tutorRouter);
+app.use("/api/placement", placementRouter);
 
 // Error handling
 app.use(errorHandler);

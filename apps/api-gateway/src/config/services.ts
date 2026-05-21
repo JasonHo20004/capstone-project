@@ -84,6 +84,11 @@ export const services: ServiceConfig[] = [
   {
     name: "assessment-service",
     url: process.env.ASSESSMENT_SERVICE_URL || "http://localhost:3003",
+    prefix: "/api/placement",
+  },
+  {
+    name: "assessment-service",
+    url: process.env.ASSESSMENT_SERVICE_URL || "http://localhost:3003",
     prefix: "/api/tutor",
   },
   {
