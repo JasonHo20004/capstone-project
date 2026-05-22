@@ -6,8 +6,8 @@ import type { SubmitExamInput } from "./placement.schema.js";
 
 const DIFFICULTY_WEIGHTS: Record<string, number> = { easy: 1, medium: 2, hard: 3 };
 
-const SECTION_MAX = { 1: 48, 2: 18, 3: 19 } as const;
-const TOTAL_MAX = 85;
+const SECTION_MAX = { 1: 48, 2: 23, 3: 20 } as const;
+const TOTAL_MAX = 91;
 
 const LEVEL_MAP = [
   { min: 0, max: 15, level: "Pre-A1", label: "Beginner" },
@@ -120,7 +120,7 @@ export class PlacementService {
     const s3Easy = await placementRepository.pickRandom({
       section: 3,
       difficulty: "easy",
-      count: 5,
+      count: 6,
     });
     const s3Medium = await placementRepository.pickRandom({
       section: 3,
@@ -190,13 +190,23 @@ export class PlacementService {
     ];
   }
 
+  private computeTimeLimit(q: PlacementQuestion): number {
+    // Hard listening questions often have audio clips > 45s. Two playbacks
+    // are allowed, so students need additional time to listen and reason.
+    if (q.type === "listening_mcq") {
+      if (q.difficulty === "hard") return Math.max(q.timeLimit, 150);
+      if (q.difficulty === "medium") return Math.max(q.timeLimit, 90);
+    }
+    return q.timeLimit;
+  }
+
   private toQuestionPayload(q: PlacementQuestion): QuestionPayload {
     const base: QuestionPayload = {
       id: q.id,
       type: q.type,
       instruction: q.instruction,
       prompt: q.prompt,
-      time_limit: q.timeLimit,
+      time_limit: this.computeTimeLimit(q),
     };
     if (q.context) base.context = q.context;
 
