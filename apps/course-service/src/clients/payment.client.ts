@@ -14,6 +14,17 @@ export interface WithdrawalResult {
   withdrawalRequestId: string;
 }
 
+export interface SellerFinancialSummary {
+  totalEarnings: number;
+  totalPending: number;
+  allowance: number;
+  pendingBalance: number;
+  pendingWithdrawalCount: number;
+  pendingWithdrawalTotal: number;
+  thisMonthNet: number;
+  prevMonthNet: number;
+}
+
 export class PaymentClient {
   private static instance: PaymentClient;
 
@@ -90,6 +101,25 @@ export class PaymentClient {
       data: { refunded: number; totalRefunded: number; buyers: number };
     };
     return data.data;
+  }
+
+  /**
+   * Compact financial snapshot for the seller dashboard.
+   * Returns null on transport error so the dashboard can degrade gracefully.
+   */
+  async getSellerFinancialSummary(sellerId: string): Promise<SellerFinancialSummary | null> {
+    try {
+      const response = await fetch(
+        `${PAYMENT_SERVICE_URL}/api/commission/internal/seller/${sellerId}/financial-summary`,
+        { headers: { "x-internal-service": "course-service" } }
+      );
+      if (!response.ok) return null;
+      const data = (await response.json()) as { data: SellerFinancialSummary };
+      return data.data;
+    } catch (err) {
+      console.error("[Course Service] Error fetching financial summary:", err);
+      return null;
+    }
   }
 }
 

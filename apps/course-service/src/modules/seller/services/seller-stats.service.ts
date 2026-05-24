@@ -6,29 +6,66 @@ export class SellerStatsService {
   private repository = new SellerStatsRepository();
 
   /**
-   * Get seller dashboard statistics
+   * Get seller dashboard statistics (aggregated, ready for FE rendering).
+   * Includes:
+   *   - counts (courses, learners, comments)
+   *   - averageRating (1-5)
+   *   - topCourses (max 3, ranked by enrollments)
+   *   - financial summary from payment-service (earnings, withdrawals, MoM)
    */
   async getDashboardStats(sellerId: string) {
-    const [coursesCount, learnersCount, commentsCount, averageRating] = await Promise.all([
-      this.repository.getCoursesCount(sellerId),
-      this.repository.getLearnersCount(sellerId),
-      this.repository.getCommentsCount(sellerId),
-      this.repository.getAverageRating(sellerId),
-    ]);
+    const [coursesCount, learnersCount, commentsCount, averageRating, topCoursesRaw, financial] =
+      await Promise.all([
+        this.repository.getCoursesCount(sellerId),
+        this.repository.getLearnersCount(sellerId),
+        this.repository.getCommentsCount(sellerId),
+        this.repository.getAverageRating(sellerId),
+        this.repository.getTopCourses(sellerId, 3),
+        paymentClient.getSellerFinancialSummary(sellerId),
+      ]);
+
+    const topCourses = topCoursesRaw.map((c) => ({
+      id: c.id,
+      title: c.title,
+      price: Number(c.price),
+      thumbnailUrl: c.thumbnailUrl,
+      ratingCount: c.ratingCount,
+      status: c.status,
+      learners: c._count.userActivities,
+      ratings: c._count.ratings,
+    }));
 
     return {
       coursesCount,
       learnersCount,
       commentsCount,
       averageRating: Math.round(averageRating * 10) / 10,
+      topCourses,
+      financial: financial ?? {
+        totalEarnings: 0,
+        totalPending: 0,
+        allowance: 0,
+        pendingBalance: 0,
+        pendingWithdrawalCount: 0,
+        pendingWithdrawalTotal: 0,
+        thisMonthNet: 0,
+        prevMonthNet: 0,
+      },
     };
   }
 
   /**
-   * Get seller's learners with user enrichment
+   * Get seller's learners with user enrichment.
+   * `search` filters by course title (DB-side). `courseId` filters to a single course.
    */
-  async getLearners(sellerId: string, page: number = 1, limit: number = 50, search?: string) {
-    const result = await this.repository.getLearners(sellerId, page, limit, search);
+  async getLearners(
+    sellerId: string,
+    page: number = 1,
+    limit: number = 50,
+    search?: string,
+    courseId?: string
+  ) {
+    const result = await this.repository.getLearners(sellerId, page, limit, search, courseId);
 
     // Enrich with user info from identity service
     const userIds = [...new Set(result.data.map((a) => a.userId))];

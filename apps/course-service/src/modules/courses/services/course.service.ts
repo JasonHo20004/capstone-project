@@ -4,8 +4,10 @@
 
 import { CourseRepository } from "../repositories/course.repository.js";
 import { identityClient } from "../../../clients/identity.client.js";
+import { paymentClient } from "../../../clients/payment.client.js";
 import { assessmentClient } from "../../../clients/assessment.client.js";
 import { databaseService } from "../../../services/database.service.js";
+import { s3Service } from "../../../services/s3.service.js";
 import { publishNotification, publishBulkNotification } from "../../../helpers/notification.helper.js";
 import { EventBusService, EventNames, getPaginationMeta } from "@capstone/common";
 import DOMPurify from "isomorphic-dompurify";
@@ -91,13 +93,40 @@ export class CourseService {
 
   async update(id: string, sellerId: string, input: UpdateCourseInput): Promise<CourseResponse> {
     const existing = await this.courseRepository.findById(id);
-    
+
     if (!existing) {
       throw new Error("Course not found");
     }
 
     if (existing.courseSellerId !== sellerId) {
       throw new Error("Not authorized to update this course");
+    }
+
+    // Validate status transitions to prevent invalid state changes by seller.
+    // Allowed seller transitions:
+    //   DRAFT     → PENDING (send for review) or stay DRAFT
+    //   PENDING   → DRAFT (cancel review)
+    //   ACTIVE    → INACTIVE (pause)
+    //   INACTIVE  → ACTIVE (re-enable, only if previously approved)
+    //   REFUSE    → DRAFT (revise after rejection)
+    // The publish() endpoint is the only way to reach ACTIVE for the first time.
+    if (input.status && input.status !== existing.status) {
+      const ALLOWED: Record<string, string[]> = {
+        DRAFT: ["PENDING"],
+        PENDING: ["DRAFT"],
+        ACTIVE: ["INACTIVE"],
+        INACTIVE: ["ACTIVE"],
+        REFUSE: ["DRAFT"],
+      };
+      const allowed = ALLOWED[existing.status] ?? [];
+      if (!allowed.includes(input.status)) {
+        throw Object.assign(
+          new Error(
+            `Không thể chuyển trạng thái từ ${existing.status} sang ${input.status}`
+          ),
+          { statusCode: 400 }
+        );
+      }
     }
 
     const course = await this.courseRepository.update(id, {
@@ -172,13 +201,39 @@ export class CourseService {
 
   async delete(id: string, sellerId: string): Promise<void> {
     const existing = await this.courseRepository.findById(id);
-    
+
     if (!existing) {
       throw new Error("Course not found");
     }
 
     if (existing.courseSellerId !== sellerId) {
       throw new Error("Not authorized to delete this course");
+    }
+
+    // If the course was published (ACTIVE/PENDING), it may already have buyers.
+    // Refund their earnings + revoke access BEFORE deleting, mirroring the admin
+    // REFUSE/INACTIVE flow. Skipping this would leave money in seller's wallet for
+    // a course that no longer exists.
+    const HAD_BUYERS_STATUSES = new Set<string>(["ACTIVE", "PENDING"]);
+    if (HAD_BUYERS_STATUSES.has(existing.status)) {
+      try {
+        const refund = await paymentClient.refundCourse(id, "course deleted by seller");
+        console.log(
+          `💸 [CourseService] Seller-delete refund: ${refund.refunded} earnings ` +
+            `(${refund.totalRefunded}đ to ${refund.buyers} buyers) for course ${id}`
+        );
+      } catch (err) {
+        console.error(
+          `⚠️ [CourseService] refundCourse failed for seller-delete ${id}:`,
+          err
+        );
+      }
+
+      const prisma = databaseService.getClient();
+      const revoked = await prisma.userActivity.deleteMany({ where: { courseId: id } });
+      console.log(
+        `🚫 [CourseService] Seller-delete revoked access for ${revoked.count} learners on course ${id}`
+      );
     }
 
     await this.courseRepository.delete(id);
@@ -376,7 +431,68 @@ export class CourseService {
     if (!test) throw Object.assign(new Error("Test not found"), { statusCode: 404 });
     if (test.sellerId !== sellerId) throw Object.assign(new Error("Not authorized to use this test"), { statusCode: 403 });
 
+    const previousTestId = existing.finalTestId;
     await this.courseRepository.update(courseId, { finalTestId: testId });
+
+    // Sync the join table that drives `_count.courseTests` on the seller's
+    // test list — without this the page shows "Chưa liên kết với khoá nào".
+    try {
+      await assessmentClient.linkCourseTest(testId, courseId, sellerId);
+    } catch (err) {
+      console.warn(`[CourseService] Failed to sync course-test link for ${testId}:`, err);
+    }
+
+    // If we just replaced an older final test, hard-delete the orphan so it
+    // doesn't linger in /seller/tests as a phantom the seller no longer
+    // recognises. Best-effort — failure here doesn't roll back the link.
+    // The cascade on test deletion also clears the previous CourseTest row.
+    if (previousTestId && previousTestId !== testId) {
+      try {
+        await assessmentClient.deleteTest(previousTestId, sellerId);
+      } catch (err) {
+        console.warn(
+          `[CourseService] Failed to clean up replaced final test ${previousTestId}:`,
+          err
+        );
+      }
+    }
+  }
+
+  /**
+   * One-shot backfill: walk all courses owned by `sellerId`, and for every
+   * finalTestId + every lesson.testId, push a CourseTest link to assessment
+   * service. Idempotent. Used to repair legacy data where links were created
+   * before course-test sync existed.
+   */
+  async syncCourseTestsForSeller(sellerId: string): Promise<{ linked: number }> {
+    const prisma = databaseService.getClient();
+    const courses = await prisma.course.findMany({
+      where: { courseSellerId: sellerId },
+      select: {
+        id: true,
+        finalTestId: true,
+        lessons: { select: { testId: true }, where: { testId: { not: null } } },
+      },
+    });
+
+    let linked = 0;
+    for (const c of courses) {
+      const testIds = new Set<string>();
+      if (c.finalTestId) testIds.add(c.finalTestId);
+      for (const l of c.lessons) {
+        if (l.testId) testIds.add(l.testId);
+      }
+      for (const testId of testIds) {
+        try {
+          await assessmentClient.linkCourseTest(testId, c.id, sellerId);
+          linked++;
+        } catch (err) {
+          // Best-effort — one bad row shouldn't stop the rest.
+          console.warn(`[CourseService] Backfill link ${testId} ↔ ${c.id} failed:`, err);
+        }
+      }
+    }
+    return { linked };
   }
 
   async removeFinalTest(courseId: string, sellerId: string): Promise<void> {
@@ -384,7 +500,21 @@ export class CourseService {
     if (!existing) throw new Error("Course not found");
     if (existing.courseSellerId !== sellerId) throw new Error("Not authorized");
 
+    const previousTestId = existing.finalTestId;
     await this.courseRepository.update(courseId, { finalTestId: null });
+
+    // Remove the join-table record so `_count.courseTests` reflects reality.
+    // Best-effort — failure doesn't undo the unlink in course_db.
+    if (previousTestId) {
+      try {
+        await assessmentClient.unlinkCourseTest(previousTestId, courseId, sellerId);
+      } catch (err) {
+        console.warn(
+          `[CourseService] Failed to remove course-test link for ${previousTestId}:`,
+          err
+        );
+      }
+    }
   }
 
   async createLesson(courseId: string, sellerId: string, input: {
@@ -395,11 +525,22 @@ export class CourseService {
     materials?: string[];
     moduleId?: string;
     videoUrl?: string;
+    /** Optional: when set, this becomes a quiz lesson pointing to a Test. */
+    testId?: string;
   }) {
     await this.assertActiveSeller(sellerId);
     const course = await this.courseRepository.findById(courseId);
     if (!course) throw new Error("Course not found");
     if (course.courseSellerId !== sellerId) throw new Error("Not authorized");
+
+    // If linking to a quiz test, verify the seller actually owns the test.
+    if (input.testId) {
+      const test = await assessmentClient.getTest(input.testId, sellerId);
+      if (!test) throw Object.assign(new Error("Test not found"), { statusCode: 404 });
+      if (test.sellerId && test.sellerId !== sellerId) {
+        throw Object.assign(new Error("Not authorized to use this test"), { statusCode: 403 });
+      }
+    }
 
     const lesson = await this.courseRepository.createLesson({
       title: DOMPurify.sanitize(input.title, { ALLOWED_TAGS: [] }),
@@ -410,7 +551,17 @@ export class CourseService {
       courseId,
       moduleId: input.moduleId,
       videoUrl: input.videoUrl,
+      testId: input.testId,
     });
+
+    // Sync course-test join row so the seller's test list shows accurate usage.
+    if (input.testId) {
+      try {
+        await assessmentClient.linkCourseTest(input.testId, courseId, sellerId);
+      } catch (err) {
+        console.warn(`[CourseService] Failed to sync course-test for lesson ${lesson.id}:`, err);
+      }
+    }
 
     // Notify enrolled users about new lesson (fire-and-forget)
     if (course.status === "ACTIVE") {
@@ -420,11 +571,34 @@ export class CourseService {
     return lesson;
   }
 
-  async getLessonById(courseId: string, lessonId: string) {
+  /**
+   * Fetch a lesson. Allowed when the requester is:
+   *   - the course owner (seller), OR
+   *   - an enrolled student (has a UserActivity row).
+   * Otherwise throws ForbiddenError so we don't leak paid content.
+   */
+  async getLessonById(courseId: string, lessonId: string, userId: string) {
     const lesson = await this.courseRepository.findLessonById(lessonId);
     if (!lesson || lesson.courseId !== courseId) {
-      throw new Error("Lesson not found");
+      throw Object.assign(new Error("Lesson not found"), { statusCode: 404 });
     }
+
+    const course = await this.courseRepository.findById(courseId);
+    if (!course) {
+      throw Object.assign(new Error("Course not found"), { statusCode: 404 });
+    }
+
+    if (course.courseSellerId !== userId) {
+      const prisma = databaseService.getClient();
+      const enrolled = await prisma.userActivity.findFirst({
+        where: { userId, courseId },
+        select: { id: true },
+      });
+      if (!enrolled) {
+        throw Object.assign(new Error("You don't have access to this lesson"), { statusCode: 403 });
+      }
+    }
+
     return lesson;
   }
 
@@ -435,7 +609,11 @@ export class CourseService {
     lessonOrder?: number;
     materials?: string[];
     videoUrl?: string;
+    /** Set to a Test UUID to convert into a quiz lesson, or null to unlink. */
+    testId?: string | null;
   }) {
+    await this.assertActiveSeller(sellerId);
+
     const course = await this.courseRepository.findById(courseId);
     if (!course) throw new Error("Course not found");
     if (course.courseSellerId !== sellerId) throw new Error("Not authorized");
@@ -443,10 +621,52 @@ export class CourseService {
     const lesson = await this.courseRepository.findLessonById(lessonId);
     if (!lesson || lesson.courseId !== courseId) throw new Error("Lesson not found");
 
-    const updatedLesson = await this.courseRepository.updateLesson(lessonId, {
-      ...input,
-      title: input.title ? DOMPurify.sanitize(input.title, { ALLOWED_TAGS: [] }) : input.title,
-      description: input.description ? DOMPurify.sanitize(input.description, { ALLOWED_TAGS: [] }) : input.description,
+    // If switching to a quiz, verify seller owns the test. `null` clears the link.
+    if (typeof input.testId === "string" && input.testId.length > 0) {
+      const test = await assessmentClient.getTest(input.testId, sellerId);
+      if (!test) throw Object.assign(new Error("Test not found"), { statusCode: 404 });
+      if (test.sellerId && test.sellerId !== sellerId) {
+        throw Object.assign(new Error("Not authorized to use this test"), { statusCode: 403 });
+      }
+    }
+
+    // Forward only whitelisted fields — caller could otherwise smuggle FK
+    // fields (e.g. courseId) to move the lesson into another course.
+    const { title, description, durationInSeconds, lessonOrder, materials, videoUrl, testId } = input;
+    const previousTestId = lesson.testId;
+    const { lesson: updatedLesson, deletedVideoUrls } = await this.courseRepository.updateLesson(lessonId, {
+      title: title ? DOMPurify.sanitize(title, { ALLOWED_TAGS: [] }) : title,
+      description: description ? DOMPurify.sanitize(description, { ALLOWED_TAGS: [] }) : description,
+      durationInSeconds,
+      lessonOrder,
+      materials,
+      videoUrl,
+      testId,
+    });
+
+    // Sync course-test join rows so seller's test list usage count stays accurate.
+    if (testId !== undefined && testId !== previousTestId) {
+      if (previousTestId) {
+        try {
+          await assessmentClient.unlinkCourseTest(previousTestId, courseId, sellerId);
+        } catch (err) {
+          console.warn(`[CourseService] Failed to unlink old course-test ${previousTestId}:`, err);
+        }
+      }
+      if (testId) {
+        try {
+          await assessmentClient.linkCourseTest(testId, courseId, sellerId);
+        } catch (err) {
+          console.warn(`[CourseService] Failed to link course-test ${testId}:`, err);
+        }
+      }
+    }
+
+    // Fire-and-forget S3 cleanup of replaced videos.
+    deletedVideoUrls.forEach((url) => {
+      s3Service.deleteFile(url).catch((err) =>
+        console.error(`[CourseService] Failed to delete old video ${url}:`, err)
+      );
     });
 
     // Notify enrolled users about lesson update (fire-and-forget)
@@ -455,6 +675,36 @@ export class CourseService {
     }
 
     return updatedLesson;
+  }
+
+  async deleteLesson(courseId: string, lessonId: string, sellerId: string): Promise<void> {
+    await this.assertActiveSeller(sellerId);
+
+    const course = await this.courseRepository.findById(courseId);
+    if (!course) throw new Error("Course not found");
+    if (course.courseSellerId !== sellerId) throw new Error("Not authorized");
+
+    const lesson = await this.courseRepository.findLessonById(lessonId);
+    if (!lesson || lesson.courseId !== courseId) throw new Error("Lesson not found");
+
+    const lessonTestId = lesson.testId;
+    const { deletedVideoUrls } = await this.courseRepository.deleteLesson(lessonId);
+
+    // If this was a quiz lesson, drop the course-test link so usage count is accurate.
+    if (lessonTestId) {
+      try {
+        await assessmentClient.unlinkCourseTest(lessonTestId, courseId, sellerId);
+      } catch (err) {
+        console.warn(`[CourseService] Failed to unlink course-test ${lessonTestId} on delete:`, err);
+      }
+    }
+
+    // Fire-and-forget S3 cleanup.
+    deletedVideoUrls.forEach((url) => {
+      s3Service.deleteFile(url).catch((err) =>
+        console.error(`[CourseService] Failed to delete video ${url}:`, err)
+      );
+    });
   }
 
   // ============== Helper: Notify enrolled users ==============

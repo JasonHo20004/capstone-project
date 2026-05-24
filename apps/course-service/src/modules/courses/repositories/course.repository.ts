@@ -146,6 +146,8 @@ export class CourseRepository {
     courseId: string;
     moduleId?: string;
     videoUrl?: string;
+    /** Optional quiz lesson — UUID of a Test in assessment-service. */
+    testId?: string;
   }) {
     return await this.prisma.$transaction(async (tx) => {
       if (data.lessonOrder !== undefined) {
@@ -182,6 +184,7 @@ export class CourseRepository {
           materials: data.materials ?? [],
           courseId: data.courseId,
           moduleId: data.moduleId,
+          testId: data.testId,
           ...(data.videoUrl ? {
             mediaAssets: {
               create: {
@@ -213,34 +216,101 @@ export class CourseRepository {
     lessonOrder?: number;
     materials?: string[];
     videoUrl?: string;
+    /** Set to a UUID to link a Test, or `null` to clear the link. */
+    testId?: string | null;
   }) {
-    // If videoUrl is provided, delete old VIDEO asset and create new one
-    if (data.videoUrl) {
-      await this.prisma.mediaAsset.deleteMany({
-        where: { lessonId, assetType: "VIDEO" },
-      });
-    }
+    return await this.prisma.$transaction(async (tx) => {
+      let deletedVideoUrls: string[] = [];
 
-    return await this.prisma.lesson.update({
-      where: { id: lessonId },
-      data: {
-        ...(data.title !== undefined && { title: data.title }),
-        ...(data.description !== undefined && { description: data.description }),
-        ...(data.durationInSeconds !== undefined && { durationInSeconds: data.durationInSeconds }),
-        ...(data.lessonOrder !== undefined && { lessonOrder: data.lessonOrder }),
-        ...(data.materials !== undefined && { materials: data.materials }),
-        ...(data.videoUrl ? {
-          mediaAssets: {
-            create: {
-              assetType: "VIDEO",
-              assetUrl: data.videoUrl,
+      // 1. Shift conflicting siblings before the update so we don't trip
+      //    the @@unique([moduleId, lessonOrder]) constraint.
+      if (data.lessonOrder !== undefined) {
+        const current = await tx.lesson.findUnique({
+          where: { id: lessonId },
+          select: { moduleId: true, courseId: true, lessonOrder: true },
+        });
+        if (current && current.lessonOrder !== data.lessonOrder) {
+          const targetOrder = data.lessonOrder;
+          const conflict = await tx.lesson.findFirst({
+            where: {
+              moduleId: current.moduleId,
+              lessonOrder: targetOrder,
+              NOT: { id: lessonId },
+              ...(current.moduleId ? {} : { courseId: current.courseId }),
             },
-          },
-        } : {}),
-      },
-      include: {
-        mediaAssets: true,
-      },
+            select: { id: true },
+          });
+          if (conflict) {
+            if (current.moduleId) {
+              await tx.$executeRaw`
+                UPDATE lessons SET lesson_order = lesson_order + 1
+                WHERE module_id = ${current.moduleId}::uuid
+                  AND lesson_order >= ${targetOrder}
+                  AND id <> ${lessonId}::uuid
+              `;
+            } else {
+              await tx.$executeRaw`
+                UPDATE lessons SET lesson_order = lesson_order + 1
+                WHERE course_id = ${current.courseId}::uuid
+                  AND module_id IS NULL
+                  AND lesson_order >= ${targetOrder}
+                  AND id <> ${lessonId}::uuid
+              `;
+            }
+          }
+        }
+      }
+
+      // 2. Capture OLD video asset URLs before deleting so the caller can
+      //    remove the matching S3 objects.
+      if (data.videoUrl) {
+        const oldAssets = await tx.mediaAsset.findMany({
+          where: { lessonId, assetType: "VIDEO" },
+          select: { assetUrl: true },
+        });
+        deletedVideoUrls = oldAssets.map((a) => a.assetUrl);
+        await tx.mediaAsset.deleteMany({
+          where: { lessonId, assetType: "VIDEO" },
+        });
+      }
+
+      // 3. Update the lesson row.
+      const lesson = await tx.lesson.update({
+        where: { id: lessonId },
+        data: {
+          ...(data.title !== undefined && { title: data.title }),
+          ...(data.description !== undefined && { description: data.description }),
+          ...(data.durationInSeconds !== undefined && { durationInSeconds: data.durationInSeconds }),
+          ...(data.lessonOrder !== undefined && { lessonOrder: data.lessonOrder }),
+          ...(data.materials !== undefined && { materials: data.materials }),
+          ...(data.testId !== undefined && { testId: data.testId }),
+          ...(data.videoUrl ? {
+            mediaAssets: {
+              create: {
+                assetType: "VIDEO",
+                assetUrl: data.videoUrl,
+              },
+            },
+          } : {}),
+        },
+        include: { mediaAssets: true },
+      });
+
+      return { lesson, deletedVideoUrls };
+    });
+  }
+
+  async deleteLesson(lessonId: string): Promise<{ deletedVideoUrls: string[] }> {
+    return await this.prisma.$transaction(async (tx) => {
+      const oldAssets = await tx.mediaAsset.findMany({
+        where: { lessonId, assetType: "VIDEO" },
+        select: { assetUrl: true },
+      });
+
+      await tx.mediaAsset.deleteMany({ where: { lessonId } });
+      await tx.lesson.delete({ where: { id: lessonId } });
+
+      return { deletedVideoUrls: oldAssets.map((a) => a.assetUrl) };
     });
   }
 }

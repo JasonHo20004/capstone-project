@@ -29,18 +29,37 @@ router.get("/:id", optionalAuth, courseController.getById);
 // Seller routes - must be before /:id to avoid "seller" matching as id
 router.get("/seller/my-courses", authenticateToken, requireSeller, courseController.getMyCourses);
 router.get("/seller/me", authenticateToken, requireSeller, courseController.getMyCourses);
+router.post("/seller/sync-course-tests", authenticateToken, requireSeller, courseController.syncMyCourseTests);
 router.get("/seller/:sellerId", optionalAuth, validate(getCoursesQuerySchema), courseController.getBySellerId);
-router.post("/", authenticateToken, requireSeller, createCourseLimiter, validate(createCourseSchema), courseController.create);
-router.patch("/:id", authenticateToken, requireSeller, validate(updateCourseSchema), courseController.update);
+// POST/PATCH accept multipart so seller can upload `thumbnail`. Multer must run
+// BEFORE zod validate so req.body is populated from the form.
+router.post(
+  "/",
+  authenticateToken,
+  requireSeller,
+  createCourseLimiter,
+  upload.single("thumbnail"),
+  validate(createCourseSchema),
+  courseController.create
+);
+router.patch(
+  "/:id",
+  authenticateToken,
+  requireSeller,
+  upload.single("thumbnail"),
+  validate(updateCourseSchema),
+  courseController.update
+);
 router.post("/:id/publish", authenticateToken, requireSeller, courseController.publish);
 router.put("/:id/final-test", authenticateToken, requireSeller, courseController.setFinalTest);
 router.delete("/:id/final-test", authenticateToken, requireSeller, courseController.removeFinalTest);
 router.delete("/:id", authenticateToken, requireSeller, courseController.delete);
 
 // Lesson routes (uses multer to parse FormData for creation)
-router.get("/:id/lessons/:lessonId", optionalAuth, courseController.getLessonById);
+router.get("/:id/lessons/:lessonId", authenticateToken, courseController.getLessonById);
 router.post("/:id/lessons", authenticateToken, requireSeller, uploadLimiter, upload.single('video'), courseController.createLesson);
 router.patch("/:id/lessons/:lessonId", authenticateToken, requireSeller, upload.single('video'), courseController.updateLesson);
+router.delete("/:id/lessons/:lessonId", authenticateToken, requireSeller, courseController.deleteLesson);
 
 // Comment routes for lessons
 router.get(

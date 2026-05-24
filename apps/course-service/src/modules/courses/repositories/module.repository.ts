@@ -87,9 +87,48 @@ export class ModuleRepository {
     });
   }
 
+  /**
+   * Delete a module and gracefully demote its lessons to "unassigned" without
+   * violating the @@unique([moduleId, lessonOrder]) constraint.
+   *
+   * SetNull cascade on lesson.module would otherwise produce multiple rows with
+   * (moduleId=null, lessonOrder=N) which conflict if other unassigned lessons
+   * already exist with the same order.
+   */
   async delete(id: string) {
-    return await this.prisma.module.delete({
-      where: { id },
+    return await this.prisma.$transaction(async (tx) => {
+      const mod = await tx.module.findUnique({
+        where: { id },
+        select: {
+          courseId: true,
+          lessons: { select: { id: true }, orderBy: { lessonOrder: "asc" } },
+        },
+      });
+      if (!mod) throw new Error("Module not found");
+
+      const orphanIds = mod.lessons.map((l) => l.id);
+
+      if (orphanIds.length > 0) {
+        // Find current max lessonOrder among unassigned lessons in this course.
+        const maxRow = await tx.lesson.findFirst({
+          where: { courseId: mod.courseId, moduleId: null },
+          orderBy: { lessonOrder: "desc" },
+          select: { lessonOrder: true },
+        });
+        let nextOrder = (maxRow?.lessonOrder ?? 0) + 1;
+
+        // Detach + renumber each orphan one-by-one so we don't violate the
+        // composite uniqueness midway through a bulk update.
+        for (const lessonId of orphanIds) {
+          await tx.lesson.update({
+            where: { id: lessonId },
+            data: { moduleId: null, lessonOrder: nextOrder },
+          });
+          nextOrder += 1;
+        }
+      }
+
+      return await tx.module.delete({ where: { id } });
     });
   }
 

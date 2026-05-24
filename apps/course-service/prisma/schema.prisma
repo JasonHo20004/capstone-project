@@ -64,7 +64,11 @@ model Lesson {
   commentCount      Int?         @map("comment_count")
   courseId          String       @map("course_id") @db.Uuid
   moduleId          String?      @map("module_id") @db.Uuid
-  
+  /// UUID of a Test in assessment-service. When set, this lesson is a quiz
+  /// lesson — clients render a test launcher instead of a video player.
+  /// No DB-level FK because the Test lives in a different database.
+  testId            String?      @map("test_id") @db.Uuid
+
   comments          Comment[]
   course            Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
   module            Module?      @relation(fields: [moduleId], references: [id], onDelete: SetNull)
@@ -72,6 +76,7 @@ model Lesson {
   userLessons       UserLesson[]
 
   @@unique([moduleId, lessonOrder])
+  @@index([testId])
   @@map("lessons")
 }
 

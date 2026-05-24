@@ -197,6 +197,70 @@ export class CommissionService {
     return { released: matured.length, totalAmount, sellers: sellerAmounts.size };
   }
 
+  // ── Internal: financial summary for a seller (used by course-service) ──
+  //
+  // Returns a compact aggregate suitable for the seller dashboard:
+  //   - totalEarnings:           lifetime cleared income (excludes REFUNDED)
+  //   - totalPending:            still locked, will clear when availableAt passes
+  //   - allowance:               cash-in-hand available for withdraw
+  //   - pendingWithdrawalCount:  number of withdrawal requests waiting on admin
+  //   - pendingWithdrawalTotal:  sum of those withdrawal amounts
+  //   - thisMonthNet / prevMonthNet: this calendar-month vs previous (for MoM growth)
+  async getSellerFinancialSummary(sellerId: string) {
+    const [earningsTotals, pendingTotals, wallet, pendingWithdrawals] = await Promise.all([
+      this.prisma.sellerEarning.aggregate({
+        where: { sellerId, status: { not: "REFUNDED" as EarningStatus } },
+        _sum: { sellerAmount: true },
+      }),
+      this.prisma.sellerEarning.aggregate({
+        where: { sellerId, status: "PENDING" },
+        _sum: { sellerAmount: true },
+      }),
+      this.prisma.wallet.findUnique({ where: { userId: sellerId } }),
+      this.prisma.withdrawalRequest.aggregate({
+        where: { sellerId, status: "PENDING" },
+        _sum: { amount: true },
+        _count: true,
+      }),
+    ]);
+
+    // MoM: this calendar month vs previous, in seller-net amount.
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    const [thisMonth, prevMonth] = await Promise.all([
+      this.prisma.sellerEarning.aggregate({
+        where: {
+          sellerId,
+          status: { not: "REFUNDED" as EarningStatus },
+          createdAt: { gte: thisMonthStart, lt: nextMonthStart },
+        },
+        _sum: { sellerAmount: true },
+      }),
+      this.prisma.sellerEarning.aggregate({
+        where: {
+          sellerId,
+          status: { not: "REFUNDED" as EarningStatus },
+          createdAt: { gte: prevMonthStart, lt: thisMonthStart },
+        },
+        _sum: { sellerAmount: true },
+      }),
+    ]);
+
+    return {
+      totalEarnings: Number(earningsTotals._sum.sellerAmount ?? 0),
+      totalPending: Number(pendingTotals._sum.sellerAmount ?? 0),
+      allowance: Number(wallet?.allowance ?? 0),
+      pendingBalance: Number(wallet?.pendingBalance ?? 0),
+      pendingWithdrawalCount: pendingWithdrawals._count,
+      pendingWithdrawalTotal: Number(pendingWithdrawals._sum.amount ?? 0),
+      thisMonthNet: Number(thisMonth._sum.sellerAmount ?? 0),
+      prevMonthNet: Number(prevMonth._sum.sellerAmount ?? 0),
+    };
+  }
+
   // ── Refund a course (called when admin sets course REFUSE / INACTIVE) ──
   //
   // For every SellerEarning attached to the course:
@@ -303,6 +367,74 @@ export class CommissionService {
 
   // ── Seller: view earnings ───────────────────────────────────────────────
 
+  /**
+   * Time-series for the seller earnings chart. Aggregates `sellerAmount` by
+   * year-month over the last N months, REFUNDED rows excluded. Returns months
+   * with 0 income too, so the chart doesn't skip and lie about trend.
+   */
+  async getSellerEarningsTimeseries(sellerId: string, months: number = 12) {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+    const rows = await this.prisma.sellerEarning.findMany({
+      where: {
+        sellerId,
+        status: { not: "REFUNDED" as EarningStatus },
+        createdAt: { gte: start },
+      },
+      select: { sellerAmount: true, createdAt: true },
+    });
+
+    const buckets = new Map<string, number>();
+    for (let i = 0; i < months; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - (months - 1 - i), 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      buckets.set(key, 0);
+    }
+    for (const r of rows) {
+      const key = `${r.createdAt.getFullYear()}-${String(r.createdAt.getMonth() + 1).padStart(2, "0")}`;
+      buckets.set(key, (buckets.get(key) ?? 0) + Number(r.sellerAmount));
+    }
+    return Array.from(buckets.entries()).map(([month, amount]) => ({ month, amount }));
+  }
+
+  /**
+   * Per-course earnings breakdown. Sums lifetime cleared income per courseId
+   * for the seller. Caller joins with course titles client-side.
+   */
+  async getSellerEarningsByCourse(sellerId: string) {
+    const rows = await this.prisma.sellerEarning.groupBy({
+      by: ["courseId"],
+      where: { sellerId, status: { not: "REFUNDED" as EarningStatus } },
+      _sum: { sellerAmount: true, totalAmount: true },
+      _count: { _all: true },
+    });
+    return rows
+      .map((r) => ({
+        courseId: r.courseId,
+        sellerAmount: Number(r._sum.sellerAmount ?? 0),
+        totalAmount: Number(r._sum.totalAmount ?? 0),
+        salesCount: r._count._all,
+      }))
+      .sort((a, b) => b.sellerAmount - a.sellerAmount);
+  }
+
+  /**
+   * Public policy snapshot — exposes commission rate, gateway fee, and
+   * clearanceDays so the UI doesn't hardcode "7 days" / "30%".
+   */
+  async getSellerPolicy(sellerId: string) {
+    const [rate, config] = await Promise.all([
+      this.getCommissionRate(sellerId),
+      this.prisma.commissionConfig.findFirst({ where: { sellerId: null } }),
+    ]);
+    return {
+      commissionRate: rate,
+      clearanceDays: config?.clearanceDays ?? 7,
+      gatewayFeeRate: Number(config?.gatewayFeeRate ?? 0.03),
+      gatewayFeeFixed: Number(config?.gatewayFeeFixed ?? 2000),
+    };
+  }
+
   async getSellerEarnings(sellerId: string, page: number = 1, limit: number = 10) {
     const [earnings, total] = await Promise.all([
       this.prisma.sellerEarning.findMany({
@@ -314,8 +446,10 @@ export class CommissionService {
       this.prisma.sellerEarning.count({ where: { sellerId } }),
     ]);
 
+    // Exclude REFUNDED rows from lifetime aggregates — those earnings were
+    // reversed when a course was refunded; counting them would overstate income.
     const totals = await this.prisma.sellerEarning.aggregate({
-      where: { sellerId },
+      where: { sellerId, status: { not: "REFUNDED" as EarningStatus } },
       _sum: { sellerAmount: true, totalAmount: true, commissionAmount: true, gatewayFee: true, netAmount: true },
     });
 

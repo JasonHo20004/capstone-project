@@ -50,8 +50,9 @@ export class SellerStatsController {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 50;
       const search = req.query.search as string | undefined;
+      const courseId = req.query.courseId as string | undefined;
 
-      const result = await this.service.getLearners(sellerId, page, limit, search);
+      const result = await this.service.getLearners(sellerId, page, limit, search, courseId);
       res.status(200).json({
         success: true,
         data: {

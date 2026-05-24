@@ -55,6 +55,10 @@ export class CourseController {
     const result = await this.courseService.getMyCourses(sellerId, {
       page: parseInt(query.page) || 1,
       limit: parseInt(query.limit) || 10,
+      search: query.search,
+      category: query.category,
+      level: query.level,
+      status: query.status,
     });
 
     res.json({ success: true, ...result });
@@ -79,17 +83,47 @@ export class CourseController {
 
   create = asyncHandler(async (req: Request, res: Response) => {
     const sellerId = req.user!.userId;
-    const course = await this.courseService.create(sellerId, req.body);
-    
-    res.status(201).json({ success: true, data: course });
+
+    // If multipart, multer put the thumbnail file on req.file. Upload to S3
+    // BEFORE creating the course so the URL ends up in the DB row.
+    let thumbnailUrl: string | undefined = req.body.thumbnailUrl;
+    if (req.file) {
+      thumbnailUrl = await s3Service.uploadFile(req.file, "course-thumbnails");
+    }
+
+    try {
+      const course = await this.courseService.create(sellerId, { ...req.body, thumbnailUrl });
+      res.status(201).json({ success: true, data: course });
+    } catch (err) {
+      if (req.file && thumbnailUrl) {
+        s3Service.deleteFile(thumbnailUrl).catch((cleanupErr) =>
+          console.error("[CourseController] S3 cleanup failed after create error:", cleanupErr)
+        );
+      }
+      throw err;
+    }
   });
 
   update = asyncHandler(async (req: Request, res: Response) => {
     const id = req.params.id as string;
     const sellerId = req.user!.userId;
-    const course = await this.courseService.update(id, sellerId, req.body);
-    
-    res.json({ success: true, data: course });
+
+    let thumbnailUrl: string | undefined = req.body.thumbnailUrl;
+    if (req.file) {
+      thumbnailUrl = await s3Service.uploadFile(req.file, "course-thumbnails");
+    }
+
+    try {
+      const course = await this.courseService.update(id, sellerId, { ...req.body, thumbnailUrl });
+      res.json({ success: true, data: course });
+    } catch (err) {
+      if (req.file && thumbnailUrl) {
+        s3Service.deleteFile(thumbnailUrl).catch((cleanupErr) =>
+          console.error("[CourseController] S3 cleanup failed after update error:", cleanupErr)
+        );
+      }
+      throw err;
+    }
   });
 
   publish = asyncHandler(async (req: Request, res: Response) => {
@@ -135,10 +169,21 @@ export class CourseController {
     res.json({ success: true, message: "Final test removed successfully" });
   });
 
+  /**
+   * Idempotent backfill — refreshes the assessment-service `course_tests`
+   * join table for every course owned by the caller. Useful for repairing
+   * usage counts that were created before course-test sync existed.
+   */
+  syncMyCourseTests = asyncHandler(async (req: Request, res: Response) => {
+    const sellerId = req.user!.userId;
+    const result = await this.courseService.syncCourseTestsForSeller(sellerId);
+    res.json({ success: true, ...result });
+  });
+
   createLesson = asyncHandler(async (req: Request, res: Response) => {
     const courseId = req.params.id as string;
     const sellerId = req.user!.userId;
-    const { title, description, durationInSeconds, lessonOrder, moduleId } = req.body;
+    const { title, description, durationInSeconds, lessonOrder, moduleId, testId } = req.body;
 
     let videoUrl: string | undefined;
     if (req.file) {
@@ -153,6 +198,7 @@ export class CourseController {
         lessonOrder: lessonOrder ? parseInt(lessonOrder) : undefined,
         moduleId: moduleId || undefined,
         videoUrl,
+        testId: typeof testId === "string" && testId.length > 0 ? testId : undefined,
       });
       res.status(201).json({ success: true, data: lesson });
     } catch (err) {
@@ -169,7 +215,8 @@ export class CourseController {
   getLessonById = asyncHandler(async (req: Request, res: Response) => {
     const courseId = req.params.id as string;
     const lessonId = req.params.lessonId as string;
-    const lesson = await this.courseService.getLessonById(courseId, lessonId);
+    const userId = req.user!.userId;
+    const lesson = await this.courseService.getLessonById(courseId, lessonId, userId);
     res.json({ success: true, data: lesson });
   });
 
@@ -177,7 +224,13 @@ export class CourseController {
     const courseId = req.params.id as string;
     const lessonId = req.params.lessonId as string;
     const sellerId = req.user!.userId;
-    const { title, description, durationInSeconds, lessonOrder, materials } = req.body;
+    const { title, description, durationInSeconds, lessonOrder, materials, testId } = req.body;
+
+    // Normalize testId: explicit empty-string / null = unlink; UUID = link.
+    let parsedTestId: string | null | undefined;
+    if (testId === null || testId === "") parsedTestId = null;
+    else if (typeof testId === "string" && testId.length > 0) parsedTestId = testId;
+    else parsedTestId = undefined;
 
     // Upload video to S3 if a new file was provided
     let videoUrl: string | undefined;
@@ -185,15 +238,53 @@ export class CourseController {
       videoUrl = await s3Service.uploadFile((req as any).file, "course-videos");
     }
 
-    const lesson = await this.courseService.updateLesson(courseId, lessonId, sellerId, {
-      title: title || undefined,
-      description: description !== undefined ? description : undefined,
-      durationInSeconds: durationInSeconds ? parseFloat(durationInSeconds) : undefined,
-      lessonOrder: lessonOrder ? parseInt(lessonOrder) : undefined,
-      materials: materials ? (typeof materials === 'string' ? JSON.parse(materials) : materials) : undefined,
-      videoUrl,
-    });
+    // Parse materials safely — malformed JSON should respond 400, not crash.
+    let parsedMaterials: string[] | undefined;
+    if (materials !== undefined) {
+      if (typeof materials === "string") {
+        try {
+          const parsed = JSON.parse(materials);
+          if (!Array.isArray(parsed)) {
+            res.status(400).json({ success: false, message: "materials must be a JSON array" });
+            return;
+          }
+          parsedMaterials = parsed.map(String);
+        } catch {
+          res.status(400).json({ success: false, message: "materials is not valid JSON" });
+          return;
+        }
+      } else if (Array.isArray(materials)) {
+        parsedMaterials = materials.map(String);
+      }
+    }
 
-    res.json({ success: true, data: lesson });
+    try {
+      const lesson = await this.courseService.updateLesson(courseId, lessonId, sellerId, {
+        title: title || undefined,
+        description: description !== undefined ? description : undefined,
+        durationInSeconds: durationInSeconds ? parseFloat(durationInSeconds) : undefined,
+        lessonOrder: lessonOrder ? parseInt(lessonOrder) : undefined,
+        materials: parsedMaterials,
+        videoUrl,
+        testId: parsedTestId,
+      });
+      res.json({ success: true, data: lesson });
+    } catch (err) {
+      // If DB update fails after a new video was uploaded, clean up the orphan.
+      if (videoUrl) {
+        s3Service.deleteFile(videoUrl).catch((cleanupErr) =>
+          console.error("[CourseController] S3 cleanup failed after updateLesson error:", cleanupErr)
+        );
+      }
+      throw err;
+    }
+  });
+
+  deleteLesson = asyncHandler(async (req: Request, res: Response) => {
+    const courseId = req.params.id as string;
+    const lessonId = req.params.lessonId as string;
+    const sellerId = req.user!.userId;
+    await this.courseService.deleteLesson(courseId, lessonId, sellerId);
+    res.json({ success: true, message: "Lesson deleted successfully" });
   });
 }

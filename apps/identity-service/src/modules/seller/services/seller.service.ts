@@ -211,7 +211,9 @@ export class SellerService {
   }
 
   /**
-   * Update seller profile
+   * Update seller profile.
+   * NOTE: `isActive` is intentionally stripped here even if a caller passes it —
+   * only admin endpoints may toggle the active flag.
    */
   async updateSellerProfile(
     userId: string,
@@ -222,7 +224,17 @@ export class SellerService {
       throw new Error("Seller profile not found");
     }
 
-    const updated = await this.repository.updateSellerProfile(userId, data);
+    const safe: { certification?: string[]; expertise?: string[] } = {};
+    if (Array.isArray(data.certification)) safe.certification = data.certification;
+    if (Array.isArray(data.expertise)) safe.expertise = data.expertise;
+
+    const updated = await this.repository.updateSellerProfile(userId, safe);
+
+    console.log(
+      `[seller] profile updated for user ${userId}: ` +
+        `${updated.certification.length} certifications, ${updated.expertise.length} expertise`
+    );
+
     return {
       id: updated.id,
       certification: updated.certification,

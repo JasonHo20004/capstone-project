@@ -1,12 +1,24 @@
+import { randomBytes } from "crypto";
 import { databaseService } from "../../services/database.service.js";
 import { CreateTestDto } from "./test.schema.js";
 
+/**
+ * Slugify a title, then always append a short random suffix so two tests with
+ * the same (or empty after sanitization) title can both be saved. Without the
+ * suffix, Vietnamese-only titles strip down to "" and collide on the `slug`
+ * UNIQUE constraint, breaking the second insert.
+ */
 function generateSlug(title: string): string {
-  return title
+  const base = title
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // strip diacritics ("Bài" -> "Bai")
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/[\s-]+/g, '-')
-    .replace(/^-|-$/g, '');
+    .replace(/đ/g, "d")
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/[\s-]+/g, "-")
+    .replace(/^-|-$/g, "");
+  const suffix = randomBytes(3).toString("hex"); // 6 hex chars
+  return base ? `${base}-${suffix}` : `test-${suffix}`;
 }
 
 function isUUID(str: string): boolean {
@@ -15,15 +27,21 @@ function isUUID(str: string): boolean {
 
 export class TestService {
 
-  public async getAllTests(status?: string) {
+  public async getAllTests(opts?: { status?: string; sellerId?: string }) {
     const prisma = databaseService.getClient();
+    const where: Record<string, unknown> = {};
+    if (opts?.status) where.status = opts.status;
+    if (opts?.sellerId) where.sellerId = opts.sellerId;
+
     return await prisma.test.findMany({
-      where: status ? { status } : undefined,
+      where: Object.keys(where).length > 0 ? where : undefined,
       select: {
         id: true,
         title: true,
         slug: true,
         status: true,
+        testType: true,
+        sellerId: true,
         durationInMinutes: true,
         totalScore: true,
         passingScore: true,
@@ -32,6 +50,7 @@ export class TestService {
         updatedAt: true,
         englishTestType: { select: { name: true } },
         testSkills: { select: { skill: true } },
+        _count: { select: { sections: true, questions: true, courseTests: true } },
       },
       orderBy: [{ updatedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
     });
@@ -53,7 +72,7 @@ export class TestService {
       wordLimit: true,
     };
 
-    // Only include answer for admin editing — never for students!
+    // Only include answer for admin / owner editing — never for students!
     if (options?.includeAnswers) {
       questionSelect.answer = true;
     }
@@ -85,6 +104,23 @@ export class TestService {
     });
 
     if (!test) throw new Error("Test not found");
+
+    // FE convenience: derive `correctAnswerIndex` from the stored `answer` JSON
+    // so editor UIs don't have to dig into the answer object themselves.
+    // Only applied when answers are included (owner/admin context).
+    if (options?.includeAnswers) {
+      const surfaceCorrectIndex = (q: any) => {
+        if (q && q.answer && typeof q.answer === "object" && "correctIndex" in q.answer) {
+          q.correctAnswerIndex = q.answer.correctIndex;
+        }
+        return q;
+      };
+      (test as any).sections?.forEach((s: any) => {
+        s.questions = (s.questions ?? []).map(surfaceCorrectIndex);
+      });
+      (test as any).questions = ((test as any).questions ?? []).map(surfaceCorrectIndex);
+    }
+
     return test;
   }
 
@@ -96,9 +132,30 @@ export class TestService {
     });
   }
 
-  public async createTest(data: CreateTestDto) {
+  public async createTest(data: CreateTestDto, sellerId?: string) {
     const prisma = databaseService.getClient();
     const slug = generateSlug(data.title);
+
+    // Normalize: if caller passed a flat `questions[]` (simple final test from
+    // the seller course UI), wrap it in a single default section so the DB
+    // model stays uniform.
+    const sectionsInput =
+      data.sections && data.sections.length > 0
+        ? data.sections
+        : data.questions && data.questions.length > 0
+        ? [
+            {
+              title: data.title,
+              skill: undefined,
+              durationInSeconds: undefined,
+              mediaUrl: undefined,
+              audioTranscript: undefined,
+              imageUrl: undefined,
+              passageContent: undefined,
+              questions: data.questions,
+            },
+          ]
+        : [];
 
     const newTest = await prisma.test.create({
       data: {
@@ -110,13 +167,15 @@ export class TestService {
         passingScore: data.passingScore,
         maxAttempts: data.maxAttempts,
         englishTestTypeId: data.englishTestTypeId,
+        testType: data.testType,
+        sellerId: sellerId ?? null,
         testSkills: data.testSkills
           ? {
               create: data.testSkills.map((skill) => ({ skill })),
             }
           : undefined,
         sections: {
-          create: data.sections.map((section, idx) => ({
+          create: sectionsInput.map((section, idx) => ({
             title: section.title,
             skill: section.skill,
             durationInSeconds: section.durationInSeconds,
@@ -133,16 +192,29 @@ export class TestService {
                 }
               : undefined,
             questions: {
-              create: section.questions.map((q) => ({
-                questionText: q.questionText,
-                questionType: q.questionType,
-                options: q.options,
-                content: q.content as any,
-                answer: q.answer as any,
-                explanation: q.explanation,
-                questionOrder: q.questionOrder,
-                imageUrl: (q as any).imageUrl || undefined,
-              })),
+              create: (section.questions ?? []).map((q, qIdx) => {
+                // Translate `correctAnswerIndex` (FE convenience field) into
+                // the canonical `answer` JSON used by the grader.
+                let answer = q.answer as any;
+                if (
+                  answer === undefined &&
+                  typeof (q as any).correctAnswerIndex === "number" &&
+                  q.options &&
+                  q.options.length > (q as any).correctAnswerIndex
+                ) {
+                  answer = { correctIndex: (q as any).correctAnswerIndex };
+                }
+                return {
+                  questionText: q.questionText,
+                  questionType: q.questionType,
+                  options: q.options,
+                  content: q.content as any,
+                  answer,
+                  explanation: q.explanation,
+                  questionOrder: q.questionOrder ?? qIdx + 1,
+                  imageUrl: (q as any).imageUrl || undefined,
+                };
+              }),
             },
           })),
         },
@@ -154,6 +226,47 @@ export class TestService {
     });
 
     return newTest;
+  }
+
+  /**
+   * Internal lookup used by course-service to verify a seller owns a test
+   * before linking it as a course's final test.
+   */
+  public async getTestOwnership(testId: string) {
+    const prisma = databaseService.getClient();
+    return await prisma.test.findUnique({
+      where: { id: testId },
+      select: { id: true, title: true, sellerId: true, testType: true },
+    });
+  }
+
+  /**
+   * Record that a course uses this test. Idempotent — duplicate inserts are
+   * absorbed by the composite PK so we ignore the unique-violation error.
+   */
+  public async linkCourse(testId: string, courseId: string) {
+    const prisma = databaseService.getClient();
+    try {
+      await prisma.courseTest.create({ data: { testId, courseId } });
+    } catch (err: unknown) {
+      // P2002 = unique constraint — link already exists; treat as success.
+      const code = (err as { code?: string })?.code;
+      if (code !== "P2002") throw err;
+    }
+  }
+
+  /** Remove the course↔test link record. No-op if it doesn't exist. */
+  public async unlinkCourse(testId: string, courseId: string) {
+    const prisma = databaseService.getClient();
+    try {
+      await prisma.courseTest.delete({
+        where: { courseId_testId: { courseId, testId } },
+      });
+    } catch (err: unknown) {
+      // P2025 = record not found — already unlinked; treat as success.
+      const code = (err as { code?: string })?.code;
+      if (code !== "P2025") throw err;
+    }
   }
 
   public async updateTest(id: string, data: {
@@ -177,6 +290,7 @@ export class TestService {
         questionText?: string;
         questionType: string;
         options?: string[];
+        correctAnswerIndex?: number;
         content?: any;
         answer?: any;
         explanation?: string;
@@ -184,14 +298,45 @@ export class TestService {
         imageUrl?: string;
       }>;
     }>;
+    /** Flat question list (FE convenience for simple FINAL tests). */
+    questions?: Array<{
+      questionText?: string;
+      questionType: string;
+      options?: string[];
+      correctAnswerIndex?: number;
+      content?: any;
+      answer?: any;
+      explanation?: string;
+      questionOrder?: number;
+      imageUrl?: string;
+    }>;
   }) {
     const prisma = databaseService.getClient();
-    const { testSkills, sections, ...testData } = data;
+    const { testSkills, sections: rawSections, questions: flatQuestions, ...testData } = data;
 
     // Update slug if title changes
     if (testData.title) {
       (testData as any).slug = generateSlug(testData.title);
     }
+
+    // Allow flat `questions[]` as input — same wrap pattern as createTest.
+    const sections =
+      rawSections && rawSections.length > 0
+        ? rawSections
+        : flatQuestions && flatQuestions.length > 0
+        ? [
+            {
+              title: testData.title ?? "Section 1",
+              skill: undefined,
+              durationInSeconds: undefined,
+              mediaUrl: undefined,
+              audioTranscript: undefined,
+              imageUrl: undefined,
+              passageContent: undefined,
+              questions: flatQuestions,
+            },
+          ]
+        : undefined;
 
     // If sections are provided, delete old sections and recreate
     if (sections && sections.length > 0) {
@@ -233,16 +378,29 @@ export class TestService {
                       }
                     : undefined,
                   questions: {
-                    create: section.questions.map((q) => ({
-                      questionText: q.questionText,
-                      questionType: q.questionType as any,
-                      options: q.options || [],
-                      content: q.content as any,
-                      answer: q.answer as any,
-                      explanation: q.explanation,
-                      questionOrder: q.questionOrder,
-                      imageUrl: q.imageUrl || undefined,
-                    })),
+                    create: section.questions.map((q, qIdx) => {
+                      // Mirror createTest: convert FE convenience `correctAnswerIndex`
+                      // into the canonical `answer` JSON when caller didn't supply one.
+                      let answer = q.answer as any;
+                      if (
+                        answer === undefined &&
+                        typeof q.correctAnswerIndex === "number" &&
+                        q.options &&
+                        q.options.length > q.correctAnswerIndex
+                      ) {
+                        answer = { correctIndex: q.correctAnswerIndex };
+                      }
+                      return {
+                        questionText: q.questionText,
+                        questionType: q.questionType as any,
+                        options: q.options || [],
+                        content: q.content as any,
+                        answer,
+                        explanation: q.explanation,
+                        questionOrder: q.questionOrder ?? qIdx + 1,
+                        imageUrl: q.imageUrl || undefined,
+                      };
+                    }),
                   },
                 })),
               },

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { SellerController } from "../controllers/seller.controller.js";
-import { authenticateToken } from "@capstone/common";
+import { authenticateToken, requireSeller } from "@capstone/common";
 
 const router: Router = Router();
 const controller = new SellerController();
@@ -34,9 +34,15 @@ router.post(
 router.get("/application", authenticateToken, controller.getMyApplication);
 
 // Get my seller profile
-router.get("/profile", authenticateToken, controller.getMyProfile);
+router.get("/profile", authenticateToken, requireSeller, controller.getMyProfile);
 
-// Update my seller profile
-router.put("/profile", authenticateToken, controller.updateMyProfile);
+// Update my seller profile (multipart: images[] = new certs, certification[] = kept URLs, expertise[])
+router.put(
+  "/profile",
+  authenticateToken,
+  requireSeller,
+  upload.array("images", 10),
+  controller.updateMyProfile
+);
 
 export default router;

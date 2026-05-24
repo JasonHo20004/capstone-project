@@ -7,7 +7,23 @@ export class TestController {
   public async getAllTests(req: Request, res: Response, next: NextFunction) {
     try {
       const status = req.query.status as string | undefined;
-      const tests = await testService.getAllTests(status);
+      const mine = req.query.mine === "true";
+      const explicitSeller = req.query.sellerId as string | undefined;
+
+      // ?mine=true → auto-scope to the authenticated seller (requires auth).
+      // ?sellerId=<uuid> → explicit filter (admin tooling). Otherwise: all tests.
+      let sellerId: string | undefined;
+      if (mine) {
+        if (!req.user?.userId) {
+          res.status(401).json({ message: "Authentication required for mine=true" });
+          return;
+        }
+        sellerId = req.user.userId;
+      } else if (explicitSeller) {
+        sellerId = explicitSeller;
+      }
+
+      const tests = await testService.getAllTests({ status, sellerId });
       res.status(200).json({ message: "Tests retrieved", data: tests });
     } catch (error) {
       next(error);
@@ -17,7 +33,25 @@ export class TestController {
   public async getTestById(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
-      const includeAnswers = req.query.includeAnswers === 'true';
+      const wantsAnswers = req.query.includeAnswers === "true";
+
+      // includeAnswers leaks correct answers — gate to owner / admin only.
+      let includeAnswers = false;
+      if (wantsAnswers) {
+        const userId = req.user?.userId;
+        const role = req.user?.role;
+        if (userId) {
+          if (role === "ADMINISTRATOR") {
+            includeAnswers = true;
+          } else {
+            const owner = await testService.getTestOwnership(id);
+            if (owner && owner.sellerId && owner.sellerId === userId) {
+              includeAnswers = true;
+            }
+          }
+        }
+      }
+
       const test = await testService.getTestById(id, { includeAnswers });
       res.status(200).json({ message: "Test retrieved", data: test });
     } catch (error) {
@@ -28,7 +62,9 @@ export class TestController {
   public async createTest(req: Request, res: Response, next: NextFunction) {
     try {
       const data = CreateTestSchema.parse(req.body);
-      const test = await testService.createTest(data);
+      // Stamp ownership from the JWT — never trust a sellerId in the body.
+      const sellerId = req.user?.userId;
+      const test = await testService.createTest(data, sellerId);
       res.status(201).json({ message: "Test created", data: test });
     } catch (error) {
       next(error);
@@ -38,6 +74,22 @@ export class TestController {
   public async updateTest(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
+      const userId = req.user?.userId;
+
+      // Ownership check — only the seller who created the test (or an admin)
+      // may modify it.
+      if (userId && req.user?.role !== "ADMINISTRATOR") {
+        const owner = await testService.getTestOwnership(id);
+        if (!owner) {
+          res.status(404).json({ message: "Test not found" });
+          return;
+        }
+        if (owner.sellerId && owner.sellerId !== userId) {
+          res.status(403).json({ message: "You don't own this test" });
+          return;
+        }
+      }
+
       const test = await testService.updateTest(id, req.body);
       res.status(200).json({ message: "Test updated", data: test });
     } catch (error) {
@@ -48,8 +100,129 @@ export class TestController {
   public async deleteTest(req: Request, res: Response, next: NextFunction) {
     try {
       const id = req.params.id as string;
+      const userId = req.user?.userId;
+
+      if (userId && req.user?.role !== "ADMINISTRATOR") {
+        const owner = await testService.getTestOwnership(id);
+        if (!owner) {
+          res.status(404).json({ message: "Test not found" });
+          return;
+        }
+        if (owner.sellerId && owner.sellerId !== userId) {
+          res.status(403).json({ message: "You don't own this test" });
+          return;
+        }
+      }
+
       const result = await testService.deleteTest(id);
       res.status(200).json({ message: "Test deleted", data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Internal endpoint — course-service calls this to validate that the seller
+   * linking a test as a course's final test actually owns it.
+   */
+  public async getOwnershipInternal(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      const sellerId = req.query.sellerId as string | undefined;
+      const owner = await testService.getTestOwnership(id);
+      if (!owner) {
+        res.status(404).json({ message: "Test not found" });
+        return;
+      }
+      if (sellerId && owner.sellerId && owner.sellerId !== sellerId) {
+        res.status(403).json({ message: "Test belongs to a different seller" });
+        return;
+      }
+      res.status(200).json({ data: owner });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Internal endpoint — course-service calls this to record that a test is
+   * being used by a course (as final test or quiz lesson). Idempotent.
+   */
+  public async linkCourseInternal(req: Request, res: Response, next: NextFunction) {
+    try {
+      const testId = req.params.id as string;
+      const courseId = req.query.courseId as string | undefined;
+      const sellerId = req.query.sellerId as string | undefined;
+      if (!courseId) {
+        res.status(400).json({ message: "courseId is required" });
+        return;
+      }
+      const owner = await testService.getTestOwnership(testId);
+      if (!owner) {
+        res.status(404).json({ message: "Test not found" });
+        return;
+      }
+      if (sellerId && owner.sellerId && owner.sellerId !== sellerId) {
+        res.status(403).json({ message: "Test belongs to a different seller" });
+        return;
+      }
+      await testService.linkCourse(testId, courseId);
+      res.status(200).json({ message: "Linked" });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Internal endpoint — course-service calls this to remove the course↔test
+   * link record. Idempotent (no-op if the link doesn't exist).
+   */
+  public async unlinkCourseInternal(req: Request, res: Response, next: NextFunction) {
+    try {
+      const testId = req.params.id as string;
+      const courseId = req.query.courseId as string | undefined;
+      const sellerId = req.query.sellerId as string | undefined;
+      if (!courseId) {
+        res.status(400).json({ message: "courseId is required" });
+        return;
+      }
+      const owner = await testService.getTestOwnership(testId);
+      if (!owner) {
+        res.status(404).json({ message: "Test not found" });
+        return;
+      }
+      if (sellerId && owner.sellerId && owner.sellerId !== sellerId) {
+        res.status(403).json({ message: "Test belongs to a different seller" });
+        return;
+      }
+      await testService.unlinkCourse(testId, courseId);
+      res.status(200).json({ message: "Unlinked" });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Internal endpoint — course-service calls this to hard-delete an orphan
+   * test (e.g. seller is overwriting their course's final test with a new one;
+   * the old test row should not linger in the DB). Verifies ownership via the
+   * `sellerId` query param before deleting.
+   */
+  public async deleteTestInternal(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = req.params.id as string;
+      const sellerId = req.query.sellerId as string | undefined;
+      const owner = await testService.getTestOwnership(id);
+      if (!owner) {
+        res.status(404).json({ message: "Test not found" });
+        return;
+      }
+      if (sellerId && owner.sellerId && owner.sellerId !== sellerId) {
+        res.status(403).json({ message: "Test belongs to a different seller" });
+        return;
+      }
+      await testService.deleteTest(id);
+      res.status(200).json({ message: "Test deleted" });
     } catch (error) {
       next(error);
     }

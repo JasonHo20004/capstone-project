@@ -25,6 +25,25 @@ export class CommissionController {
     res.json({ success: true, data: { commissionRate: rate } });
   });
 
+  getSellerPolicy = asyncHandler(async (req: Request, res: Response) => {
+    const sellerId = req.user!.userId;
+    const data = await this.commissionService.getSellerPolicy(sellerId);
+    res.json({ success: true, data });
+  });
+
+  getSellerEarningsTimeseries = asyncHandler(async (req: Request, res: Response) => {
+    const sellerId = req.user!.userId;
+    const months = Math.min(36, Math.max(1, parseInt(req.query.months as string) || 12));
+    const data = await this.commissionService.getSellerEarningsTimeseries(sellerId, months);
+    res.json({ success: true, data });
+  });
+
+  getSellerEarningsByCourse = asyncHandler(async (req: Request, res: Response) => {
+    const sellerId = req.user!.userId;
+    const data = await this.commissionService.getSellerEarningsByCourse(sellerId);
+    res.json({ success: true, data });
+  });
+
   // ── Admin endpoints ─────────────────────────────────────────────────────
 
   getAdminReport = asyncHandler(async (req: Request, res: Response) => {
@@ -75,6 +94,13 @@ export class CommissionController {
       courseId as string,
       typeof reason === "string" ? reason : undefined
     );
+    res.json({ success: true, data: result });
+  });
+
+  // Internal: compact financial summary used by course-service dashboard.
+  getSellerFinancialSummary = asyncHandler(async (req: Request, res: Response) => {
+    const { sellerId } = req.params;
+    const result = await this.commissionService.getSellerFinancialSummary(sellerId as string);
     res.json({ success: true, data: result });
   });
 }

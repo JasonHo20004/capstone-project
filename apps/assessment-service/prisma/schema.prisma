@@ -37,6 +37,9 @@ model Test {
   createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   maxAttempts       Int?              @map("max_attempts")
   testType          TestType?         @map("test_type")
+  /// UUID of the seller who owns this test. Nullable so existing system-seeded
+  /// public tests (no owner) keep working. New seller-created tests must set it.
+  sellerId          String?           @map("seller_id") @db.Uuid
   updatedAt         DateTime?         @updatedAt @map("updated_at") @db.Timestamptz(6)
   courseTests       CourseTest[]
   practiceSessions  PracticeSession[]
@@ -46,6 +49,7 @@ model Test {
   testComments      TestComment[]
   englishTestType   EnglishTestType   @relation(fields: [englishTestTypeId], references: [id])
 
+  @@index([sellerId])
   @@map("tests")
 }
 

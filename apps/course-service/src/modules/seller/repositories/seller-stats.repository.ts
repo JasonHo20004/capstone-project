@@ -1,4 +1,5 @@
 import { databaseService } from "../../../services/database.service.js";
+import type { Prisma } from "../../../../generated/prisma/index.js";
 
 export class SellerStatsRepository {
   private db = databaseService;
@@ -62,54 +63,68 @@ export class SellerStatsRepository {
   /**
    * Get seller's learners with pagination
    */
-  async getLearners(sellerId: string, page: number = 1, limit: number = 50, search?: string) {
+  /**
+   * Returns one row per (userId, courseId) pair to avoid duplicate entries when
+   * a single user has multiple activities on the same course. Pagination + course
+   * filter are pushed down to Prisma so the DB does the work, not the app.
+   *
+   * `search` is honored as a course-title contains filter; cross-service search
+   * by learner name happens in the service layer after identity enrichment.
+   */
+  async getLearners(
+    sellerId: string,
+    page: number = 1,
+    limit: number = 50,
+    search?: string,
+    courseId?: string
+  ) {
     const skip = (page - 1) * limit;
 
-    const where: any = {
+    const where: Prisma.UserActivityWhereInput = {
       course: {
         courseSellerId: sellerId,
+        ...(courseId ? { id: courseId } : {}),
+        ...(search
+          ? { title: { contains: search, mode: "insensitive" as Prisma.QueryMode } }
+          : {}),
       },
     };
 
-    const allActivities = await this.db.getClient().userActivity.findMany({
-      where,
-      select: {
-        id: true,
-        userId: true,
-        courseId: true,
-        createdAt: true,
-        course: {
-          select: {
-            id: true,
-            title: true,
-            thumbnailUrl: true,
+    // Distinct on (userId, courseId) so two activities on the same course collapse.
+    const [data, total] = await Promise.all([
+      this.db.getClient().userActivity.findMany({
+        where,
+        select: {
+          id: true,
+          userId: true,
+          courseId: true,
+          createdAt: true,
+          course: {
+            select: {
+              id: true,
+              title: true,
+              thumbnailUrl: true,
+            },
           },
         },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
-
-    // Group by userId and courseId to get unique combinations
-    const uniqueMap = new Map<string, (typeof allActivities)[0]>();
-    for (const activity of allActivities) {
-      const key = `${activity.userId}-${activity.courseId}`;
-      if (!uniqueMap.has(key)) {
-        uniqueMap.set(key, activity);
-      }
-    }
-
-    const uniqueActivities = Array.from(uniqueMap.values());
-    const total = uniqueActivities.length;
-    const paginatedActivities = uniqueActivities.slice(skip, skip + limit);
+        distinct: ["userId", "courseId"],
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      this.db.getClient().userActivity.findMany({
+        where,
+        select: { userId: true, courseId: true },
+        distinct: ["userId", "courseId"],
+      }),
+    ]);
 
     return {
-      data: paginatedActivities,
-      total,
+      data,
+      total: total.length,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total.length / limit),
     };
   }
 
@@ -171,6 +186,29 @@ export class SellerStatsRepository {
       limit,
       totalPages: Math.ceil(total / limit),
     };
+  }
+
+  /**
+   * Top N courses of the seller ranked by buyer count (userActivities).
+   * Used by the seller dashboard "Top Courses" widget.
+   */
+  async getTopCourses(sellerId: string, limit: number = 3) {
+    return this.db.getClient().course.findMany({
+      where: { courseSellerId: sellerId },
+      select: {
+        id: true,
+        title: true,
+        price: true,
+        thumbnailUrl: true,
+        ratingCount: true,
+        status: true,
+        _count: {
+          select: { userActivities: true, ratings: true },
+        },
+      },
+      orderBy: { userActivities: { _count: "desc" } },
+      take: limit,
+    });
   }
 
   /**

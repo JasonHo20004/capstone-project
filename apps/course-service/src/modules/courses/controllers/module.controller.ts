@@ -18,14 +18,25 @@ export class ModuleController {
   createModule = asyncHandler(async (req: Request, res: Response) => {
     const courseId = req.params.courseId as string;
     const sellerId = req.user!.userId;
-    const module = await this.moduleService.create(courseId, sellerId, req.body);
+    // Whitelist — never forward req.body verbatim (caller could smuggle courseId etc.).
+    const { title, description, moduleOrder } = req.body ?? {};
+    const module = await this.moduleService.create(courseId, sellerId, {
+      title,
+      description,
+      moduleOrder: moduleOrder !== undefined ? Number(moduleOrder) : undefined,
+    });
     res.status(201).json({ success: true, data: module });
   });
 
   updateModule = asyncHandler(async (req: Request, res: Response) => {
     const moduleId = req.params.moduleId as string;
     const sellerId = req.user!.userId;
-    const module = await this.moduleService.update(moduleId, sellerId, req.body);
+    const { title, description, moduleOrder } = req.body ?? {};
+    const module = await this.moduleService.update(moduleId, sellerId, {
+      title,
+      description,
+      moduleOrder: moduleOrder !== undefined ? Number(moduleOrder) : undefined,
+    });
     res.json({ success: true, data: module });
   });
 

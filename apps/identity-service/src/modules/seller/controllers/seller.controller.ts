@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { SellerService } from "../services/seller.service";
 import { s3Service } from "../../../services/s3.service.js";
+import { updateSellerProfileSchema } from "../dtos/seller.dto.js";
 
 const toStringArray = (value: unknown): string[] => {
   if (Array.isArray(value)) {
@@ -139,9 +140,17 @@ export class SellerController {
 
   /**
    * Update my seller profile
-   * PUT /api/seller/profile
+   * PUT /api/seller/profile  (multipart/form-data)
+   *   - images[]:        OPTIONAL new certificate image files to upload (S3)
+   *   - certification[]: OPTIONAL existing certification URLs to keep
+   *   - expertise[]:     OPTIONAL list of expertise tags
+   *
+   * Server merges newly uploaded URLs with the kept ones. To pass `certification`
+   * or `expertise` you must send at least one entry — empty arrays are rejected
+   * to avoid sellers wiping their credentials.
    */
   updateMyProfile = async (req: Request, res: Response): Promise<void> => {
+    const uploadedUrls: string[] = [];
     try {
       const userId = req.user?.userId;
       if (!userId) {
@@ -149,13 +158,55 @@ export class SellerController {
         return;
       }
 
-      const result = await this.service.updateSellerProfile(userId, req.body);
+      const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+      const expertiseInput = req.body?.expertise;
+      const certificationInput = req.body?.certification;
+
+      // Upload any new image files to S3 first so we have their URLs.
+      for (const file of files) {
+        const url = await s3Service.uploadFile(file, "seller-certifications");
+        uploadedUrls.push(url);
+      }
+
+      // Normalize kept certifications (single string OR array) → string[].
+      const keptCerts = toStringArray(certificationInput);
+      const mergedCerts = [...keptCerts, ...uploadedUrls];
+
+      // Build payload — only include fields the client actually sent so we don't
+      // overwrite existing data with empty arrays.
+      const payload: Record<string, unknown> = {};
+      if (files.length > 0 || certificationInput !== undefined) {
+        payload.certification = mergedCerts;
+      }
+      if (expertiseInput !== undefined) {
+        payload.expertise = toStringArray(expertiseInput);
+      }
+
+      // Strict whitelist via zod (rejects any extra field like `isActive`).
+      const parsed = updateSellerProfileSchema.safeParse(payload);
+      if (!parsed.success) {
+        // Roll back any S3 uploads we did before failure.
+        await Promise.all(uploadedUrls.map((u) => s3Service.deleteFile(u)));
+        res.status(400).json({
+          success: false,
+          error: parsed.error.issues[0]?.message ?? "Invalid input",
+        });
+        return;
+      }
+
+      if (Object.keys(parsed.data).length === 0) {
+        res.status(400).json({ success: false, error: "Nothing to update" });
+        return;
+      }
+
+      const result = await this.service.updateSellerProfile(userId, parsed.data);
       res.status(200).json({
         success: true,
         message: "Profile updated successfully",
         data: result,
       });
     } catch (error) {
+      await Promise.all(uploadedUrls.map((u) => s3Service.deleteFile(u)));
       res.status(400).json({
         success: false,
         error: error instanceof Error ? error.message : "Failed to update profile",
