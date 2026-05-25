@@ -28,6 +28,28 @@ export class IdentityClient {
     }
   }
 
+  /**
+   * Search identity-service users by fullName/email substring. Used to filter
+   * cross-service lists (e.g. a seller's learners) by learner identity.
+   */
+  async searchUsersBasic(query: string, limit: number = 500): Promise<UserBasicInfo[]> {
+    const q = query.trim();
+    if (!q) return [];
+    try {
+      const response = await fetch(`${IDENTITY_SERVICE_URL}/api/users/internal/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: q, limit }),
+      });
+      if (!response.ok) return [];
+      const data = await response.json() as { data: UserBasicInfo[] };
+      return data.data || [];
+    } catch (error) {
+      console.error("[Course Service] Error searching users:", error);
+      return [];
+    }
+  }
+
   async getUsersBasicInfo(userIds: string[]): Promise<Map<string, UserBasicInfo>> {
     const result = new Map<string, UserBasicInfo>();
     if (!userIds.length) return result;

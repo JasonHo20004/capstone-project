@@ -83,6 +83,29 @@ export class UserService {
     }));
   }
 
+  /**
+   * Internal cross-service search by fullName / email substring.
+   * Used by course-service to filter a seller's learner list by learner identity.
+   */
+  async searchBasic(query: string, limit: number = 500): Promise<UserBasicResponse[]> {
+    const q = query.trim();
+    if (!q) return [];
+    const where: Prisma.UserWhereInput = {
+      OR: [
+        { fullName: { contains: q, mode: "insensitive" } },
+        { email: { contains: q, mode: "insensitive" } },
+      ],
+    };
+    const users = await this.userRepository.findMany({ where, take: limit });
+    return users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      fullName: u.fullName,
+      role: u.role,
+      profilePicture: u.profilePicture,
+    }));
+  }
+
   async update(id: string, data: UpdateUserInput): Promise<UserResponse> {
     const { dateOfBirth, ...rest } = data;
     const updateData: Record<string, unknown> = { ...rest };

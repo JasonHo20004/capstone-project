@@ -51,13 +51,23 @@ export class SellerStatsController {
       const limit = parseInt(req.query.limit as string) || 50;
       const search = req.query.search as string | undefined;
       const courseId = req.query.courseId as string | undefined;
+      const sortByParam = (req.query.sortBy as string | undefined)?.toLowerCase();
+      const sortBy: "date" | "course" = sortByParam === "course" ? "course" : "date";
+      const sortOrderParam = (req.query.sortOrder as string | undefined)?.toLowerCase();
+      const sortOrder: "asc" | "desc" = sortOrderParam === "asc" ? "asc" : "desc";
 
-      const result = await this.service.getLearners(sellerId, page, limit, search, courseId);
+      const result = await this.service.getLearners(sellerId, page, limit, {
+        search,
+        courseId,
+        sortBy,
+        sortOrder,
+      });
       res.status(200).json({
         success: true,
         data: {
           learners: result.learners,
           pagination: result.pagination,
+          stats: result.stats,
         },
       });
     } catch (error) {

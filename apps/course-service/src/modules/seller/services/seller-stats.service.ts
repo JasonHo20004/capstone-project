@@ -57,16 +57,50 @@ export class SellerStatsService {
 
   /**
    * Get seller's learners with user enrichment.
-   * `search` filters by course title (DB-side). `courseId` filters to a single course.
+   *   - `search`    → cross-service substring match on learner fullName/email
+   *                   (resolved via identity-service before the DB query)
+   *   - `courseId`  → filter to a single course
+   *   - `sortBy`    → 'date' (default) | 'course'
+   *   - `sortOrder` → 'desc' (default) | 'asc'
+   * Also returns aggregate counts so the page can render stable header cards
+   * (uniqueCoursesCount + newThisWeekCount) independent of pagination.
    */
   async getLearners(
     sellerId: string,
     page: number = 1,
     limit: number = 50,
-    search?: string,
-    courseId?: string
+    options?: {
+      search?: string;
+      courseId?: string;
+      sortBy?: "date" | "course";
+      sortOrder?: "asc" | "desc";
+    }
   ) {
-    const result = await this.repository.getLearners(sellerId, page, limit, search, courseId);
+    // Pre-resolve userIds from identity-service when a search term is given.
+    // No match → return an empty page early so we don't waste a DB round-trip.
+    let userIdsFilter: string[] | undefined;
+    if (options?.search && options.search.trim()) {
+      const matched = await identityClient.searchUsersBasic(options.search.trim(), 500);
+      userIdsFilter = matched.map((u) => u.id);
+      if (userIdsFilter.length === 0) {
+        const aggregate = await this.repository.getLearnersAggregateStats(sellerId);
+        return {
+          learners: [],
+          pagination: { total: 0, page, limit, totalPages: 0 },
+          stats: aggregate,
+        };
+      }
+    }
+
+    const [result, aggregate] = await Promise.all([
+      this.repository.getLearners(sellerId, page, limit, {
+        courseId: options?.courseId,
+        userIds: userIdsFilter,
+        sortBy: options?.sortBy,
+        sortOrder: options?.sortOrder,
+      }),
+      this.repository.getLearnersAggregateStats(sellerId),
+    ]);
 
     // Enrich with user info from identity service
     const userIds = [...new Set(result.data.map((a) => a.userId))];
@@ -93,6 +127,7 @@ export class SellerStatsService {
         limit: result.limit,
         totalPages: result.totalPages,
       },
+      stats: aggregate,
     };
   }
 

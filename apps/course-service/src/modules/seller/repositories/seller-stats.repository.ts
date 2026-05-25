@@ -61,36 +61,46 @@ export class SellerStatsRepository {
   }
 
   /**
-   * Get seller's learners with pagination
-   */
-  /**
-   * Returns one row per (userId, courseId) pair to avoid duplicate entries when
-   * a single user has multiple activities on the same course. Pagination + course
-   * filter are pushed down to Prisma so the DB does the work, not the app.
+   * Get seller's learners with pagination.
    *
-   * `search` is honored as a course-title contains filter; cross-service search
-   * by learner name happens in the service layer after identity enrichment.
+   * Returns one row per (userId, courseId) pair so two activities on the same
+   * course collapse. Pagination, course filter, and identity-based search (via
+   * userIds resolved by the service layer) are pushed down to Prisma.
+   *
+   * Sort:
+   *   - 'date'   → orderBy createdAt
+   *   - 'course' → orderBy course.title
+   * Learner-name sort is not supported at the DB layer (cross-service) and is
+   * left to the service layer if needed.
    */
   async getLearners(
     sellerId: string,
     page: number = 1,
     limit: number = 50,
-    search?: string,
-    courseId?: string
+    options?: {
+      courseId?: string;
+      userIds?: string[];
+      sortBy?: "date" | "course";
+      sortOrder?: "asc" | "desc";
+    }
   ) {
     const skip = (page - 1) * limit;
+    const sortOrder = options?.sortOrder === "asc" ? "asc" : "desc";
+    const sortBy = options?.sortBy === "course" ? "course" : "date";
 
     const where: Prisma.UserActivityWhereInput = {
       course: {
         courseSellerId: sellerId,
-        ...(courseId ? { id: courseId } : {}),
-        ...(search
-          ? { title: { contains: search, mode: "insensitive" as Prisma.QueryMode } }
-          : {}),
+        ...(options?.courseId ? { id: options.courseId } : {}),
       },
+      ...(options?.userIds ? { userId: { in: options.userIds } } : {}),
     };
 
-    // Distinct on (userId, courseId) so two activities on the same course collapse.
+    const orderBy: Prisma.UserActivityOrderByWithRelationInput =
+      sortBy === "course"
+        ? { course: { title: sortOrder } }
+        : { createdAt: sortOrder };
+
     const [data, total] = await Promise.all([
       this.db.getClient().userActivity.findMany({
         where,
@@ -108,7 +118,7 @@ export class SellerStatsRepository {
           },
         },
         distinct: ["userId", "courseId"],
-        orderBy: { createdAt: "desc" },
+        orderBy,
         skip,
         take: limit,
       }),
@@ -125,6 +135,38 @@ export class SellerStatsRepository {
       page,
       limit,
       totalPages: Math.ceil(total.length / limit),
+    };
+  }
+
+  /**
+   * Aggregate stats for the seller-learners page header cards.
+   *   - uniqueCoursesCount: distinct seller-owned courses that have ≥1 learner
+   *   - newThisWeekCount:   userActivities (distinct user+course) in the last 7 days
+   * Independent of pagination so the FE can show stable totals.
+   */
+  async getLearnersAggregateStats(sellerId: string) {
+    const prisma = this.db.getClient();
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const [uniqueCourses, newThisWeek] = await Promise.all([
+      prisma.userActivity.findMany({
+        where: { course: { courseSellerId: sellerId } },
+        select: { courseId: true },
+        distinct: ["courseId"],
+      }),
+      prisma.userActivity.findMany({
+        where: {
+          course: { courseSellerId: sellerId },
+          createdAt: { gte: weekAgo },
+        },
+        select: { userId: true, courseId: true },
+        distinct: ["userId", "courseId"],
+      }),
+    ]);
+
+    return {
+      uniqueCoursesCount: uniqueCourses.length,
+      newThisWeekCount: newThisWeek.length,
     };
   }
 

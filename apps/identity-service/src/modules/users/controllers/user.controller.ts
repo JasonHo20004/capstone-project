@@ -88,6 +88,18 @@ export class UserController {
     res.json({ success: true, data: users });
   });
 
+  // Internal search endpoint for other services (find users by name/email substring)
+  searchBasic = asyncHandler(async (req: Request, res: Response) => {
+    const query = (req.body?.query ?? "") as string;
+    const rawLimit = Number(req.body?.limit);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 500) : 500;
+    if (typeof query !== "string" || query.trim().length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+    const users = await this.userService.searchBasic(query, limit);
+    res.json({ success: true, data: users });
+  });
+
   updateProfile = asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.userId;
     const user = await this.userService.update(userId, req.body);
