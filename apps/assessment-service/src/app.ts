@@ -11,6 +11,7 @@ import dictationRouter from "./modules/dictation/dictation.route.js";
 import commentRouter from "./modules/comments/comment.route.js";
 import tutorRouter from "./modules/tutor/tutor.route.js";
 import placementRouter from "./modules/placement/placement.route.js";
+import questionImportRouter from "./modules/question-import/question-import.route.js";
 
 const app: Express = express();
 
@@ -45,6 +46,7 @@ app.use("/api/dictation", dictationRouter);
 app.use("/api/test-comments", commentRouter);
 app.use("/api/tutor", tutorRouter);
 app.use("/api/placement", placementRouter);
+app.use("/api/question-imports", questionImportRouter);
 
 // Error handling
 app.use(errorHandler);

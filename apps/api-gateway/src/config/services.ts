@@ -92,6 +92,11 @@ export const services: ServiceConfig[] = [
     prefix: "/api/tutor",
   },
   {
+    name: "assessment-service",
+    url: process.env.ASSESSMENT_SERVICE_URL || "http://localhost:3003",
+    prefix: "/api/question-imports",
+  },
+  {
     name: "flashcard-service",
     url: process.env.FLASHCARD_SERVICE_URL || "http://localhost:3004",
     prefix: "/api/flashcard-decks",
