@@ -174,11 +174,15 @@ export class SellerStatsRepository {
    * Get seller's comments with pagination. Supports:
    *   - search: content substring match
    *   - courseId: filter to a single course
-   *   - status: 'unanswered' = top-level student comments without a seller reply yet;
-   *             'answered' = student comments where the seller has replied;
-   *             'all' (default) = no status filter
-   * The status flag is computed in-memory because Prisma cannot express
-   * "no child where userId = sellerId" cleanly in a single `where`.
+   *   - status:
+   *       'all'        → no status filter
+   *       'unanswered' → top-level student comments where the seller has not replied
+   *       'answered'   → top-level student comments where the seller has replied
+   *
+   * Status semantics are evaluated **before** pagination so `total` / `totalPages`
+   * reflect the entire filtered set, not just the current page. The Comment model
+   * has no Prisma self-relation, so we resolve "has a seller reply" with a separate
+   * batched query over the candidate top-level IDs (cheap — one round-trip).
    */
   async getComments(
     sellerId: string,
@@ -187,93 +191,148 @@ export class SellerStatsRepository {
     search?: string,
     options?: { courseId?: string; status?: "all" | "unanswered" | "answered" }
   ) {
+    const prisma = this.db.getClient();
     const skip = (page - 1) * limit;
+    const status = options?.status ?? "all";
 
-    const where: any = {
+    const baseWhere: Prisma.CommentWhereInput = {
       lesson: {
-        course: { courseSellerId: sellerId },
+        course: {
+          courseSellerId: sellerId,
+          ...(options?.courseId ? { id: options.courseId } : {}),
+        },
       },
+      ...(search
+        ? { content: { contains: search, mode: "insensitive" as Prisma.QueryMode } }
+        : {}),
     };
 
-    if (search) {
-      where.content = { contains: search, mode: "insensitive" };
-    }
-    if (options?.courseId) {
-      where.lesson = {
-        ...where.lesson,
-        course: { ...where.lesson.course, id: options.courseId },
+    const commentSelect = {
+      id: true,
+      content: true,
+      userId: true,
+      createdAt: true,
+      parentCommentId: true,
+      lesson: {
+        select: {
+          id: true,
+          title: true,
+          course: { select: { id: true, title: true } },
+        },
+      },
+    } satisfies Prisma.CommentSelect;
+
+    // ─── Fast path: no status filter ─────────────────────────────────────
+    if (status === "all") {
+      const [comments, total] = await Promise.all([
+        prisma.comment.findMany({
+          where: baseWhere,
+          select: commentSelect,
+          orderBy: { createdAt: "desc" },
+          skip,
+          take: limit,
+        }),
+        prisma.comment.count({ where: baseWhere }),
+      ]);
+
+      // Compute answeredSet only for top-level student comments on this page.
+      const topLevelStudentIds = comments
+        .filter((c) => !c.parentCommentId && c.userId !== sellerId)
+        .map((c) => c.id);
+      const answeredSet = await this.fetchAnsweredSet(topLevelStudentIds, sellerId);
+
+      return {
+        data: comments.map((c) => this.annotateComment(c, sellerId, answeredSet)),
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
       };
     }
 
-    const [comments, total] = await Promise.all([
-      this.db.getClient().comment.findMany({
-        where,
-        select: {
-          id: true,
-          content: true,
-          userId: true,
-          createdAt: true,
-          parentCommentId: true,
-          lesson: {
-            select: {
-              id: true,
-              title: true,
-              course: { select: { id: true, title: true } },
-            },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-        skip,
-        take: limit,
-      }),
-      this.db.getClient().comment.count({ where }),
-    ]);
+    // ─── Status filter: resolve answered/unanswered at DB level ─────────
+    // 1. Enumerate every top-level student comment matching baseWhere (id + date only).
+    const candidates = await prisma.comment.findMany({
+      where: {
+        ...baseWhere,
+        parentCommentId: null,
+        userId: { not: sellerId },
+      },
+      select: { id: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    });
+    const candidateIds = candidates.map((c) => c.id);
+    const answeredSet = await this.fetchAnsweredSet(candidateIds, sellerId);
 
-    // For each top-level student comment on this page, check if the seller
-    // has already replied to it. Batched in one query to keep it O(1).
-    const topLevelStudentIds = comments
-      .filter((c) => !c.parentCommentId && c.userId !== sellerId)
-      .map((c) => c.id);
-    let answeredSet = new Set<string>();
-    if (topLevelStudentIds.length > 0) {
-      const replies = await this.db.getClient().comment.findMany({
-        where: {
-          parentCommentId: { in: topLevelStudentIds },
-          userId: sellerId,
-        },
-        select: { parentCommentId: true },
-      });
-      answeredSet = new Set(
-        replies.map((r) => r.parentCommentId).filter((x): x is string => !!x)
-      );
+    // 2. Filter to the requested status (ordering preserved from step 1).
+    const targets =
+      status === "unanswered"
+        ? candidates.filter((c) => !answeredSet.has(c.id))
+        : candidates.filter((c) => answeredSet.has(c.id));
+
+    const total = targets.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const pageIds = targets.slice(skip, skip + limit).map((c) => c.id);
+
+    if (pageIds.length === 0) {
+      return { data: [], total, page, limit, totalPages };
     }
 
-    let enriched = comments.map((c) => ({
-      ...c,
-      isOwn: c.userId === sellerId,
-      isReply: !!c.parentCommentId,
-      isAnswered: c.parentCommentId
-        ? null
-        : c.userId === sellerId
-        ? null
-        : answeredSet.has(c.id),
-    }));
-
-    if (options?.status === "unanswered") {
-      enriched = enriched.filter((c) => c.isAnswered === false);
-    } else if (options?.status === "answered") {
-      enriched = enriched.filter((c) => c.isAnswered === true);
-    }
+    // 3. Fetch the page's full comments; preserve the createdAt-desc order.
+    const pageRows = await prisma.comment.findMany({
+      where: { id: { in: pageIds } },
+      select: commentSelect,
+    });
+    const byId = new Map(pageRows.map((r) => [r.id, r]));
+    const ordered = pageIds
+      .map((id) => byId.get(id))
+      .filter((c): c is (typeof pageRows)[number] => !!c);
 
     return {
-      data: enriched,
-      total: options?.status && options.status !== "all" ? enriched.length : total,
+      data: ordered.map((c) => this.annotateComment(c, sellerId, answeredSet)),
+      total,
       page,
       limit,
-      totalPages: Math.ceil(
-        (options?.status && options.status !== "all" ? enriched.length : total) / limit
-      ),
+      totalPages,
     };
+  }
+
+  /**
+   * Given top-level comment IDs, return the set of those that have at least
+   * one reply from `sellerId`. Empty input → empty set.
+   */
+  private async fetchAnsweredSet(
+    topLevelIds: string[],
+    sellerId: string
+  ): Promise<Set<string>> {
+    if (topLevelIds.length === 0) return new Set();
+    const replies = await this.db.getClient().comment.findMany({
+      where: {
+        parentCommentId: { in: topLevelIds },
+        userId: sellerId,
+      },
+      select: { parentCommentId: true },
+      distinct: ["parentCommentId"],
+    });
+    return new Set(
+      replies.map((r) => r.parentCommentId).filter((x): x is string => !!x)
+    );
+  }
+
+  /**
+   * Compute the FE-facing flags for one comment row. Generic so the rest of
+   * the fields (content, lesson, createdAt …) pass through unchanged.
+   * `isAnswered` is null for non-top-level rows and for the seller's own
+   * top-level comments.
+   */
+  private annotateComment<
+    T extends { id: string; userId: string; parentCommentId: string | null }
+  >(c: T, sellerId: string, answeredSet: Set<string>) {
+    const isOwn = c.userId === sellerId;
+    const isReply = !!c.parentCommentId;
+    const isAnswered =
+      c.parentCommentId || isOwn ? null : answeredSet.has(c.id);
+    return { ...c, isOwn, isReply, isAnswered };
   }
 
   /**

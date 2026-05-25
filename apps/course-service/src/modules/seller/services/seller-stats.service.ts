@@ -143,21 +143,32 @@ export class SellerStatsService {
   ) {
     const result = await this.repository.getComments(sellerId, page, limit, search, options);
 
+    // Enrich with author identity (name / email / avatar) — same pattern as
+    // getLearners. Batched in a single identity-service round-trip.
+    const userIds = [...new Set(result.data.map((c) => c.userId))];
+    const usersMap = await identityClient.getUsersBasicInfo(userIds);
+
     return {
-      comments: result.data.map((comment) => ({
-        id: comment.id,
-        content: comment.content,
-        userId: comment.userId,
-        lessonId: comment.lesson.id,
-        lessonTitle: comment.lesson.title,
-        courseId: comment.lesson.course.id,
-        courseTitle: comment.lesson.course.title,
-        createdAt: comment.createdAt,
-        parentCommentId: (comment as any).parentCommentId ?? null,
-        isOwn: (comment as any).isOwn ?? false,
-        isReply: (comment as any).isReply ?? false,
-        isAnswered: (comment as any).isAnswered ?? null,
-      })),
+      comments: result.data.map((comment) => {
+        const user = usersMap.get(comment.userId);
+        return {
+          id: comment.id,
+          content: comment.content,
+          userId: comment.userId,
+          userName: user?.fullName || "Người dùng",
+          userEmail: user?.email || "",
+          userProfilePicture: user?.profilePicture || null,
+          lessonId: comment.lesson.id,
+          lessonTitle: comment.lesson.title,
+          courseId: comment.lesson.course.id,
+          courseTitle: comment.lesson.course.title,
+          createdAt: comment.createdAt,
+          parentCommentId: (comment as any).parentCommentId ?? null,
+          isOwn: (comment as any).isOwn ?? false,
+          isReply: (comment as any).isReply ?? false,
+          isAnswered: (comment as any).isAnswered ?? null,
+        };
+      }),
       pagination: {
         total: result.total,
         page: result.page,
