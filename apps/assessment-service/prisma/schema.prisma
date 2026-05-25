@@ -143,6 +143,8 @@ model UserAnswer {
   answerText          String?         @map("answer_text")
   selectedOptionIndex Int?            @map("selected_option_index")
   isCorrect           Boolean?        @map("is_correct")
+  questionSnapshot    Json?           @map("question_snapshot")
+  scoreAtSubmit       Float?          @map("score_at_submit")
   practiceSession     PracticeSession @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
   question            Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
