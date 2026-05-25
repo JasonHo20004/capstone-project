@@ -17,6 +17,8 @@ export enum EventNames {
   COURSE_PUBLISHED = "course.published",
   COURSE_UPDATED = "course.updated",
   COURSE_DELETED = "course.deleted",
+  COURSE_SUBMITTED = "course.submitted",
+  COURSE_REJECTED = "course.rejected",
   LESSON_COMPLETED = "course.lesson.completed",
   COURSE_ACCESS_GRANTED = "course.access.granted",
 
@@ -42,6 +44,9 @@ export enum EventNames {
   ORDER_CREATED = "payment.order.created",
   ORDER_PAID = "payment.order.paid",
   TOPUP_COMPLETED = "payment.topup.completed",
+  WITHDRAWAL_REQUESTED = "payment.withdrawal.requested",
+  WITHDRAWAL_APPROVED = "payment.withdrawal.approved",
+  WITHDRAWAL_REJECTED = "payment.withdrawal.rejected",
 
   // Notification Events
   NOTIFICATION_CREATED = "notification.created",
@@ -87,6 +92,47 @@ export interface CoursePublishedEvent {
   sellerId: string;
   title: string;
   price: number;
+}
+
+export interface CourseSubmittedEvent {
+  courseId: string;
+  sellerId: string;
+  title: string;
+  submittedAt: Date;
+}
+
+export interface CourseRejectedEvent {
+  courseId: string;
+  sellerId: string;
+  title: string;
+  reason: string;
+  rejectedAt: Date;
+  reviewerId: string;
+}
+
+export interface WithdrawalRequestedEvent {
+  requestId: string;
+  sellerId: string;
+  amount: number;
+  bankName: string;
+  createdAt: Date;
+}
+
+export interface WithdrawalApprovedEvent {
+  requestId: string;
+  sellerId: string;
+  amount: number;
+  bankName: string;
+  processedAt: Date;
+  proofImageUrl?: string;
+}
+
+export interface WithdrawalRejectedEvent {
+  requestId: string;
+  sellerId: string;
+  amount: number;
+  reason: string;
+  processedAt: Date;
 }
 
 export interface CourseAccessGrantedEvent {

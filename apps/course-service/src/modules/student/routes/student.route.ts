@@ -7,6 +7,11 @@ import { authenticateToken, asyncHandler } from "@capstone/common";
 import { databaseService } from "../../../services/database.service.js";
 import { identityClient } from "../../../clients/identity.client.js";
 import { notificationClient } from "../../../clients/notification.client.js";
+import { reportLimiter } from "../../../middleware/rateLimiter.middleware.js";
+
+// Thresholds kept in sync with the legacy /courses/:id endpoints.
+const COMMENT_AUTO_HIDE_THRESHOLD = 3;
+const COMMENT_EDIT_HISTORY_MAX = 10;
 
 const router: Router = Router();
 
@@ -171,14 +176,17 @@ router.get(
     const limit = parseInt(req.query.limit as string) || 20;
     const prisma = databaseService.getClient();
 
+    // Students never see auto-hidden comments — keeps abusive content out of
+    // the public thread until admin resolves the reports.
+    const where = { lessonId, hiddenAt: null };
     const [comments, total] = await Promise.all([
       prisma.comment.findMany({
-        where: { lessonId },
+        where,
         orderBy: { createdAt: "asc" },
         skip: (page - 1) * limit,
         take: limit,
       }),
-      prisma.comment.count({ where: { lessonId } }),
+      prisma.comment.count({ where }),
     ]);
 
     // Enrich with user info
@@ -356,6 +364,138 @@ router.get(
         totalLessons,
         completedLessons: completedCount,
       },
+    });
+  })
+);
+
+// PATCH /student/courses/:courseId/lessons/:lessonId/comments/:commentId
+// Author-only edit — even the course seller cannot edit student comments
+// (that would let them gaslight learners).
+router.patch(
+  "/courses/:courseId/lessons/:lessonId/comments/:commentId",
+  authenticateToken,
+  asyncHandler(async (req: Request, res: Response) => {
+    const commentId = req.params.commentId as string;
+    const userId = req.user!.userId as string;
+    const { content } = req.body as { content?: string };
+
+    const trimmed = typeof content === "string" ? content.trim() : "";
+    if (trimmed.length < 1 || trimmed.length > 2000) {
+      res.status(400).json({ success: false, message: "Nội dung từ 1 đến 2000 ký tự" });
+      return;
+    }
+
+    const prisma = databaseService.getClient();
+    const existing = await prisma.comment.findUnique({ where: { id: commentId } });
+    if (!existing) {
+      res.status(404).json({ success: false, message: "Bình luận không tồn tại" });
+      return;
+    }
+    if (existing.userId !== userId) {
+      res.status(403).json({ success: false, message: "Chỉ tác giả mới được sửa bình luận" });
+      return;
+    }
+    if (existing.content === trimmed) {
+      res.json({ success: true, data: existing, unchanged: true });
+      return;
+    }
+
+    const prevHistory: Array<{ content: string; editedAt: string }> =
+      Array.isArray((existing as any).editHistory) ? ((existing as any).editHistory as any) : [];
+    const prevTimestamp = ((existing as any).editedAt ?? existing.createdAt) as Date;
+    prevHistory.push({
+      content: existing.content,
+      editedAt: prevTimestamp instanceof Date ? prevTimestamp.toISOString() : new Date(prevTimestamp).toISOString(),
+    });
+    const trimmedHistory = prevHistory.slice(-COMMENT_EDIT_HISTORY_MAX);
+
+    const updated = await prisma.comment.update({
+      where: { id: commentId },
+      data: {
+        content: trimmed,
+        editedAt: new Date(),
+        editHistory: trimmedHistory as any,
+      },
+    });
+
+    res.json({ success: true, data: updated });
+  })
+);
+
+// POST /student/courses/:courseId/lessons/:lessonId/comments/:commentId/report
+router.post(
+  "/courses/:courseId/lessons/:lessonId/comments/:commentId/report",
+  authenticateToken,
+  reportLimiter,
+  asyncHandler(async (req: Request, res: Response) => {
+    const commentId = req.params.commentId as string;
+    const reporterId = req.user!.userId as string;
+    const { reasonType, note } = req.body as { reasonType?: string; note?: string };
+
+    const ALLOWED = new Set(["SPAM", "ABUSE", "SCAM", "MISINFORMATION", "OFF_TOPIC", "OTHER"]);
+    if (!reasonType || !ALLOWED.has(reasonType)) {
+      res.status(400).json({ success: false, message: "Chọn lý do báo cáo hợp lệ" });
+      return;
+    }
+
+    const prisma = databaseService.getClient();
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+      select: { id: true, userId: true, lessonId: true },
+    });
+    if (!comment) {
+      res.status(404).json({ success: false, message: "Bình luận không tồn tại" });
+      return;
+    }
+    if (comment.userId === reporterId) {
+      res.status(400).json({ success: false, message: "Không thể tự báo cáo bình luận của mình" });
+      return;
+    }
+
+    try {
+      await (prisma as any).commentReport.create({
+        data: {
+          commentId,
+          reporterId,
+          reasonType,
+          note: typeof note === "string" && note.trim() ? note.trim().slice(0, 500) : null,
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === "P2002") {
+        res.status(409).json({ success: false, message: "Bạn đã báo cáo bình luận này rồi" });
+        return;
+      }
+      throw err;
+    }
+
+    const pendingCount = await (prisma as any).commentReport.count({
+      where: { commentId, status: "PENDING" },
+    });
+    let autoHidden = false;
+    if (pendingCount >= COMMENT_AUTO_HIDE_THRESHOLD) {
+      const before = await prisma.comment.findUnique({
+        where: { id: commentId },
+        select: { hiddenAt: true } as any,
+      });
+      if (!(before as any)?.hiddenAt) {
+        await prisma.comment.update({
+          where: { id: commentId },
+          data: {
+            hiddenAt: new Date(),
+            hiddenReason: `Tự động ẩn sau ${pendingCount} báo cáo từ người dùng`,
+          } as any,
+        });
+        autoHidden = true;
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      message: autoHidden
+        ? "Đã ghi nhận báo cáo. Bình luận đã được ẩn để chờ admin xử lý."
+        : "Đã ghi nhận báo cáo. Cám ơn bạn đã giúp giữ cộng đồng lành mạnh.",
+      data: { autoHidden, totalReports: pendingCount },
     });
   })
 );

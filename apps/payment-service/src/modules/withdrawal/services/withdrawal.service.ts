@@ -4,6 +4,13 @@
 
 import { databaseService } from "../../../services/database.service.js";
 import { getSellerStatus } from "../../../clients/identity.client.js";
+import {
+  EventBusService,
+  EventNames,
+  type WithdrawalRequestedEvent,
+  type WithdrawalApprovedEvent,
+  type WithdrawalRejectedEvent,
+} from "@capstone/common";
 import type {
   TransactionType,
   TransactionStatus,
@@ -22,10 +29,23 @@ const MAX_WITHDRAWAL_AMOUNT = Number(process.env.MAX_WITHDRAWAL_AMOUNT ?? 50_000
 
 export class WithdrawalService {
   private prisma = databaseService.getClient();
+  private eventBus = EventBusService.getInstance("payment-service");
+
+  /** Fire-and-forget — never block the caller on a broker hiccup. */
+  private emit<T>(name: EventNames, payload: T) {
+    this.eventBus.publish(name, payload).catch((err) =>
+      console.error(`[WithdrawalService] Failed to publish ${name}:`, err)
+    );
+  }
 
   // ── [SELLER] Request a withdrawal ─────────────────────────────────────────
 
-  async requestWithdrawal(sellerId: string, amount: number, bankDetails: BankDetails) {
+  async requestWithdrawal(
+    sellerId: string,
+    amount: number,
+    bankDetails: BankDetails,
+    options?: { retriedFromId?: string }
+  ) {
     if (amount < MIN_WITHDRAWAL_AMOUNT) {
       throw new Error(
         `Minimum withdrawal amount is ${MIN_WITHDRAWAL_AMOUNT.toLocaleString("vi-VN")}đ`
@@ -72,7 +92,8 @@ export class WithdrawalService {
         data: { allowance: { decrement: amount } },
       });
 
-      // 3. Create withdrawal request
+      // 3. Create withdrawal request — carry forward the source request id on
+      // retry so the UI timeline can link "rút lại sau khi bị từ chối".
       const request = await tx.withdrawalRequest.create({
         data: {
           sellerId,
@@ -81,6 +102,7 @@ export class WithdrawalService {
           accountName: bankDetails.accountName,
           accountNumber: bankDetails.accountNumber,
           status: "PENDING" as WithdrawalRequestStatus,
+          retriedFromId: options?.retriedFromId ?? null,
         },
       });
 
@@ -96,6 +118,101 @@ export class WithdrawalService {
       });
 
       return request;
+    }).then((request) => {
+      const payload: WithdrawalRequestedEvent = {
+        requestId: request.id,
+        sellerId,
+        amount,
+        bankName: bankDetails.bankName,
+        createdAt: request.createdAt,
+      };
+      this.emit(EventNames.WITHDRAWAL_REQUESTED, payload);
+      return request;
+    });
+  }
+
+  // ── [SELLER] Cancel a PENDING withdrawal ──────────────────────────────────
+
+  /**
+   * Seller-initiated cancel. Only allowed when status is still PENDING — once
+   * admin has acted, the seller must contact support. Returns funds to
+   * allowance + records the cancellation timestamp + flips the WR transaction
+   * to FAILED (no DEPOSIT entry — symmetric with the cancel, not a refund).
+   */
+  async cancelWithdrawal(sellerId: string, requestId: string) {
+    return await databaseService.transaction(async (tx) => {
+      const request = await tx.withdrawalRequest.findUnique({ where: { id: requestId } });
+      if (!request) throw new Error("Withdrawal request not found");
+      if (request.sellerId !== sellerId) throw new Error("Not authorized");
+      if (request.status !== "PENDING") {
+        throw new Error(`Cannot cancel a request that is already ${request.status}`);
+      }
+
+      const updated = await tx.withdrawalRequest.update({
+        where: { id: requestId },
+        data: {
+          status: "CANCELLED" as WithdrawalRequestStatus,
+          cancelledAt: new Date(),
+        },
+      });
+
+      const wallet = await tx.wallet.findUnique({ where: { userId: sellerId } });
+      if (!wallet) throw new Error("Seller wallet not found");
+
+      // Return funds to allowance
+      await tx.wallet.update({
+        where: { id: wallet.id },
+        data: { allowance: { increment: request.amount } },
+      });
+
+      // Mark the PENDING transaction FAILED (matches admin-reject semantics)
+      await tx.transaction.updateMany({
+        where: {
+          walletId: wallet.id,
+          transactionType: "WITHDRAW" as TransactionType,
+          status: "PENDING",
+          description: { contains: `[WR:${requestId}]` },
+        },
+        data: {
+          status: "FAILED" as TransactionStatus,
+          description: `[WR:${requestId}] Withdrawal cancelled by seller`,
+        },
+      });
+
+      return updated;
+    });
+  }
+
+  // ── [SELLER] Retry a REJECTED withdrawal ──────────────────────────────────
+
+  /**
+   * Convenience wrapper: re-submit a previously rejected request reusing its
+   * bank details (with optional overrides). Linked back via `retriedFromId`
+   * so the timeline can show "rút lại sau khi bị từ chối".
+   */
+  async retryWithdrawal(
+    sellerId: string,
+    sourceRequestId: string,
+    overrides?: Partial<BankDetails & { amount: number }>
+  ) {
+    const source = await this.prisma.withdrawalRequest.findUnique({
+      where: { id: sourceRequestId },
+    });
+    if (!source) throw new Error("Original withdrawal request not found");
+    if (source.sellerId !== sellerId) throw new Error("Not authorized");
+    if (source.status !== "REJECTED") {
+      throw new Error("Only REJECTED withdrawals can be retried");
+    }
+
+    const amount = overrides?.amount ?? Number(source.amount);
+    const bankDetails: BankDetails = {
+      bankName: overrides?.bankName ?? source.bankName,
+      accountName: overrides?.accountName ?? source.accountName,
+      accountNumber: overrides?.accountNumber ?? source.accountNumber,
+    };
+
+    return await this.requestWithdrawal(sellerId, amount, bankDetails, {
+      retriedFromId: sourceRequestId,
     });
   }
 
@@ -137,6 +254,17 @@ export class WithdrawalService {
       });
 
       return updatedReq;
+    }).then((req) => {
+      const payload: WithdrawalApprovedEvent = {
+        requestId: req.id,
+        sellerId: req.sellerId,
+        amount: Number(req.amount),
+        bankName: req.bankName,
+        processedAt: req.processedAt!,
+        proofImageUrl: req.proofImageUrl ?? undefined,
+      };
+      this.emit(EventNames.WITHDRAWAL_APPROVED, payload);
+      return req;
     });
   }
 
@@ -198,6 +326,16 @@ export class WithdrawalService {
       });
 
       return updatedReq;
+    }).then((req) => {
+      const payload: WithdrawalRejectedEvent = {
+        requestId: req.id,
+        sellerId: req.sellerId,
+        amount: Number(req.amount),
+        reason: req.adminNote ?? "",
+        processedAt: req.processedAt!,
+      };
+      this.emit(EventNames.WITHDRAWAL_REJECTED, payload);
+      return req;
     });
   }
 

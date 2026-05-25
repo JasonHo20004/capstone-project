@@ -12,6 +12,7 @@ import sellerStatsRouter from "./modules/seller/routes/seller-stats.route.js";
 import withdrawalRouter from "./modules/seller/routes/withdrawal.route.js";
 import studentRouter from "./modules/student/routes/student.route.js";
 import adminCourseRouter from "./modules/admin/routes/admin-course.route.js";
+import adminModerationRouter from "./modules/admin/routes/admin-moderation.route.js";
 
 const app: express.Express = express();
 
@@ -45,6 +46,7 @@ app.use("/api/seller", sellerStatsRouter);
 app.use("/api/seller/withdrawal", withdrawalRouter);
 app.use("/api/student", studentRouter);
 app.use("/api/admin", adminCourseRouter);
+app.use("/api/admin/moderation", adminModerationRouter);
 
 // Error handling
 app.use(errorHandler);

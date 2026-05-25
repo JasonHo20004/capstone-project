@@ -103,4 +103,25 @@ export class CommissionController {
     const result = await this.commissionService.getSellerFinancialSummary(sellerId as string);
     res.json({ success: true, data: result });
   });
+
+  // Internal: monthly-aggregated transactions for the seller fees page.
+  // Returns at most 12 rows (one per month) for the requested calendar year.
+  getSellerMonthlyTransactions = asyncHandler(async (req: Request, res: Response) => {
+    const { sellerId } = req.params;
+    const year = parseInt(req.query.year as string) || new Date().getFullYear();
+    const data = await this.commissionService.getSellerMonthlyTransactions(sellerId as string, year);
+    res.json({ success: true, data });
+  });
+
+  // Internal: per-order detail for a specific (year, month). Powers the
+  // drill-down modal so seller can see which orders produced revenue.
+  getSellerMonthlyTransactionDetail = asyncHandler(async (req: Request, res: Response) => {
+    const { sellerId, year, month } = req.params;
+    const data = await this.commissionService.getSellerMonthlyTransactionDetail(
+      sellerId as string,
+      parseInt(year as string),
+      parseInt(month as string)
+    );
+    res.json({ success: true, data });
+  });
 }

@@ -261,6 +261,108 @@ export class CommissionService {
     };
   }
 
+  // ── Internal: monthly aggregate for the seller fees page ────────────────
+  //
+  // Returns 12 month entries (rows for empty months too) for the requested
+  // calendar year. Only counts non-REFUNDED earnings so the numbers match
+  // what the seller is actually owed.
+  async getSellerMonthlyTransactions(sellerId: string, year: number) {
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year + 1, 0, 1);
+    const earnings = await this.prisma.sellerEarning.findMany({
+      where: {
+        sellerId,
+        status: { not: "REFUNDED" as EarningStatus },
+        createdAt: { gte: yearStart, lt: yearEnd },
+      },
+      select: {
+        createdAt: true,
+        totalAmount: true,
+        gatewayFee: true,
+        commissionAmount: true,
+        sellerAmount: true,
+      },
+    });
+
+    const buckets = new Map<number, {
+      grossAmount: number;
+      gatewayFee: number;
+      platformFee: number;
+      sellerAmount: number;
+      salesCount: number;
+    }>();
+    for (const e of earnings) {
+      const month = e.createdAt.getMonth() + 1;
+      const b = buckets.get(month) ?? {
+        grossAmount: 0,
+        gatewayFee: 0,
+        platformFee: 0,
+        sellerAmount: 0,
+        salesCount: 0,
+      };
+      b.grossAmount += Number(e.totalAmount);
+      b.gatewayFee += Number(e.gatewayFee);
+      b.platformFee += Number(e.commissionAmount);
+      b.sellerAmount += Number(e.sellerAmount);
+      b.salesCount += 1;
+      buckets.set(month, b);
+    }
+
+    return Array.from({ length: 12 }, (_, i) => {
+      const month = i + 1;
+      const b = buckets.get(month) ?? {
+        grossAmount: 0,
+        gatewayFee: 0,
+        platformFee: 0,
+        sellerAmount: 0,
+        salesCount: 0,
+      };
+      return { month, year, ...b };
+    });
+  }
+
+  // Internal: per-order detail for a single (year, month) bucket. Returned
+  // as a flat list ordered newest-first. Includes courseId so the caller can
+  // resolve course titles client-side.
+  async getSellerMonthlyTransactionDetail(sellerId: string, year: number, month: number) {
+    if (month < 1 || month > 12) return [];
+    const monthStart = new Date(year, month - 1, 1);
+    const monthEnd = new Date(year, month, 1);
+
+    const earnings = await this.prisma.sellerEarning.findMany({
+      where: {
+        sellerId,
+        createdAt: { gte: monthStart, lt: monthEnd },
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        createdAt: true,
+        courseId: true,
+        orderId: true,
+        totalAmount: true,
+        gatewayFee: true,
+        commissionAmount: true,
+        sellerAmount: true,
+        status: true,
+        availableAt: true,
+      },
+    });
+
+    return earnings.map((e) => ({
+      id: e.id,
+      createdAt: e.createdAt,
+      courseId: e.courseId,
+      orderId: e.orderId,
+      totalAmount: Number(e.totalAmount),
+      gatewayFee: Number(e.gatewayFee),
+      commissionAmount: Number(e.commissionAmount),
+      sellerAmount: Number(e.sellerAmount),
+      status: e.status,
+      availableAt: e.availableAt,
+    }));
+  }
+
   // ── Refund a course (called when admin sets course REFUSE / INACTIVE) ──
   //
   // For every SellerEarning attached to the course:

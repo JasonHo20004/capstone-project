@@ -59,6 +59,11 @@ export class CourseService {
       ratingCount: course.ratingCount,
       lessonCount: course.lessons.length,
       createdAt: course.createdAt,
+      submittedAt: (course as any).submittedAt ?? null,
+      approvedAt: (course as any).approvedAt ?? null,
+      rejectedAt: (course as any).rejectedAt ?? null,
+      rejectionReason: (course as any).rejectionReason ?? null,
+      reviewedById: (course as any).reviewedById ?? null,
     };
   }
 
@@ -102,21 +107,20 @@ export class CourseService {
       throw new Error("Not authorized to update this course");
     }
 
-    // Validate status transitions to prevent invalid state changes by seller.
     // Allowed seller transitions:
-    //   DRAFT     → PENDING (send for review) or stay DRAFT
+    //   DRAFT     → PENDING (send for review)
     //   PENDING   → DRAFT (cancel review)
     //   ACTIVE    → INACTIVE (pause)
     //   INACTIVE  → ACTIVE (re-enable, only if previously approved)
-    //   REFUSE    → DRAFT (revise after rejection)
-    // The publish() endpoint is the only way to reach ACTIVE for the first time.
+    //   REFUSE    → DRAFT or PENDING (revise + optionally resubmit in one step)
+    // Admin uses the admin route for DRAFT/PENDING → ACTIVE/REFUSE.
     if (input.status && input.status !== existing.status) {
       const ALLOWED: Record<string, string[]> = {
         DRAFT: ["PENDING"],
         PENDING: ["DRAFT"],
         ACTIVE: ["INACTIVE"],
         INACTIVE: ["ACTIVE"],
-        REFUSE: ["DRAFT"],
+        REFUSE: ["DRAFT", "PENDING"],
       };
       const allowed = ALLOWED[existing.status] ?? [];
       if (!allowed.includes(input.status)) {
@@ -162,41 +166,149 @@ export class CourseService {
     return result;
   }
 
+  /**
+   * Submit a course for admin review. Transitions DRAFT or REFUSE → PENDING,
+   * stamps submittedAt, records a CourseReviewHistory row, and emits
+   * COURSE_SUBMITTED so admins can be notified. Idempotent enough — calling
+   * twice from PENDING is rejected by the transition check inside update().
+   */
   async publish(id: string, sellerId: string): Promise<CourseResponse> {
     await this.assertActiveSeller(sellerId);
 
-    // Pre-publish requirements: at least one lesson + a thumbnail.
     const existing = await this.courseRepository.findById(id);
     if (!existing) {
       throw Object.assign(new Error("Course not found"), { statusCode: 404 });
     }
     if (existing.courseSellerId !== sellerId) {
-      throw Object.assign(new Error("Not authorized to publish this course"), { statusCode: 403 });
+      throw Object.assign(new Error("Not authorized to submit this course"), { statusCode: 403 });
     }
-    if (!existing.thumbnailUrl) {
+    if (existing.status === "PENDING") {
       throw Object.assign(
-        new Error("Course must have a thumbnail before publishing"),
+        new Error("Khóa học đã được gửi và đang chờ duyệt"),
         { statusCode: 400 }
       );
     }
-    if (!existing.lessons || existing.lessons.length === 0) {
+    if (existing.status === "ACTIVE") {
       throw Object.assign(
-        new Error("Course must have at least one lesson before publishing"),
+        new Error("Khóa học đã được duyệt, không cần gửi lại"),
         { statusCode: 400 }
       );
     }
 
-    const course = await this.update(id, sellerId, { status: "ACTIVE" });
+    this.assertSubmittable(existing);
 
-    // Publish event for other services
-    await this.eventBus.publish(EventNames.COURSE_PUBLISHED, {
-      courseId: course.id,
-      sellerId: course.courseSellerId,
-      title: course.title,
-      price: course.price,
+    const fromStatus = existing.status;
+    const now = new Date();
+    const prisma = databaseService.getClient();
+
+    // Single transaction: flip status to PENDING, record submission timestamp,
+    // and append the audit-log row so a crash between can't desync them.
+    await prisma.$transaction([
+      prisma.course.update({
+        where: { id },
+        data: {
+          status: "PENDING",
+          submittedAt: now,
+          // Clear previous rejection metadata so the seller-facing UI doesn't
+          // keep showing a stale "đã bị từ chối" banner after resubmission.
+          rejectionReason: null,
+          rejectedAt: null,
+        },
+      }),
+      prisma.courseReviewHistory.create({
+        data: {
+          courseId: id,
+          fromStatus: fromStatus as CourseStatus,
+          toStatus: "PENDING" as CourseStatus,
+          actorId: sellerId,
+          actorRole: "seller",
+        },
+      }),
+    ]);
+
+    // Refetch through the standard projection so the response shape stays
+    // consistent with getById.
+    const refreshed = await this.getById(id);
+    if (!refreshed) {
+      throw new Error("Course disappeared during submit");
+    }
+
+    await this.eventBus.publish(EventNames.COURSE_SUBMITTED, {
+      courseId: refreshed.id,
+      sellerId: refreshed.courseSellerId,
+      title: refreshed.title,
+      submittedAt: now,
     });
 
-    return course;
+    return refreshed;
+  }
+
+  /**
+   * Server-side gate for the seller's "Gửi duyệt" action. Mirrors the
+   * frontend checklist so a malicious or out-of-sync client can't submit
+   * an incomplete course. Throws a single 400 with a Vietnamese message
+   * listing every missing requirement so the FE can surface it in one toast.
+   */
+  private assertSubmittable(course: {
+    title: string;
+    description: string | null;
+    price: any;
+    courseLevel: string | null;
+    thumbnailUrl: string | null;
+    lessons: { id: string; durationInSeconds: number | null }[];
+  }): void {
+    const errors: string[] = [];
+
+    if (!course.thumbnailUrl) errors.push("thiếu ảnh thumbnail");
+    if (!course.description || course.description.trim().length < 20) {
+      errors.push("mô tả khóa học cần ít nhất 20 ký tự");
+    }
+    if (course.price === null || course.price === undefined || Number(course.price) < 0) {
+      errors.push("chưa đặt giá hợp lệ");
+    }
+    if (!course.courseLevel) errors.push("chưa chọn trình độ");
+    if (!course.lessons || course.lessons.length === 0) {
+      errors.push("cần ít nhất 1 bài học");
+    } else if (course.lessons.length < 3) {
+      errors.push("cần ít nhất 3 bài học");
+    }
+    // Block submissions where every lesson is empty (no video AND no quiz).
+    const hasNonEmptyLesson = course.lessons.some(
+      (l) => (l.durationInSeconds ?? 0) > 0 || (l as { testId?: string | null }).testId
+    );
+    if (course.lessons.length > 0 && !hasNonEmptyLesson) {
+      errors.push("ít nhất 1 bài học cần có nội dung (video hoặc bài kiểm tra)");
+    }
+
+    if (errors.length > 0) {
+      throw Object.assign(
+        new Error(`Chưa đủ điều kiện gửi duyệt: ${errors.join("; ")}`),
+        { statusCode: 400, missing: errors }
+      );
+    }
+  }
+
+  /**
+   * Returns the full review-workflow history of a course (submission, approval,
+   * rejection events) in chronological order. Seller-facing — only the course
+   * owner can read this.
+   */
+  async getReviewHistory(courseId: string, requesterId: string) {
+    const prisma = databaseService.getClient();
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      select: { courseSellerId: true },
+    });
+    if (!course) {
+      throw Object.assign(new Error("Course not found"), { statusCode: 404 });
+    }
+    if (course.courseSellerId !== requesterId) {
+      throw Object.assign(new Error("Not authorized"), { statusCode: 403 });
+    }
+    return await prisma.courseReviewHistory.findMany({
+      where: { courseId },
+      orderBy: { createdAt: "asc" },
+    });
   }
 
   async delete(id: string, sellerId: string): Promise<void> {

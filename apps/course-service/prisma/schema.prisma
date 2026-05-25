@@ -27,16 +27,45 @@ model Course {
   category       String?        @db.VarChar(100)
   createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   thumbnailUrl   String?        @map("thumbnail_url")
-  
+
+  // Review workflow metadata — latest timestamps, overwritten on re-submission.
+  // Full audit trail lives in CourseReviewHistory.
+  submittedAt      DateTime? @map("submitted_at") @db.Timestamptz(6)
+  approvedAt       DateTime? @map("approved_at") @db.Timestamptz(6)
+  rejectedAt       DateTime? @map("rejected_at") @db.Timestamptz(6)
+  rejectionReason  String?   @map("rejection_reason")
+  reviewedById     String?   @map("reviewed_by_id") @db.Uuid
+
   modules        Module[]
   lessons        Lesson[]
   ratings        Rating[]
   reports        Report[]
   userActivities UserActivity[]
+  reviewHistory  CourseReviewHistory[]
 
   @@index([courseSellerId])
   @@index([status])
   @@map("courses")
+}
+
+/// Append-only audit trail of every status change in the review workflow:
+/// seller submissions, admin approvals, admin rejections.
+model CourseReviewHistory {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  courseId     String   @map("course_id") @db.Uuid
+  fromStatus   CourseStatus @map("from_status")
+  toStatus     CourseStatus @map("to_status")
+  actorId      String   @map("actor_id") @db.Uuid
+  /// "seller" | "admin" — denormalised so the seller-facing timeline can
+  /// label entries without an extra identity-service lookup.
+  actorRole    String   @map("actor_role") @db.VarChar(20)
+  reason       String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId, createdAt])
+  @@map("course_review_history")
 }
 
 model Module {
@@ -97,9 +126,66 @@ model Comment {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   parentCommentId String?  @map("parent_comment_id") @db.Uuid
   lessonId        String   @map("lesson_id") @db.Uuid
-  lesson          Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
+  // Edit metadata — only set after first edit. editHistory stores prior
+  // versions (chronological) so seller can't gaslight students by silently
+  // rewriting their replies. Hard-capped to 10 entries in the route to
+  // bound row size.
+  editedAt        DateTime? @map("edited_at") @db.Timestamptz(6)
+  editHistory     Json?     @map("edit_history")
+
+  // Moderation — when >= AUTO_HIDE_THRESHOLD reports accumulate, the route
+  // stamps hiddenAt and excludes the comment from public listings until an
+  // admin resolves the reports.
+  hiddenAt        DateTime? @map("hidden_at") @db.Timestamptz(6)
+  hiddenReason    String?   @map("hidden_reason")
+
+  lesson          Lesson           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  reports         CommentReport[]
+
+  @@index([hiddenAt])
   @@map("comments")
+}
+
+/// User-submitted reports of inappropriate comments. Used by the student
+/// "🚩 Báo cáo" UI and the admin moderation queue. A unique (commentId,
+/// reporterId) ensures one user can't pile multiple reports onto the same
+/// comment to game the auto-hide threshold.
+model CommentReport {
+  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  commentId   String              @map("comment_id") @db.Uuid
+  reporterId  String              @map("reporter_id") @db.Uuid
+  reasonType  CommentReportReason @map("reason_type")
+  note        String?
+  status      CommentReportStatus @default(PENDING)
+  /// Admin who resolved this report (null until resolution).
+  resolvedById String?            @map("resolved_by_id") @db.Uuid
+  resolvedAt  DateTime?           @map("resolved_at") @db.Timestamptz(6)
+  /// Free-text resolution note (e.g. "Bị bỏ qua: không vi phạm").
+  resolutionNote String?          @map("resolution_note")
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  comment     Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, reporterId])
+  @@index([status, createdAt])
+  @@map("comment_reports")
+}
+
+enum CommentReportReason {
+  SPAM
+  ABUSE
+  SCAM
+  MISINFORMATION
+  OFF_TOPIC
+  OTHER
+}
+
+enum CommentReportStatus {
+  PENDING
+  RESOLVED_REMOVED
+  RESOLVED_KEPT
+  DISMISSED
 }
 
 model Rating {

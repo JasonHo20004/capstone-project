@@ -26,5 +26,10 @@ router.post("/admin/release-earnings", authenticateToken, requireAdmin, controll
 // Internal service-to-service endpoints
 router.post("/internal/refund-course/:courseId", controller.refundCourse);
 router.get("/internal/seller/:sellerId/financial-summary", controller.getSellerFinancialSummary);
+router.get("/internal/seller/:sellerId/transactions", controller.getSellerMonthlyTransactions);
+router.get(
+  "/internal/seller/:sellerId/transactions/:year/:month/detail",
+  controller.getSellerMonthlyTransactionDetail
+);
 
 export default router;

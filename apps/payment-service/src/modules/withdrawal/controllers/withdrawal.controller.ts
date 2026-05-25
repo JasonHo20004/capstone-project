@@ -39,9 +39,40 @@ export class WithdrawalController {
     const sellerId = req.user!.userId;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
-    
+
     const result = await this.withdrawalService.getSellerWithdrawals(sellerId, page, limit);
     res.json({ success: true, ...result });
+  });
+
+  cancelWithdrawal = asyncHandler(async (req: Request, res: Response) => {
+    const sellerId = req.user!.userId;
+    const id = req.params.id as string;
+    try {
+      const result = await this.withdrawalService.cancelWithdrawal(sellerId, id);
+      res.json({ success: true, data: result, message: "Đã huỷ lệnh rút và hoàn tiền về số dư khả dụng" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Không thể huỷ lệnh rút";
+      res.status(400).json({ success: false, message });
+    }
+  });
+
+  retryWithdrawal = asyncHandler(async (req: Request, res: Response) => {
+    const sellerId = req.user!.userId;
+    const sourceId = req.params.id as string;
+    const { amount, bankName, accountName, accountNumber } = req.body ?? {};
+    const overrides: { amount?: number; bankName?: string; accountName?: string; accountNumber?: string } = {};
+    if (amount !== undefined) overrides.amount = parseFloat(amount);
+    if (typeof bankName === "string") overrides.bankName = bankName;
+    if (typeof accountName === "string") overrides.accountName = accountName;
+    if (typeof accountNumber === "string") overrides.accountNumber = accountNumber;
+
+    try {
+      const result = await this.withdrawalService.retryWithdrawal(sellerId, sourceId, overrides);
+      res.status(201).json({ success: true, data: result, message: "Đã gửi lại lệnh rút" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Không thể gửi lại lệnh rút";
+      res.status(400).json({ success: false, message });
+    }
   });
 
   // ── [ADMIN] Endpoints ───────────────────────────────────────────────────

@@ -57,4 +57,9 @@ export interface CourseResponse {
   ratingCount: number | null;
   lessonCount: number;
   createdAt: Date;
+  submittedAt?: Date | null;
+  approvedAt?: Date | null;
+  rejectedAt?: Date | null;
+  rejectionReason?: string | null;
+  reviewedById?: string | null;
 }

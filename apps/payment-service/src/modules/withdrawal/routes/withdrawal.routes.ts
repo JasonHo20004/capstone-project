@@ -12,6 +12,8 @@ const controller = new WithdrawalController();
 // ── Seller endpoints ────────────────────────────────────────────────────
 router.post("/seller/request", authenticateToken, controller.requestWithdrawal);
 router.get("/seller/history", authenticateToken, controller.getSellerWithdrawals);
+router.post("/seller/requests/:id/cancel", authenticateToken, controller.cancelWithdrawal);
+router.post("/seller/requests/:id/retry", authenticateToken, controller.retryWithdrawal);
 
 // ── Admin endpoints ─────────────────────────────────────────────────────
 router.get("/admin/summary", authenticateToken, requireAdmin, controller.getAdminSummary);

@@ -1,6 +1,7 @@
 import { SellerStatsRepository } from "../repositories/seller-stats.repository.js";
 import { identityClient } from "../../../clients/identity.client.js";
 import { paymentClient } from "../../../clients/payment.client.js";
+import { databaseService } from "../../../services/database.service.js";
 
 export class SellerStatsService {
   private repository = new SellerStatsRepository();
@@ -96,10 +97,16 @@ export class SellerStatsService {
   }
 
   /**
-   * Get seller's comments
+   * Get seller's comments. Adds optional courseId + status filters.
    */
-  async getComments(sellerId: string, page: number = 1, limit: number = 50, search?: string) {
-    const result = await this.repository.getComments(sellerId, page, limit, search);
+  async getComments(
+    sellerId: string,
+    page: number = 1,
+    limit: number = 50,
+    search?: string,
+    options?: { courseId?: string; status?: "all" | "unanswered" | "answered" }
+  ) {
+    const result = await this.repository.getComments(sellerId, page, limit, search, options);
 
     return {
       comments: result.data.map((comment) => ({
@@ -111,6 +118,10 @@ export class SellerStatsService {
         courseId: comment.lesson.course.id,
         courseTitle: comment.lesson.course.title,
         createdAt: comment.createdAt,
+        parentCommentId: (comment as any).parentCommentId ?? null,
+        isOwn: (comment as any).isOwn ?? false,
+        isReply: (comment as any).isReply ?? false,
+        isAnswered: (comment as any).isAnswered ?? null,
       })),
       pagination: {
         total: result.total,
@@ -119,6 +130,22 @@ export class SellerStatsService {
         totalPages: result.totalPages,
       },
     };
+  }
+
+  /**
+   * Delete a comment on one of the seller's own courses. Throws if the
+   * comment doesn't belong to this seller — verified inside the repository.
+   */
+  async deleteComment(sellerId: string, commentId: string) {
+    return await this.repository.deleteCommentIfOwnedBySeller(sellerId, commentId);
+  }
+
+  /**
+   * Comments-inbox summary (total / unanswered / answered) for the header
+   * stat cards and filter counters.
+   */
+  async getCommentsSummary(sellerId: string) {
+    return await this.repository.getCommentsSummary(sellerId);
   }
 
   /**
@@ -155,33 +182,57 @@ export class SellerStatsService {
   }
 
   /**
-   * Get seller's monthly earnings for a given year (12-month array)
+   * Get seller's monthly earnings for a given year (12-month array).
+   * Payment service now returns already-bucketed monthly data, so we just
+   * normalize the shape here.
    */
   async getMonthlyFees(sellerId: string, year?: number) {
     const targetYear = year ?? new Date().getFullYear();
     const transactions = await paymentClient.getSellerTransactions(sellerId, targetYear);
 
-    const monthlyMap = new Map<number, { grossAmount: number; platformFee: number }>();
-    for (const tx of transactions) {
-      const existing = monthlyMap.get(tx.month) ?? { grossAmount: 0, platformFee: 0 };
-      monthlyMap.set(tx.month, {
-        grossAmount: existing.grossAmount + tx.grossAmount,
-        platformFee: existing.platformFee + tx.platformFee,
-      });
-    }
-
     const fees = Array.from({ length: 12 }, (_, i) => {
       const month = i + 1;
-      const data = monthlyMap.get(month) ?? { grossAmount: 0, platformFee: 0 };
+      const tx = transactions.find((t) => t.month === month);
+      const grossAmount = tx?.grossAmount ?? 0;
+      const gatewayFee = tx?.gatewayFee ?? 0;
+      const platformFee = tx?.platformFee ?? 0;
+      const sellerAmount = tx?.sellerAmount ?? (grossAmount - gatewayFee - platformFee);
       return {
         month,
         year: targetYear,
-        grossAmount: data.grossAmount,
-        platformFee: data.platformFee,
-        netAmount: data.grossAmount - data.platformFee,
+        grossAmount,
+        gatewayFee,
+        platformFee,
+        // Fall through to (gross − gateway − platform) when payment-service
+        // hasn't been redeployed yet so old responses still produce a sane net.
+        netAmount: sellerAmount,
+        salesCount: tx?.salesCount ?? 0,
       };
     });
 
     return { fees, year: targetYear };
+  }
+
+  /**
+   * Drill-down: per-order detail for one (year, month) bucket. Enriches
+   * each row with the course title so the FE doesn't have to do extra
+   * lookups.
+   */
+  async getMonthlyFeeDetail(sellerId: string, year: number, month: number) {
+    const rows = await paymentClient.getSellerMonthlyDetail(sellerId, year, month);
+    if (rows.length === 0) return [];
+
+    const courseIds = [...new Set(rows.map((r) => r.courseId))];
+    const prisma = databaseService.getClient();
+    const courses = await prisma.course.findMany({
+      where: { id: { in: courseIds } },
+      select: { id: true, title: true },
+    });
+    const titleById = new Map(courses.map((c) => [c.id, c.title]));
+
+    return rows.map((r) => ({
+      ...r,
+      courseTitle: titleById.get(r.courseId) ?? "(Đã xoá)",
+    }));
   }
 }

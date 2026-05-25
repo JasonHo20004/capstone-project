@@ -199,6 +199,7 @@ enum WithdrawalRequestStatus {
   PENDING
   APPROVED
   REJECTED
+  CANCELLED
 }
 
 // ── Payouts (Withdrawals) ───────────────────────────────────────────────
@@ -215,6 +216,12 @@ model WithdrawalRequest {
   adminNote     String?                 @map("admin_note")
   createdAt     DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
   processedAt   DateTime?               @map("processed_at") @db.Timestamptz(6)
+  /// Seller cancelled this PENDING request before admin acted.
+  cancelledAt   DateTime?               @map("cancelled_at") @db.Timestamptz(6)
+  /// Optional pointer back to the original rejected request when seller
+  /// retried — lets the timeline show "rút lại sau khi bị từ chối".
+  retriedFromId String?                 @map("retried_from_id") @db.Uuid
 
+  @@index([sellerId, createdAt])
   @@map("withdrawal_requests")
 }

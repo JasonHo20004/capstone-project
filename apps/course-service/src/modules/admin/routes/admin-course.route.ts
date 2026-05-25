@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { Router, Request, Response } from "express";
-import { authenticateToken, requireAdmin, asyncHandler, EventNames, CoursePublishedEvent } from "@capstone/common";
+import { authenticateToken, requireAdmin, asyncHandler, EventNames, CoursePublishedEvent, CourseRejectedEvent } from "@capstone/common";
 import { getEventBus } from "../../../server.js";
 import { databaseService } from "../../../services/database.service.js";
 import { identityClient } from "../../../clients/identity.client.js";
@@ -124,7 +124,8 @@ router.put(
   asyncHandler(async (req: Request, res: Response) => {
     const prisma = databaseService.getClient();
     const { id } = req.params as { id: string };
-    const { status, title, description, price, courseLevel } = req.body;
+    const { status, title, description, price, courseLevel, rejectionReason } = req.body;
+    const adminId = req.user!.userId;
 
     const existing = await prisma.course.findUnique({ where: { id } });
     if (!existing) {
@@ -139,14 +140,63 @@ router.put(
     if (price !== undefined) updateData.price = price;
     if (courseLevel) updateData.courseLevel = courseLevel;
 
+    const isApproval = updateData.status === "ACTIVE" && existing.status !== "ACTIVE";
+    const isRejection = updateData.status === "REFUSE" && existing.status !== "REFUSE";
+
+    // Require an explicit reason for rejection so the seller knows what to fix.
+    // We accept the field as either `rejectionReason` (new) or pass nothing,
+    // in which case we reject the request with 400.
+    if (isRejection) {
+      const reason = typeof rejectionReason === "string" ? rejectionReason.trim() : "";
+      if (reason.length < 10) {
+        res.status(400).json({
+          success: false,
+          message: "Cần nhập lý do từ chối (ít nhất 10 ký tự) để seller biết cách chỉnh sửa.",
+        });
+        return;
+      }
+      updateData.rejectionReason = reason;
+      updateData.rejectedAt = new Date();
+      updateData.reviewedById = adminId;
+    }
+
+    if (isApproval) {
+      updateData.approvedAt = new Date();
+      updateData.reviewedById = adminId;
+      // Clear any stale rejection metadata from a prior bounce so the seller's
+      // UI doesn't keep flashing a "rejected" banner after re-approval.
+      updateData.rejectionReason = null;
+      updateData.rejectedAt = null;
+    }
+
     const course = await prisma.course.update({
       where: { id },
       data: updateData,
       include: { lessons: { select: { id: true } } },
     }) as any;
 
-    // 🔥 Emit RabbitMQ Event if course was just approved to ACTIVE
-    if (updateData.status === "ACTIVE" && existing.status !== "ACTIVE") {
+    // Append an audit-log row for every status transition the admin causes
+    // (approval, rejection, manual ACTIVE→INACTIVE, etc.). Best-effort — a
+    // history write failure shouldn't roll back the status change.
+    if (updateData.status && updateData.status !== existing.status) {
+      try {
+        await (prisma as any).courseReviewHistory.create({
+          data: {
+            courseId: id,
+            fromStatus: existing.status as CourseStatus,
+            toStatus: updateData.status as CourseStatus,
+            actorId: adminId,
+            actorRole: "admin",
+            reason: isRejection ? updateData.rejectionReason : null,
+          },
+        });
+      } catch (err) {
+        console.error("[Admin] Failed to write course review history:", err);
+      }
+    }
+
+    // Emit RabbitMQ Event if course was just approved to ACTIVE
+    if (isApproval) {
       const payload: CoursePublishedEvent = {
         courseId: course.id,
         sellerId: course.courseSellerId,
@@ -159,6 +209,24 @@ router.put(
         console.log(`🐰 [CourseService] Publishing ${EventNames.COURSE_PUBLISHED}`);
         eventBus.publish(EventNames.COURSE_PUBLISHED, payload).catch(err => {
           console.error("Failed to publish COURSE_PUBLISHED via RabbitMQ:", err);
+        });
+      }
+    }
+
+    // Emit COURSE_REJECTED so the notification service can ping the seller.
+    if (isRejection) {
+      const payload: CourseRejectedEvent = {
+        courseId: course.id,
+        sellerId: course.courseSellerId,
+        title: course.title,
+        reason: updateData.rejectionReason,
+        rejectedAt: updateData.rejectedAt,
+        reviewerId: adminId,
+      };
+      const eventBus = getEventBus();
+      if (eventBus) {
+        eventBus.publish(EventNames.COURSE_REJECTED, payload).catch(err => {
+          console.error("Failed to publish COURSE_REJECTED via RabbitMQ:", err);
         });
       }
     }

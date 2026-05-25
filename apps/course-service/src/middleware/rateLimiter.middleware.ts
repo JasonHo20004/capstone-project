@@ -48,3 +48,23 @@ export const createCourseLimiter = rateLimit({
     res.status(429).json(RATE_LIMIT_RESPONSE);
   },
 });
+
+// Comment moderation reports: tight cap to deter abuse. A genuine user
+// rarely needs to flag more than a handful of comments per hour.
+export const reportLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator,
+  store: new RedisStore({
+    sendCommand: (...args: string[]) => redisClient.sendCommand(args),
+    prefix: "rl:report:",
+  }),
+  handler: (_req, res) => {
+    res.status(429).json({
+      success: false,
+      message: "Bạn đã báo cáo quá nhiều lần trong 1 giờ. Vui lòng thử lại sau.",
+    });
+  },
+});

@@ -6,8 +6,25 @@ const PAYMENT_SERVICE_URL = process.env.PAYMENT_SERVICE_URL || "http://localhost
 
 export interface SellerTransaction {
   month: number;
+  year: number;
   grossAmount: number;
+  gatewayFee: number;
   platformFee: number;
+  sellerAmount: number;
+  salesCount: number;
+}
+
+export interface SellerMonthlyDetailRow {
+  id: string;
+  createdAt: string;
+  courseId: string;
+  orderId: string;
+  totalAmount: number;
+  gatewayFee: number;
+  commissionAmount: number;
+  sellerAmount: number;
+  status: string;
+  availableAt: string;
 }
 
 export interface WithdrawalResult {
@@ -37,8 +54,10 @@ export class PaymentClient {
 
   async getSellerTransactions(sellerId: string, year: number): Promise<SellerTransaction[]> {
     try {
+      // Endpoint lives under /api/commission/internal in payment-service
+      // (the old /api/payments/... path never existed → silently returned 0đ).
       const response = await fetch(
-        `${PAYMENT_SERVICE_URL}/api/payments/internal/seller/${sellerId}/transactions?year=${year}`,
+        `${PAYMENT_SERVICE_URL}/api/commission/internal/seller/${sellerId}/transactions?year=${year}`,
         { headers: { "x-internal-service": "course-service" } }
       );
       if (!response.ok) return [];
@@ -46,6 +65,25 @@ export class PaymentClient {
       return data.data || [];
     } catch (error) {
       console.error("[Course Service] Error fetching seller transactions:", error);
+      return [];
+    }
+  }
+
+  async getSellerMonthlyDetail(
+    sellerId: string,
+    year: number,
+    month: number
+  ): Promise<SellerMonthlyDetailRow[]> {
+    try {
+      const response = await fetch(
+        `${PAYMENT_SERVICE_URL}/api/commission/internal/seller/${sellerId}/transactions/${year}/${month}/detail`,
+        { headers: { "x-internal-service": "course-service" } }
+      );
+      if (!response.ok) return [];
+      const data = await response.json() as { data: SellerMonthlyDetailRow[] };
+      return data.data || [];
+    } catch (error) {
+      console.error("[Course Service] Error fetching monthly detail:", error);
       return [];
     }
   }

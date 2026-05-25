@@ -130,8 +130,15 @@ export class CourseController {
     const id = req.params.id as string;
     const sellerId = req.user!.userId;
     const course = await this.courseService.publish(id, sellerId);
-    
-    res.json({ success: true, data: course, message: "Course published successfully" });
+
+    res.json({ success: true, data: course, message: "Đã gửi khóa học cho admin duyệt" });
+  });
+
+  getReviewHistory = asyncHandler(async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const userId = req.user!.userId;
+    const history = await this.courseService.getReviewHistory(id, userId);
+    res.json({ success: true, data: history });
   });
 
   delete = asyncHandler(async (req: Request, res: Response) => {
