@@ -607,14 +607,30 @@ export class TestService {
       });
       sessionId = session.id;
 
-      // Save individual answers
-      const userAnswerData = details.map((d) => ({
-        practiceSessionId: session.id,
-        questionId: d.questionId,
-        userId,
-        answerText: d.userAnswer,
-        isCorrect: d.isCorrect,
-      }));
+      // Build snapshot map so historical answers survive future question edits.
+      const questionMap = new Map(questions.map((q) => [q.id, q]));
+
+      // Save individual answers with snapshot of question state at submit time.
+      const userAnswerData = details.map((d) => {
+        const q = questionMap.get(d.questionId);
+        return {
+          practiceSessionId: session.id,
+          questionId: d.questionId,
+          userId,
+          answerText: d.userAnswer,
+          isCorrect: d.isCorrect,
+          questionSnapshot: q
+            ? {
+                questionText: q.questionText,
+                questionType: q.questionType,
+                content: q.content,
+                answer: q.answer,
+                explanation: q.explanation,
+              }
+            : null,
+          scoreAtSubmit: d.isCorrect ? 1 : 0,
+        };
+      });
 
       await prisma.userAnswer.createMany({ data: userAnswerData });
     }

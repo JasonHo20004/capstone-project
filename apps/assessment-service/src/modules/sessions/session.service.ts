@@ -158,18 +158,36 @@ export class PracticeSessionService {
         throw new Error("Session already submitted");
       }
 
+      // Build a snapshot map so historical answers survive future question edits.
+      const questionMap = new Map(allQuestions.map((q) => [q.id, q]));
+
       await tx.userAnswer.createMany({
-        data: results.map((r) => ({
-          practiceSessionId: sessionId,
-          questionId: r.questionId,
-          userId,
-          isCorrect: r.isCorrect,
-          answerText:
-            typeof r.studentAnswer === "string"
-              ? r.studentAnswer
-              : JSON.stringify(r.studentAnswer),
-          selectedOptionIndex: null,
-        })),
+        data: results.map((r) => {
+          const q = questionMap.get(r.questionId);
+          return {
+            practiceSessionId: sessionId,
+            questionId: r.questionId,
+            userId,
+            isCorrect: r.isCorrect,
+            answerText:
+              typeof r.studentAnswer === "string"
+                ? r.studentAnswer
+                : JSON.stringify(r.studentAnswer),
+            selectedOptionIndex: null,
+            questionSnapshot: q
+              ? {
+                  questionText: q.questionText,
+                  questionType: q.questionType,
+                  options: q.options,
+                  correctAnswerIndex: q.correctAnswerIndex,
+                  content: q.content,
+                  answer: q.answer,
+                  explanation: q.explanation,
+                }
+              : null,
+            scoreAtSubmit: r.score,
+          };
+        }),
         skipDuplicates: true,
       });
     });
