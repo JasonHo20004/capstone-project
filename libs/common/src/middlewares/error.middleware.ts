@@ -7,11 +7,22 @@ import { Request, Response, NextFunction } from "express";
 export class AppError extends Error {
   public readonly statusCode: number;
   public readonly isOperational: boolean;
+  /** Optional machine-readable error code (e.g. "FINAL_TEST_EXISTS"). */
+  public readonly code?: string;
+  /** Optional structured payload sent back to the client alongside the error. */
+  public readonly data?: unknown;
 
-  constructor(message: string, statusCode: number = 500, isOperational: boolean = true) {
+  constructor(
+    message: string,
+    statusCode: number = 500,
+    isOperational: boolean = true,
+    options?: { code?: string; data?: unknown },
+  ) {
     super(message);
     this.statusCode = statusCode;
     this.isOperational = isOperational;
+    this.code = options?.code;
+    this.data = options?.data;
     Error.captureStackTrace(this, this.constructor);
   }
 }
@@ -41,8 +52,8 @@ export class BadRequestError extends AppError {
 }
 
 export class ConflictError extends AppError {
-  constructor(message: string = "Conflict") {
-    super(message, 409);
+  constructor(message: string = "Conflict", options?: { code?: string; data?: unknown }) {
+    super(message, 409, true, options);
   }
 }
 
@@ -71,6 +82,8 @@ export const errorHandler = (
     res.status(err.statusCode).json({
       success: false,
       error: err.message,
+      ...(err.code !== undefined ? { code: err.code } : {}),
+      ...(err.data !== undefined ? { data: err.data } : {}),
       ...(err instanceof TooManyRequestsError && err.retryAfterSeconds
         ? { retryAfterSeconds: err.retryAfterSeconds }
         : {}),

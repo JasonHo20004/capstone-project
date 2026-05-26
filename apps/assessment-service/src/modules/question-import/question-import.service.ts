@@ -14,6 +14,7 @@ import { textNormalizationService } from "./services/text-normalization.service.
 import { questionParserService } from "./services/question-parser.service.js";
 import { optionParserService } from "./services/option-parser.service.js";
 import { answerKeyParserService } from "./services/answer-key-parser.service.js";
+import { instructionDetectorService } from "./services/instruction-detector.service.js";
 
 export interface ParsedOption {
   key: "A" | "B" | "C" | "D";
@@ -30,6 +31,12 @@ export interface ParsedQuestion {
   score: number;
   sourceText: string;
   parserWarnings: string[];
+  /**
+   * Instruction text for the section this question belongs to.
+   * Only populated on the **first** question of each detected section;
+   * undefined for subsequent questions in the same section.
+   */
+  sectionInstruction?: string;
 }
 
 export interface ParseResponse {
@@ -88,12 +95,16 @@ export class QuestionImportService {
         ).trim()
       : normalised;
 
-    // 6. Parse question blocks.
+    // 6. Detect section instruction blocks (e.g. "Read the following passage…from 1 to 6").
+    //    Returns Map<firstQuestionNumber, instructionText>.
+    const instructionMap = instructionDetectorService.detect(textWithoutAnswerKey);
+
+    // 7. Parse question blocks.
     const { blocks, unparsedText } = questionParserService.parse(
       textWithoutAnswerKey
     );
 
-    // 7. Parse options for each block + apply answer key.
+    // 8. Parse options for each block + apply answer key + stamp section instruction.
     const questions: ParsedQuestion[] = blocks.map((block) => {
       const { options, questionBody } = optionParserService.parse(block.blockText);
       const warnings = [...block.warnings];
@@ -134,6 +145,7 @@ export class QuestionImportService {
         score: 1,
         sourceText: block.blockText,
         parserWarnings: warnings,
+        sectionInstruction: instructionMap.get(block.questionNumber),
       };
     });
 
