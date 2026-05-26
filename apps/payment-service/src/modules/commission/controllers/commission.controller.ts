@@ -16,7 +16,7 @@ export class CommissionController {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
     const result = await this.commissionService.getSellerEarnings(sellerId, page, limit);
-    res.json({ success: true, ...result });
+    res.json({ success: true, data: result });
   });
 
   getSellerCommissionRate = asyncHandler(async (req: Request, res: Response) => {
