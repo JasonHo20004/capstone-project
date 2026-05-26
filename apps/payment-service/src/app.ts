@@ -10,6 +10,7 @@ import cartRouter from "./modules/carts/routes/cart.route.js";
 import subscriptionRouter from "./modules/subscription/routes/user-subscription.route.js";
 import commissionRouter from "./modules/commission/routes/commission.routes.js";
 import withdrawalRouter from "./modules/withdrawal/routes/withdrawal.routes.js";
+import refundRouter from "./modules/refund/routes/refund.routes.js";
 import stripeWebhookRouter from "./modules/webhooks/stripe.webhook.js";
 
 const app: Express = express();
@@ -48,6 +49,9 @@ app.use("/api/carts", cartRouter);
 app.use("/api/subscriptions", subscriptionRouter);
 app.use("/api/commission", commissionRouter);
 app.use("/api/withdrawals", withdrawalRouter);
+// Refund routes use `/api` as base because they include both learner (`/refunds/...`)
+// and admin (`/admin/refunds/...`) prefixes inside the router itself.
+app.use("/api", refundRouter);
 
 app.use(errorHandler);
 

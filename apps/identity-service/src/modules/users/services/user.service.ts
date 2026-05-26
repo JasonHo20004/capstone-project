@@ -3,7 +3,13 @@
 // =============================================================================
 
 import { UserRepository } from "../repositories/user.repository.js";
-import type { UpdateUserInput, GetUsersQuery, UserResponse, UserBasicResponse } from "../dtos/user.dto.js";
+import type {
+  UpdateUserInput,
+  GetUsersQuery,
+  UserResponse,
+  UserBasicResponse,
+  UpdateUserStatusInput,
+} from "../dtos/user.dto.js";
 import { getPaginationMeta } from "@capstone/common";
 import type { Prisma } from "../../../../generated/prisma/index.js";
 
@@ -214,5 +220,35 @@ export class UserService {
 
   async delete(id: string): Promise<void> {
     await this.userRepository.delete(id);
+  }
+
+  /**
+   * Admin-only: change moderation status (ACTIVE / SUSPENDED / BANNED).
+   * Reason is mandatory at the DTO layer; this method also revokes refresh
+   * tokens so a suspended user can't keep using cookies they already have.
+   */
+  async updateStatus(id: string, input: UpdateUserStatusInput) {
+    const target = await this.userRepository.findById(id);
+    if (!target) throw new Error("User not found");
+    if (target.role === "ADMINISTRATOR") {
+      throw new Error("Không thể thay đổi trạng thái của tài khoản quản trị");
+    }
+
+    const updateData: Prisma.UserUpdateInput = {
+      userStatus: input.status,
+      statusReason: input.reason,
+      suspendedUntil:
+        input.status === "SUSPENDED" && input.suspendedUntil
+          ? new Date(input.suspendedUntil)
+          : null,
+    };
+    const updated = await this.userRepository.update(id, updateData);
+
+    return {
+      id: updated.id,
+      userStatus: updated.userStatus,
+      statusReason: updated.statusReason,
+      suspendedUntil: updated.suspendedUntil,
+    };
   }
 }

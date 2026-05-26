@@ -145,6 +145,30 @@ export class AuthService {
       throw new UnauthorizedError("Email not verified");
     }
 
+    // Block login for users who have been moderated.
+    // Auto-restore expired suspensions so admins don't have to flip them back.
+    if (user.userStatus === "SUSPENDED") {
+      const now = new Date();
+      if (user.suspendedUntil && user.suspendedUntil <= now) {
+        await this.userRepository.update(user.id, {
+          userStatus: "ACTIVE",
+          suspendedUntil: null,
+        });
+      } else {
+        const until = user.suspendedUntil
+          ? ` đến ${user.suspendedUntil.toLocaleString("vi-VN")}`
+          : "";
+        throw new UnauthorizedError(
+          `Tài khoản đang bị tạm khoá${until}. Lý do: ${user.statusReason ?? "Không có"}`,
+        );
+      }
+    }
+    if (user.userStatus === "BANNED") {
+      throw new UnauthorizedError(
+        `Tài khoản đã bị khoá vĩnh viễn. Lý do: ${user.statusReason ?? "Không có"}`,
+      );
+    }
+
     const { accessToken, refreshToken } = await this.generateTokens({
       userId: user.id,
       role: user.role,

@@ -5,7 +5,7 @@
 import { Router } from "express";
 import { UserController } from "../controllers/user.controller.js";
 import { authenticateToken, requireAdmin, validate } from "@capstone/common";
-import { updateUserSchema, getUsersQuerySchema } from "../dtos/user.dto.js";
+import { updateUserSchema, getUsersQuerySchema, updateUserStatusSchema } from "../dtos/user.dto.js";
 
 const router: Router = Router();
 const userController = new UserController();
@@ -28,5 +28,12 @@ router.post("/create", authenticateToken, requireAdmin, userController.createUse
 router.put("/:id", authenticateToken, requireAdmin, userController.updateUser);
 router.get("/:id", authenticateToken, requireAdmin, userController.getById);
 router.delete("/:id", authenticateToken, requireAdmin, userController.deleteUser);
+router.patch(
+  "/:id/status",
+  authenticateToken,
+  requireAdmin,
+  validate(updateUserStatusSchema),
+  userController.updateUserStatus,
+);
 
 export default router;

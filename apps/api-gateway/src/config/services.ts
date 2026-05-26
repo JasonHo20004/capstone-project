@@ -151,17 +151,30 @@ export const services: ServiceConfig[] = [
     url: process.env.PAYMENT_SERVICE_URL || "http://localhost:3005",
     prefix: "/api/withdrawals",
   },
+  // Learner-facing refund endpoints (request + my history)
+  {
+    name: "payment-service",
+    url: process.env.PAYMENT_SERVICE_URL || "http://localhost:3005",
+    prefix: "/api/refunds",
+  },
   {
     name: "notification-service",
     url: process.env.NOTIFICATION_SERVICE_URL || "http://localhost:3006",
     prefix: "/api/notifications",
   },
-  // Admin seller-applications routes - identity-service (must come BEFORE generic /api/admin)
+  // Admin seller-applications + audit-logs routes - identity-service (must come BEFORE generic /api/admin)
   {
     name: "identity-service",
     url: process.env.IDENTITY_SERVICE_URL || "http://localhost:3001",
     prefix: "/api/admin",
-    pathFilter: "/api/admin/seller-applications",
+    pathFilter: ["/api/admin/seller-applications", "/api/admin/audit-logs"],
+  },
+  // Admin refund routes - payment-service (must come BEFORE generic /api/admin)
+  {
+    name: "payment-service",
+    url: process.env.PAYMENT_SERVICE_URL || "http://localhost:3005",
+    prefix: "/api/admin",
+    pathFilter: "/api/admin/refunds",
   },
   {
     name: "course-service",

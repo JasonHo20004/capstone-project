@@ -28,7 +28,11 @@ model User {
   learningGoals           String[]                 @map("learning_goals")
   role                    UserRole?
   isEmailVerified         Boolean                  @default(false) @map("is_email_verified")
-  
+  // Soft moderation status — login is blocked unless ACTIVE.
+  userStatus              UserStatus               @default(ACTIVE) @map("user_status")
+  suspendedUntil          DateTime?                @map("suspended_until") @db.Timestamptz(6)
+  statusReason            String?                  @map("status_reason") @db.Text
+
   // Relations within Identity Service
   administratorProfile    AdministratorProfile?
   courseSellerApplication CourseSellerApplication?
@@ -104,4 +108,62 @@ enum ApplicationStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+  DELETED
+}
+
+// =============================================================================
+// Admin audit trail — records every sensitive admin action with reason +
+// metadata so disputes can be resolved by quoting prior decisions.
+// =============================================================================
+model AdminAuditLog {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId     String             @map("actor_id") @db.Uuid
+  // Email is denormalised so the log stays readable even if the admin account
+  // is later deleted/renamed.
+  actorEmail  String             @map("actor_email") @db.VarChar(100)
+  action      AdminAuditAction
+  entityType  AdminAuditEntity   @map("entity_type")
+  entityId    String?            @map("entity_id") @db.VarChar(100)
+  reason      String?            @db.Text
+  metadata    Json?
+  ipAddress   String?            @map("ip_address") @db.VarChar(45)
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@map("admin_audit_logs")
+}
+
+enum AdminAuditAction {
+  WALLET_ADJUST
+  USER_STATUS_CHANGE
+  USER_DELETE
+  APPLICATION_APPROVE
+  APPLICATION_REJECT
+  COURSE_APPROVE
+  COURSE_REJECT
+  COMMENT_MODERATE
+  WITHDRAWAL_APPROVE
+  WITHDRAWAL_REJECT
+  REFUND_APPROVE
+  REFUND_REJECT
+  OTHER
+}
+
+enum AdminAuditEntity {
+  USER
+  WALLET
+  APPLICATION
+  COURSE
+  COMMENT
+  WITHDRAWAL
+  REFUND
+  OTHER
 }

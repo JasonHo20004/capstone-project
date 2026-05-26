@@ -24,8 +24,22 @@ export const getUsersQuerySchema = {
   }),
 };
 
+// Admin-only: change a user's account status (suspend/ban/restore).
+// Reason is required so the audit trail has context.
+export const updateUserStatusSchema = {
+  body: z
+    .object({
+      status: z.enum(["ACTIVE", "SUSPENDED", "BANNED"]),
+      reason: z.string().min(3, "Lý do phải có ít nhất 3 ký tự").max(2000),
+      // ISO date string; only honoured for SUSPENDED status.
+      suspendedUntil: z.string().datetime().optional().nullable(),
+    })
+    .strict(),
+};
+
 export type UpdateUserInput = z.infer<typeof updateUserSchema.body>;
 export type GetUsersQuery = z.infer<typeof getUsersQuerySchema.query>;
+export type UpdateUserStatusInput = z.infer<typeof updateUserStatusSchema.body>;
 
 export interface CourseSellerApplicationSummary {
   id: string;

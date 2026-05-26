@@ -122,8 +122,15 @@ export class UserController {
   deleteUser = asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     await this.userService.delete(id as string);
-    
+
     res.json({ success: true, message: "User deleted successfully" });
+  });
+
+  // Admin: change a user's moderation status (suspend/ban/restore)
+  updateUserStatus = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const result = await this.userService.updateStatus(id as string, req.body);
+    res.json({ success: true, data: result });
   });
 
   // Admin: Create a new user
