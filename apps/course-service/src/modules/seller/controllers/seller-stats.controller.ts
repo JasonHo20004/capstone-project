@@ -104,8 +104,10 @@ export class SellerStatsController {
       });
       res.status(200).json({
         success: true,
-        data: result.comments,
-        pagination: result.pagination,
+        data: {
+          comments: result.comments,
+          pagination: result.pagination,
+        },
       });
     } catch (error) {
       res.status(500).json({
