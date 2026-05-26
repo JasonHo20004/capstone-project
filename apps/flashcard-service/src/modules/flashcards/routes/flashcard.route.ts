@@ -5,7 +5,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { FlashcardController } from "../controllers/flashcard.controller.js";
-import { authenticateToken, optionalAuth, validate } from "@capstone/common";
+import { authenticateToken, optionalAuth, requireAdmin, validate } from "@capstone/common";
 import {
   createDeckSchema,
   updateDeckSchema,
@@ -20,6 +20,9 @@ import {
   updateProgressSchema,
   getReviewCardsSchema,
   getReviewQueueSchema,
+  createTagSchema,
+  updateTagSchema,
+  tagIdParamSchema,
 } from "../dtos/flashcard.dto.js";
 
 const controller = new FlashcardController();
@@ -47,6 +50,14 @@ deckRouter.delete("/:deckId/cards/:id", authenticateToken, validate(getFlashcard
 export const tagRouter: Router = Router();
 
 tagRouter.get("/", validate({ query: z.object({ search: z.string().optional() }) }), controller.listTags);
+// Admin-only tag management. Both REST-style and the legacy /create, /update
+// paths are exposed so existing frontend callers keep working.
+tagRouter.post("/", authenticateToken, requireAdmin, validate(createTagSchema), controller.createTag);
+tagRouter.post("/create", authenticateToken, requireAdmin, validate(createTagSchema), controller.createTag);
+tagRouter.put("/:id", authenticateToken, requireAdmin, validate(updateTagSchema), controller.updateTag);
+tagRouter.put("/update/:id", authenticateToken, requireAdmin, validate(updateTagSchema), controller.updateTag);
+tagRouter.post("/update/:id", authenticateToken, requireAdmin, validate(updateTagSchema), controller.updateTag);
+tagRouter.delete("/:id", authenticateToken, requireAdmin, validate(tagIdParamSchema), controller.deleteTag);
 
 // ============== Flashcards Router (mounted at /api/flashcards) ==============
 // Alias for frontend: GET /api/flashcards/:deckId -> list cards in deck

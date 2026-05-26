@@ -21,7 +21,9 @@ router.get("/history", authenticateToken, controller.getHistory);
 
 // Admin routes
 router.get("/admin/plans", authenticateToken, requireAdmin, controller.getPlansAdmin);
+router.post("/admin/plans", authenticateToken, requireAdmin, controller.createPlan);
 router.put("/admin/plans/:id", authenticateToken, requireAdmin, controller.updatePlan);
+router.delete("/admin/plans/:id", authenticateToken, requireAdmin, controller.deletePlan);
 router.post("/admin/plans/seed", authenticateToken, requireAdmin, controller.seedPlans);
 
 // Internal service-to-service routes (no JWT required, uses userId query param)

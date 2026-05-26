@@ -133,11 +133,37 @@ export const getReviewQueueSchema = {
   }),
 };
 
+// ============== Tag DTOs (Admin only) ==============
+
+export const createTagSchema = {
+  body: z.object({
+    name: z.string().trim().min(1, "Tag name is required").max(50),
+  }),
+};
+
+export const updateTagSchema = {
+  body: z.object({
+    name: z.string().trim().min(1).max(50),
+  }),
+  params: z.object({
+    id: z.string().uuid(),
+  }),
+};
+
+export const tagIdParamSchema = {
+  params: z.object({
+    id: z.string().uuid(),
+  }),
+};
+
 // ============== Type Exports ==============
 
 export type CreateDeckInput = z.infer<typeof createDeckSchema.body>;
 export type UpdateDeckInput = z.infer<typeof updateDeckSchema.body>;
 export type ListDecksQuery = z.infer<typeof listDecksSchema.query>;
+
+export type CreateTagInput = z.infer<typeof createTagSchema.body>;
+export type UpdateTagInput = z.infer<typeof updateTagSchema.body>;
 
 export type CreateFlashcardInput = z.infer<typeof createFlashcardSchema.body>;
 export type UpdateFlashcardInput = z.infer<typeof updateFlashcardSchema.body>;

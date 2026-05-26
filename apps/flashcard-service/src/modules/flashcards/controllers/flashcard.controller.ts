@@ -23,6 +23,23 @@ export class FlashcardController {
     res.json({ success: true, data: tags });
   });
 
+  createTag = asyncHandler(async (req: Request, res: Response) => {
+    const tag = await this.service.createTag(req.body.name);
+    res.status(201).json({ success: true, data: tag, message: "Tag created" });
+  });
+
+  updateTag = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const tag = await this.service.updateTag(id as string, req.body.name);
+    res.json({ success: true, data: tag, message: "Tag updated" });
+  });
+
+  deleteTag = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    await this.service.deleteTag(id as string);
+    res.json({ success: true, message: "Tag deleted" });
+  });
+
   // ============== Deck Endpoints ==============
 
   createDeck = asyncHandler(async (req: Request, res: Response) => {

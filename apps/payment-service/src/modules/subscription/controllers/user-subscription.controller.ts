@@ -63,6 +63,17 @@ export class UserSubscriptionController {
     res.json({ success: true, data: plan });
   });
 
+  createPlan = asyncHandler(async (req: Request, res: Response) => {
+    const plan = await this.service.createPlan(req.body);
+    res.status(201).json({ success: true, data: plan, message: "Plan created" });
+  });
+
+  deletePlan = asyncHandler(async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    await this.service.deletePlan(id);
+    res.json({ success: true, message: "Plan deleted" });
+  });
+
   seedPlans = asyncHandler(async (_req: Request, res: Response) => {
     const results = await this.service.seedDefaultPlans();
     res.json({ success: true, data: results, message: "Plans seeded successfully" });

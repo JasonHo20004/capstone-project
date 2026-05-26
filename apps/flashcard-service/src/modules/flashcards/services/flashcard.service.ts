@@ -24,7 +24,38 @@ export class FlashcardService {
   // ============== Tag Operations ==============
 
   async listTags(search?: string) {
-    return await this.repository.listTags(search);
+    const tags = await this.repository.listTags(search);
+    // Enrich with deck usage count so admins can spot orphan tags.
+    return await Promise.all(
+      tags.map(async (t) => ({
+        ...t,
+        deckCount: await this.repository.countTagDecks(t.id),
+      }))
+    );
+  }
+
+  async createTag(name: string) {
+    const existing = await this.repository.findTagByName(name);
+    if (existing) {
+      throw new BadRequestError("Tag with this name already exists");
+    }
+    return await this.repository.createTag(name);
+  }
+
+  async updateTag(id: string, name: string) {
+    const existing = await this.repository.findTagById(id);
+    if (!existing) throw new NotFoundError("Tag not found");
+    if (existing.name !== name) {
+      const dup = await this.repository.findTagByName(name);
+      if (dup) throw new BadRequestError("Tag with this name already exists");
+    }
+    return await this.repository.updateTag(id, name);
+  }
+
+  async deleteTag(id: string) {
+    const existing = await this.repository.findTagById(id);
+    if (!existing) throw new NotFoundError("Tag not found");
+    return await this.repository.deleteTag(id);
   }
 
   // ============== Deck Operations ==============

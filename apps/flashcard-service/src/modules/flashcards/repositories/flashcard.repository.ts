@@ -192,6 +192,29 @@ export class FlashcardRepository {
     return await this.prisma.tag.findUnique({ where: { name } });
   }
 
+  async findTagById(id: string) {
+    return await this.prisma.tag.findUnique({ where: { id } });
+  }
+
+  async countTagDecks(tagId: string): Promise<number> {
+    return await this.prisma.deckTag.count({ where: { tagId } });
+  }
+
+  async createTag(name: string) {
+    return await this.prisma.tag.create({ data: { name } });
+  }
+
+  async updateTag(id: string, name: string) {
+    return await this.prisma.tag.update({ where: { id }, data: { name } });
+  }
+
+  async deleteTag(id: string) {
+    // Drop join rows first so we don't leave dangling references when the
+    // tag is currently attached to decks.
+    await this.prisma.deckTag.deleteMany({ where: { tagId: id } });
+    return await this.prisma.tag.delete({ where: { id } });
+  }
+
   async findOrCreateTags(tagNames: string[]) {
     const tags = await Promise.all(
       tagNames.map(async (name) => {

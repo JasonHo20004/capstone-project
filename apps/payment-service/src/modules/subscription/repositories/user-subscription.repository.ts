@@ -54,6 +54,16 @@ export class UserSubscriptionRepository {
     return await this.prisma.userPlan.create({ data });
   }
 
+  async deletePlan(id: string) {
+    return await this.prisma.userPlan.delete({ where: { id } });
+  }
+
+  async countSubscriptionsByPlan(planId: string): Promise<number> {
+    return await this.prisma.userSubscription.count({
+      where: { planId, isActive: true },
+    });
+  }
+
   // ── Subscriptions ─────────────────────────────────────────────────────
 
   async findActiveSubscription(userId: string) {

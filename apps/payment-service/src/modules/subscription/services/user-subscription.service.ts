@@ -4,7 +4,7 @@
 
 import { UserSubscriptionRepository } from "../repositories/user-subscription.repository.js";
 import { WalletRepository } from "../../wallet/repositories/wallet.repository.js";
-import { AppError, NotFoundError } from "@capstone/common";
+import { AppError, BadRequestError, NotFoundError } from "@capstone/common";
 import type { UserPlanType } from "../../../../generated/prisma/index.js";
 
 export class UserSubscriptionService {
@@ -164,6 +164,36 @@ export class UserSubscriptionService {
     const plan = await this.repo.findPlanById(id);
     if (!plan) throw new NotFoundError("Plan not found");
     return await this.repo.updatePlan(id, data);
+  }
+
+  async createPlan(data: {
+    name: string;
+    type: UserPlanType;
+    price: number;
+    description?: string;
+    features: string[];
+  }) {
+    const existingType = await this.repo.findPlanByType(data.type);
+    if (existingType) {
+      throw new BadRequestError(
+        `A ${data.type} plan already exists. Each plan type can only have one plan.`
+      );
+    }
+    return await this.repo.createPlan(data);
+  }
+
+  async deletePlan(id: string) {
+    const plan = await this.repo.findPlanById(id);
+    if (!plan) throw new NotFoundError("Plan not found");
+
+    const activeSubs = await this.repo.countSubscriptionsByPlan(id);
+    if (activeSubs > 0) {
+      throw new BadRequestError(
+        `Cannot delete plan: ${activeSubs} active subscription(s) still reference it. ` +
+          `Migrate subscribers first or wait until they expire.`
+      );
+    }
+    return await this.repo.deletePlan(id);
   }
 
   async seedDefaultPlans() {
