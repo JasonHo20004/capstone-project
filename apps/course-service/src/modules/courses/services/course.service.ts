@@ -9,7 +9,7 @@ import { assessmentClient } from "../../../clients/assessment.client.js";
 import { databaseService } from "../../../services/database.service.js";
 import { s3Service } from "../../../services/s3.service.js";
 import { publishNotification, publishBulkNotification } from "../../../helpers/notification.helper.js";
-import { EventBusService, EventNames, getPaginationMeta } from "@capstone/common";
+import { EventBusService, EventNames, getPaginationMeta, ConflictError } from "@capstone/common";
 import DOMPurify from "isomorphic-dompurify";
 import type { CreateCourseInput, UpdateCourseInput, GetCoursesQuery, CourseResponse } from "../dtos/course.dto.js";
 import type { CourseStatus, Prisma } from "../../../../generated/prisma/index.js";
@@ -538,6 +538,15 @@ export class CourseService {
     const existing = await this.courseRepository.findById(courseId);
     if (!existing) throw new Error("Course not found");
     if (existing.courseSellerId !== sellerId) throw new Error("Not authorized");
+
+    // Guard: prevent silently overwriting an existing final test.
+    // The frontend pre-check catches most cases; this is the authoritative server-side guard.
+    if (existing.finalTestId && existing.finalTestId !== testId) {
+      throw new ConflictError("Course already has a final test", {
+        code: "FINAL_TEST_EXISTS",
+        data: { finalTestId: existing.finalTestId },
+      });
+    }
 
     const test = await assessmentClient.getTest(testId, sellerId);
     if (!test) throw Object.assign(new Error("Test not found"), { statusCode: 404 });

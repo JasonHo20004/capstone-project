@@ -6,7 +6,7 @@
 
 export type SupportedFileType = "pdf" | "docx";
 
-const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB
+const MAX_FILE_BYTES = 200 * 1024 * 1024; // 50 MB
 const MIN_PDF_WORD_COUNT = 30; // Below this we treat the PDF as scanned/image.
 
 const EXT_TO_TYPE: Record<string, SupportedFileType> = {

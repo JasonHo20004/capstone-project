@@ -65,6 +65,7 @@ model CourseTest {
 model Section {
   id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title             String     @db.VarChar(100)
+  instruction       String?    @db.Text
   testId            String?    @map("test_id") @db.Uuid
   skill             SkillType?
   durationInSeconds Float?     @map("duration_in_seconds")

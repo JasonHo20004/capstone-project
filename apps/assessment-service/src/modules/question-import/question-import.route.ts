@@ -11,7 +11,7 @@ import { questionImportController } from "./question-import.controller.js";
 const router = Router();
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200 MB
 });
 
 router.post(
