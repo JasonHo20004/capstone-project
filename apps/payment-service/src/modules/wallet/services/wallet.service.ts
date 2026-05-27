@@ -26,6 +26,16 @@ export class WalletService {
     };
   }
 
+  async getWalletsByUserIds(userIds: string[]) {
+    const wallets = await this.walletRepository.findManyByUserIds(userIds);
+    return wallets.map((w) => ({
+      id: w.id,
+      userId: w.userId,
+      allowance: Number(w.allowance),
+      pendingBalance: Number(w.pendingBalance),
+    }));
+  }
+
   async deposit(userId: string, amount: number, description?: string) {
     const wallet = await this.walletRepository.getOrCreate(userId);
     

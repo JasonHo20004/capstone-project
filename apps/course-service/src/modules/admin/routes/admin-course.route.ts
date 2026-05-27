@@ -3,12 +3,21 @@
 // =============================================================================
 
 import { Router, Request, Response } from "express";
+import multer from "multer";
 import { authenticateToken, requireAdmin, asyncHandler, EventNames, CoursePublishedEvent, CourseRejectedEvent } from "@capstone/common";
 import { getEventBus } from "../../../server.js";
 import { databaseService } from "../../../services/database.service.js";
 import { identityClient } from "../../../clients/identity.client.js";
 import { paymentClient } from "../../../clients/payment.client.js";
+import { s3Service } from "../../../services/s3.service.js";
+import { CourseRepository } from "../../courses/repositories/course.repository.js";
 import type { CourseStatus } from "../../../../generated/prisma/index.js";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 1024 * 1024 * 1024 }, // 1 GB — same ceiling as seller upload
+});
+const courseRepository = new CourseRepository();
 
 const REVOKE_STATUSES = new Set<CourseStatus>([
   "REFUSE" as CourseStatus,
@@ -306,6 +315,310 @@ router.delete(
     }
 
     res.json({ success: true, message: "Course deleted" });
+  })
+);
+
+// ─── LESSONS ───────────────────────────────────────────────────────────
+// Admin lesson CRUD bypasses the seller-ownership check so platform staff can
+// moderate any course's lessons without owning them.
+
+// GET /api/admin/courses/:id/lessons
+router.get(
+  "/courses/:id/lessons",
+  authenticateToken,
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
+    const prisma = databaseService.getClient();
+    const { id } = req.params as { id: string };
+
+    const lessons = await prisma.lesson.findMany({
+      where: { courseId: id },
+      orderBy: [{ moduleId: "asc" }, { lessonOrder: "asc" }],
+      include: { mediaAssets: true },
+    });
+
+    res.json({ success: true, data: lessons });
+  })
+);
+
+// GET /api/admin/courses/:id/lessons/:lessonId
+router.get(
+  "/courses/:id/lessons/:lessonId",
+  authenticateToken,
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
+    const prisma = databaseService.getClient();
+    const { id, lessonId } = req.params as { id: string; lessonId: string };
+
+    const lesson = await prisma.lesson.findFirst({
+      where: { id: lessonId, courseId: id },
+      include: { mediaAssets: true, comments: true },
+    });
+    if (!lesson) {
+      res.status(404).json({ success: false, message: "Lesson not found" });
+      return;
+    }
+
+    res.json({ success: true, data: lesson });
+  })
+);
+
+// POST /api/admin/courses/:id/lessons - Create lesson (JSON body, no video here)
+router.post(
+  "/courses/:id/lessons",
+  authenticateToken,
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params as { id: string };
+    const { title, description, durationInSeconds, lessonOrder, moduleId, testId } = req.body;
+
+    if (!title || typeof title !== "string") {
+      res.status(400).json({ success: false, message: "title is required" });
+      return;
+    }
+
+    const lesson = await courseRepository.createLesson({
+      title,
+      description,
+      durationInSeconds: durationInSeconds ? Number(durationInSeconds) : undefined,
+      lessonOrder: lessonOrder ? Number(lessonOrder) : undefined,
+      courseId: id,
+      moduleId: moduleId || undefined,
+      testId: typeof testId === "string" && testId.length > 0 ? testId : undefined,
+    });
+
+    res.status(201).json({ success: true, data: lesson });
+  })
+);
+
+// PUT /api/admin/courses/:id/lessons/:lessonId - Update lesson
+router.put(
+  "/courses/:id/lessons/:lessonId",
+  authenticateToken,
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
+    const prisma = databaseService.getClient();
+    const { id, lessonId } = req.params as { id: string; lessonId: string };
+    const {
+      title,
+      description,
+      durationInSeconds,
+      lessonOrder,
+      materials,
+      testId,
+      mediaAssets,
+    } = req.body as {
+      title?: string;
+      description?: string;
+      durationInSeconds?: number;
+      lessonOrder?: number;
+      materials?: string[];
+      testId?: string | null;
+      mediaAssets?: { assetType?: string; assetUrl?: string }[];
+    };
+
+    const existing = await prisma.lesson.findFirst({
+      where: { id: lessonId, courseId: id },
+      select: { id: true },
+    });
+    if (!existing) {
+      res.status(404).json({ success: false, message: "Lesson not found" });
+      return;
+    }
+
+    // Frontend sends new video as mediaAssets[0].assetUrl with type VIDEO.
+    const videoAsset = Array.isArray(mediaAssets)
+      ? mediaAssets.find((m) => m.assetType === "VIDEO" && typeof m.assetUrl === "string")
+      : undefined;
+
+    const { lesson: updated, deletedVideoUrls } = await courseRepository.updateLesson(
+      lessonId,
+      {
+        title: typeof title === "string" ? title : undefined,
+        description: description !== undefined ? description : undefined,
+        durationInSeconds: durationInSeconds !== undefined ? Number(durationInSeconds) : undefined,
+        lessonOrder: lessonOrder !== undefined ? Number(lessonOrder) : undefined,
+        materials: Array.isArray(materials) ? materials.map(String) : undefined,
+        videoUrl: videoAsset?.assetUrl,
+        testId:
+          testId === null || testId === ""
+            ? null
+            : typeof testId === "string" && testId.length > 0
+              ? testId
+              : undefined,
+      }
+    );
+
+    // Fire-and-forget cleanup of replaced S3 objects.
+    deletedVideoUrls.forEach((url) => {
+      s3Service.deleteFile(url).catch((err) =>
+        console.error(`[AdminCourse] Failed to delete old video ${url}:`, err)
+      );
+    });
+
+    res.json({ success: true, data: updated });
+  })
+);
+
+// DELETE /api/admin/courses/:id/lessons/:lessonId - Delete lesson
+router.delete(
+  "/courses/:id/lessons/:lessonId",
+  authenticateToken,
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
+    const prisma = databaseService.getClient();
+    const { id, lessonId } = req.params as { id: string; lessonId: string };
+
+    const existing = await prisma.lesson.findFirst({
+      where: { id: lessonId, courseId: id },
+      select: { id: true },
+    });
+    if (!existing) {
+      res.status(404).json({ success: false, message: "Lesson not found" });
+      return;
+    }
+
+    const { deletedVideoUrls } = await courseRepository.deleteLesson(lessonId);
+
+    deletedVideoUrls.forEach((url) => {
+      s3Service.deleteFile(url).catch((err) =>
+        console.error(`[AdminCourse] Failed to delete video ${url}:`, err)
+      );
+    });
+
+    res.json({ success: true, data: { success: true } });
+  })
+);
+
+// POST /api/admin/courses/:id/lessons/:lessonId/upload-video
+// Uploads a video to S3 and returns the public URL. The frontend then PUTs
+// the URL back via the update endpoint so we don't double-attach assets here.
+router.post(
+  "/courses/:id/lessons/:lessonId/upload-video",
+  authenticateToken,
+  requireAdmin,
+  upload.single("video"),
+  asyncHandler(async (req: Request, res: Response) => {
+    const prisma = databaseService.getClient();
+    const { id, lessonId } = req.params as { id: string; lessonId: string };
+
+    if (!req.file) {
+      res.status(400).json({ success: false, message: "video file is required" });
+      return;
+    }
+
+    const lesson = await prisma.lesson.findFirst({
+      where: { id: lessonId, courseId: id },
+      select: { id: true },
+    });
+    if (!lesson) {
+      res.status(404).json({ success: false, message: "Lesson not found" });
+      return;
+    }
+
+    const url = await s3Service.uploadFile(req.file, "course-videos");
+    res.json({ success: true, data: { url } });
+  })
+);
+
+// DELETE /api/admin/courses/:id/lessons/:lessonId/comments/:commentId
+router.delete(
+  "/courses/:id/lessons/:lessonId/comments/:commentId",
+  authenticateToken,
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
+    const prisma = databaseService.getClient();
+    const { id, lessonId, commentId } = req.params as {
+      id: string;
+      lessonId: string;
+      commentId: string;
+    };
+
+    const comment = await prisma.comment.findFirst({
+      where: { id: commentId, lessonId, lesson: { courseId: id } },
+      select: { id: true },
+    });
+    if (!comment) {
+      res.status(404).json({ success: false, message: "Comment not found" });
+      return;
+    }
+
+    await prisma.comment.delete({ where: { id: commentId } });
+
+    // Decrement the lesson's denormalised counter (only if >0 to avoid going negative).
+    await prisma.lesson.update({
+      where: { id: lessonId },
+      data: { commentCount: { decrement: 1 } },
+    }).catch(() => {/* commentCount may be null on legacy rows — ignore */});
+
+    res.json({ success: true, data: { success: true } });
+  })
+);
+
+// ─── RATINGS ───────────────────────────────────────────────────────────
+// GET /api/admin/courses/:id/ratings - List all ratings of a course
+router.get(
+  "/courses/:id/ratings",
+  authenticateToken,
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
+    const prisma = databaseService.getClient();
+    const { id } = req.params as { id: string };
+
+    const ratings = await prisma.rating.findMany({
+      where: { courseId: id },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // Enrich with reviewer names so admin can identify who wrote each review.
+    const userIds = [...new Set(ratings.map((r) => r.userId))];
+    const users = await identityClient.getUsersBasicInfo(userIds);
+
+    const data = ratings.map((r) => ({
+      ...r,
+      score: Number(r.score),
+      user: users.get(r.userId)
+        ? {
+            id: r.userId,
+            fullName: users.get(r.userId)?.fullName,
+          }
+        : undefined,
+    }));
+
+    res.json({ success: true, data });
+  })
+);
+
+// DELETE /api/admin/courses/:courseId/ratings/:ratingId - Remove a rating
+router.delete(
+  "/courses/:courseId/ratings/:ratingId",
+  authenticateToken,
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
+    const prisma = databaseService.getClient();
+    const { courseId, ratingId } = req.params as {
+      courseId: string;
+      ratingId: string;
+    };
+
+    const existing = await prisma.rating.findFirst({
+      where: { id: ratingId, courseId },
+    });
+    if (!existing) {
+      res.status(404).json({ success: false, message: "Rating not found" });
+      return;
+    }
+
+    await prisma.rating.delete({ where: { id: ratingId } });
+
+    // Recompute denormalised ratingCount on the course so list views stay accurate.
+    const remaining = await prisma.rating.count({ where: { courseId } });
+    await prisma.course.update({
+      where: { id: courseId },
+      data: { ratingCount: remaining },
+    });
+
+    res.json({ success: true, data: { success: true } });
   })
 );
 

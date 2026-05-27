@@ -35,4 +35,15 @@ export class WalletController {
     const summary = await this.walletService.getMonthlySummary(userId);
     res.json({ success: true, data: summary });
   });
+
+  // Internal: batch fetch wallets by user IDs for service-to-service enrichment.
+  getWalletsByUserIds = asyncHandler(async (req: Request, res: Response) => {
+    const { userIds } = req.body as { userIds?: unknown };
+    if (!Array.isArray(userIds) || !userIds.every((id) => typeof id === "string")) {
+      res.status(400).json({ success: false, error: "userIds must be a string array" });
+      return;
+    }
+    const wallets = await this.walletService.getWalletsByUserIds(userIds);
+    res.json({ success: true, data: wallets });
+  });
 }

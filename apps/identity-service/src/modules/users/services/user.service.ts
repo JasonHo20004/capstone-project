@@ -13,6 +13,7 @@ import type {
 } from "../dtos/user.dto.js";
 import { getPaginationMeta } from "@capstone/common";
 import type { Prisma } from "../../../../generated/prisma/index.js";
+import { paymentClient } from "../../../clients/payment.client.js";
 
 export class UserService {
   private userRepository = new UserRepository();
@@ -220,8 +221,27 @@ export class UserService {
       this.userRepository.count(where),
     ]);
 
+    // Wallets live in payment-service DB, so we enrich the list via HTTP.
+    // Failures degrade gracefully — client returns [] and users render without wallet.
+    const wallets = await paymentClient.getWalletsByUserIds(users.map((u) => u.id));
+    const walletByUserId = new Map(wallets.map((w) => [w.userId, w]));
+    const enriched = users.map((u) => {
+      const w = walletByUserId.get(u.id);
+      return w
+        ? {
+            ...u,
+            wallet: {
+              id: w.id,
+              userId: w.userId,
+              allowance: w.allowance,
+              pendingBalance: w.pendingBalance,
+            },
+          }
+        : u;
+    });
+
     return {
-      data: users,
+      data: enriched,
       ...getPaginationMeta(total, query.page, query.limit),
     };
   }

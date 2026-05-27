@@ -14,6 +14,19 @@ export class WalletRepository {
     });
   }
 
+  async findManyByUserIds(userIds: string[]) {
+    if (userIds.length === 0) return [];
+    return await this.prisma.wallet.findMany({
+      where: { userId: { in: userIds } },
+      select: {
+        id: true,
+        userId: true,
+        allowance: true,
+        pendingBalance: true,
+      },
+    });
+  }
+
   async create(userId: string) {
     return await this.prisma.wallet.create({
       data: {

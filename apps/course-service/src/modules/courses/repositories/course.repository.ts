@@ -54,6 +54,23 @@ export class CourseRepository {
     return await this.prisma.course.count({ where });
   }
 
+  // Returns Map<courseId, averageRating> rounded to 1 decimal. Courses with no
+  // ratings are absent from the map — callers should default to 0.
+  async getAverageRatings(courseIds: string[]): Promise<Map<string, number>> {
+    if (courseIds.length === 0) return new Map();
+    const grouped = await this.prisma.rating.groupBy({
+      by: ["courseId"],
+      where: { courseId: { in: courseIds } },
+      _avg: { score: true },
+    });
+    return new Map(
+      grouped.map((g) => [
+        g.courseId,
+        g._avg.score ? Math.round(g._avg.score * 10) / 10 : 0,
+      ])
+    );
+  }
+
   async create(data: Prisma.CourseCreateInput) {
     return await this.prisma.course.create({
       data,

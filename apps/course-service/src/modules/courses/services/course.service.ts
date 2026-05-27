@@ -395,6 +395,12 @@ export class CourseService {
     const sellerIds = [...new Set(courses.map((c) => c.courseSellerId))];
     const sellers = await identityClient.getUsersBasicInfo(sellerIds);
 
+    // Aggregate average rating per course — Rating has no `averageRating` column.
+    const courseIds = courses.map((c) => c.id);
+    const ratingAverages = courseIds.length
+      ? await this.courseRepository.getAverageRatings(courseIds)
+      : new Map<string, number>();
+
     const data = courses.map((course) => ({
       id: course.id,
       title: course.title,
@@ -407,6 +413,7 @@ export class CourseService {
       thumbnailUrl: course.thumbnailUrl,
       status: course.status,
       ratingCount: course.ratingCount,
+      averageRating: ratingAverages.get(course.id) ?? 0,
       lessonCount: course.lessons.length,
       createdAt: course.createdAt,
     }));
