@@ -157,6 +157,12 @@ export const services: ServiceConfig[] = [
     url: process.env.PAYMENT_SERVICE_URL || "http://localhost:3005",
     prefix: "/api/refunds",
   },
+  // Learner-facing coupon validation (apply code against current cart)
+  {
+    name: "payment-service",
+    url: process.env.PAYMENT_SERVICE_URL || "http://localhost:3005",
+    prefix: "/api/coupons",
+  },
   {
     name: "notification-service",
     url: process.env.NOTIFICATION_SERVICE_URL || "http://localhost:3006",
@@ -175,6 +181,13 @@ export const services: ServiceConfig[] = [
     url: process.env.PAYMENT_SERVICE_URL || "http://localhost:3005",
     prefix: "/api/admin",
     pathFilter: "/api/admin/refunds",
+  },
+  // Admin coupon CRUD - payment-service (must come BEFORE generic /api/admin)
+  {
+    name: "payment-service",
+    url: process.env.PAYMENT_SERVICE_URL || "http://localhost:3005",
+    prefix: "/api/admin",
+    pathFilter: "/api/admin/coupons",
   },
   {
     name: "course-service",

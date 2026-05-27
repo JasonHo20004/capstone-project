@@ -17,6 +17,7 @@ router.patch("/profile", authenticateToken, validate(updateUserSchema), userCont
 // Internal API for other services
 router.post("/internal/batch", userController.getBasicInfoBatch);
 router.post("/internal/search", userController.searchBasic);
+router.post("/internal/by-roles", userController.listIdsByRoles);
 router.get("/internal/stats", userController.getStats);
 router.get("/internal/:id/seller-status", userController.getSellerStatus);
 router.get("/internal/:id", userController.getBasicInfo);

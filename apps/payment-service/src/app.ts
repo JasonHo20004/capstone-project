@@ -11,6 +11,7 @@ import subscriptionRouter from "./modules/subscription/routes/user-subscription.
 import commissionRouter from "./modules/commission/routes/commission.routes.js";
 import withdrawalRouter from "./modules/withdrawal/routes/withdrawal.routes.js";
 import refundRouter from "./modules/refund/routes/refund.routes.js";
+import couponRouter from "./modules/coupon/routes/coupon.routes.js";
 import stripeWebhookRouter from "./modules/webhooks/stripe.webhook.js";
 
 const app: Express = express();
@@ -52,6 +53,8 @@ app.use("/api/withdrawals", withdrawalRouter);
 // Refund routes use `/api` as base because they include both learner (`/refunds/...`)
 // and admin (`/admin/refunds/...`) prefixes inside the router itself.
 app.use("/api", refundRouter);
+// Coupons follow the same convention — learner `/coupons/...` + admin `/admin/coupons/...`.
+app.use("/api", couponRouter);
 
 app.use(errorHandler);
 

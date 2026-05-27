@@ -4,6 +4,7 @@
 
 import { Router } from "express";
 import { NotificationController } from "../controllers/notification.controller.js";
+import { CampaignController } from "../controllers/campaign.controller.js";
 import { authenticateToken, requireAdmin, validate } from "@capstone/common";
 import {
   createNotificationSchema,
@@ -19,6 +20,7 @@ import {
 
 const router: Router = Router();
 const controller = new NotificationController();
+const campaignController = new CampaignController();
 
 // ============== User Notification Routes ==============
 
@@ -67,5 +69,9 @@ router.patch("/types/:id", authenticateToken, requireAdmin, validate(updateNotif
 
 // Admin: Delete notification type
 router.delete("/types/:id", authenticateToken, requireAdmin, controller.deleteNotificationType);
+
+// Admin: Targeted campaign — fan out a single payload to a recipient segment
+router.post("/admin/campaign", authenticateToken, requireAdmin, campaignController.run);
+router.post("/admin/campaign/preview", authenticateToken, requireAdmin, campaignController.preview);
 
 export default router;

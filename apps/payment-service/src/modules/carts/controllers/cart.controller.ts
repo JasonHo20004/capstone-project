@@ -27,17 +27,19 @@ export class CartController {
 
   checkoutFullCart = asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.userId;
-    const result = await this.cartService.checkoutFullCart(userId);
+    const couponCode = (req.body?.couponCode as string | undefined)?.trim() || undefined;
+    const result = await this.cartService.checkoutFullCart(userId, couponCode);
     res.json({ success: true, data: result, message: "Checkout successful" });
   });
 
   checkoutPartial = asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.userId;
     const { cartItemIds } = req.body;
+    const couponCode = (req.body?.couponCode as string | undefined)?.trim() || undefined;
     if (!Array.isArray(cartItemIds) || cartItemIds.length === 0) {
       throw new Error("cartItemIds array is required");
     }
-    const result = await this.cartService.checkoutPartial(userId, cartItemIds);
+    const result = await this.cartService.checkoutPartial(userId, cartItemIds, couponCode);
     res.json({ success: true, data: result, message: "Checkout successful" });
   });
 

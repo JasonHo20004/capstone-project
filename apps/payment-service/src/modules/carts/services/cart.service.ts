@@ -4,11 +4,13 @@
 
 import { databaseService } from "../../../services/database.service.js";
 import { OrderService } from "../../orders/services/order.service.js";
+import { CouponService } from "../../coupon/services/coupon.service.js";
 import { getCourseById } from "../../../clients/course.client.js";
 
 export class CartService {
   private prisma = databaseService.getClient();
   private orderService = new OrderService();
+  private couponService = new CouponService();
 
   async getCart(userId: string) {
     let cart = await this.prisma.cart.findUnique({
@@ -84,7 +86,7 @@ export class CartService {
     return this.getCart(userId);
   }
 
-  async checkoutFullCart(userId: string) {
+  async checkoutFullCart(userId: string, couponCode?: string) {
     const cart = await this.prisma.cart.findUnique({
       where: { userId },
       include: { cartItems: true },
@@ -94,7 +96,7 @@ export class CartService {
       throw new Error("Cart is empty");
     }
 
-    const order = await this.orderService.createOrder(userId, cart.id);
+    const order = await this.orderService.createOrder(userId, cart.id, couponCode);
     const payResult = await this.orderService.payOrder(userId, order.id);
 
     const transaction = await this.prisma.transaction.findFirst({
@@ -112,7 +114,7 @@ export class CartService {
     };
   }
 
-  async checkoutPartial(userId: string, cartItemIds: string[]) {
+  async checkoutPartial(userId: string, cartItemIds: string[], couponCode?: string) {
     if (cartItemIds.length === 0) {
       throw new Error("No items selected");
     }
@@ -131,14 +133,33 @@ export class CartService {
       throw new Error("Some selected items not found in cart");
     }
 
-    const totalAmount = selectedItems.reduce((sum, i) => sum + Number(i.priceAtTime), 0);
+    const subtotal = selectedItems.reduce((sum, i) => sum + Number(i.priceAtTime), 0);
     const courseIds = selectedItems.map((i) => i.courseId);
+
+    let discount = 0;
+    let couponId: string | null = null;
+    let couponCodeUpper: string | null = null;
+    if (couponCode?.trim()) {
+      const validated = await this.couponService.validateForUser({
+        code: couponCode,
+        userId,
+        subtotal,
+      });
+      discount = validated.discount;
+      couponId = validated.id;
+      couponCodeUpper = validated.code;
+    }
+    const totalAmount = Math.max(0, subtotal - discount);
 
     const order = await this.prisma.order.create({
       data: {
         userId,
         cartId: cart.id,
         totalAmount,
+        subtotal,
+        discount,
+        couponId,
+        couponCode: couponCodeUpper,
       },
     });
 

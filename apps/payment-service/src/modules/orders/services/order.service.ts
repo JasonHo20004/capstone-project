@@ -5,6 +5,7 @@
 import { databaseService } from "../../../services/database.service.js";
 import { WalletService } from "../../wallet/services/wallet.service.js";
 import { CommissionService } from "../../commission/services/commission.service.js";
+import { CouponService } from "../../coupon/services/coupon.service.js";
 import { getCourseById } from "../../../clients/course.client.js";
 import { EventBusService, EventNames } from "@capstone/common";
 
@@ -12,13 +13,14 @@ export class OrderService {
   private prisma = databaseService.getClient();
   private walletService = new WalletService();
   private commissionService = new CommissionService();
+  private couponService = new CouponService();
   private eventBus: EventBusService;
 
   constructor() {
     this.eventBus = EventBusService.getInstance("payment-service");
   }
 
-  async createOrder(userId: string, cartId: string) {
+  async createOrder(userId: string, cartId: string, couponCode?: string) {
     const cart = await this.prisma.cart.findUnique({
       where: { id: cartId },
       include: { cartItems: true },
@@ -32,13 +34,35 @@ export class OrderService {
       throw new Error("Cart is empty");
     }
 
-    const totalAmount = cart.cartItems.reduce((sum, item) => sum + Number(item.priceAtTime), 0);
+    const subtotal = cart.cartItems.reduce(
+      (sum, item) => sum + Number(item.priceAtTime),
+      0
+    );
+
+    let discount = 0;
+    let couponId: string | null = null;
+    let couponCodeUpper: string | null = null;
+    if (couponCode?.trim()) {
+      const validated = await this.couponService.validateForUser({
+        code: couponCode,
+        userId,
+        subtotal,
+      });
+      discount = validated.discount;
+      couponId = validated.id;
+      couponCodeUpper = validated.code;
+    }
+    const totalAmount = Math.max(0, subtotal - discount);
 
     const order = await this.prisma.order.create({
       data: {
         userId,
         cartId,
         totalAmount,
+        subtotal,
+        discount,
+        couponId,
+        couponCode: couponCodeUpper,
       },
     });
 
@@ -46,6 +70,9 @@ export class OrderService {
       id: order.id,
       userId: order.userId,
       totalAmount: order.totalAmount,
+      subtotal: order.subtotal,
+      discount: order.discount,
+      couponCode: order.couponCode,
       createdAt: order.createdAt,
       items: cart.cartItems,
     };
@@ -75,6 +102,21 @@ export class OrderService {
       `Payment for order ${orderId}`,
       orderId
     );
+
+    // Coupon redemption — race-safe usedCount increment + unique redemption row.
+    // Runs AFTER wallet deduct so a failed payment never burns a use.
+    if (order.couponId) {
+      try {
+        await this.couponService.redeem({
+          couponId: order.couponId,
+          userId,
+          orderId,
+          amount: Number(order.discount ?? 0),
+        });
+      } catch (err) {
+        console.error(`⚠️ Coupon redemption failed for order ${orderId}:`, err);
+      }
+    }
 
     // Extract course IDs from cart items
     const courseIds = order.cart.cartItems.map((item) => item.courseId);
@@ -144,6 +186,19 @@ export class OrderService {
       `Payment for order ${orderId}`,
       orderId
     );
+
+    if (order.couponId) {
+      try {
+        await this.couponService.redeem({
+          couponId: order.couponId,
+          userId,
+          orderId,
+          amount: Number(order.discount ?? 0),
+        });
+      } catch (err) {
+        console.error(`⚠️ Coupon redemption failed for order ${orderId}:`, err);
+      }
+    }
 
     // Revenue split for each course
     for (const courseId of courseIds) {

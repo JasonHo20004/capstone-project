@@ -112,6 +112,33 @@ export class UserService {
     }));
   }
 
+  /**
+   * Resolve user IDs by role(s). Supports "STUDENT" (users with no specialized
+   * role) and "ALL" / empty input → return every user.
+   */
+  async listIdsByRoles(roles: string[]): Promise<string[]> {
+    const where: Prisma.UserWhereInput = {};
+    const normalized = roles.map((r) => r.toUpperCase());
+
+    if (normalized.length > 0 && !normalized.includes("ALL")) {
+      const orClauses: Prisma.UserWhereInput[] = [];
+      if (normalized.includes("STUDENT")) {
+        orClauses.push({ role: null });
+      }
+      const specialized = normalized.filter(
+        (r) => r === "COURSESELLER" || r === "ADMINISTRATOR"
+      );
+      if (specialized.length > 0) {
+        orClauses.push({ role: { in: specialized as any } });
+      }
+      if (orClauses.length === 0) return [];
+      where.OR = orClauses;
+    }
+
+    const users = await this.userRepository.findMany({ where, take: 100_000 });
+    return users.map((u) => u.id);
+  }
+
   async update(id: string, data: UpdateUserInput): Promise<UserResponse> {
     const { dateOfBirth, ...rest } = data;
     const updateData: Record<string, unknown> = { ...rest };

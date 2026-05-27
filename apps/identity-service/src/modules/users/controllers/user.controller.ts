@@ -100,6 +100,17 @@ export class UserController {
     res.json({ success: true, data: users });
   });
 
+  // Internal: resolve user IDs by role(s) — used to build notification campaign
+  // recipient lists. Empty/missing roles returns every user.
+  listIdsByRoles = asyncHandler(async (req: Request, res: Response) => {
+    const rawRoles = req.body?.roles;
+    const roles: string[] = Array.isArray(rawRoles)
+      ? rawRoles.filter((r) => typeof r === "string")
+      : [];
+    const ids = await this.userService.listIdsByRoles(roles);
+    res.json({ success: true, data: ids });
+  });
+
   updateProfile = asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.userId;
     const user = await this.userService.update(userId, req.body);
