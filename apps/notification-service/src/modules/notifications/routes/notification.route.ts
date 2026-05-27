@@ -74,4 +74,7 @@ router.delete("/types/:id", authenticateToken, requireAdmin, controller.deleteNo
 router.post("/admin/campaign", authenticateToken, requireAdmin, campaignController.run);
 router.post("/admin/campaign/preview", authenticateToken, requireAdmin, campaignController.preview);
 
+// Admin: Platform-wide notification feed (not scoped to admin's own inbox)
+router.get("/admin/all", authenticateToken, requireAdmin, controller.listAllForAdmin);
+
 export default router;

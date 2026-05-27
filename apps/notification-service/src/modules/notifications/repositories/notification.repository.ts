@@ -105,6 +105,53 @@ export class NotificationRepository {
     };
   }
 
+  /**
+   * Admin-only: list notifications across ALL users. Used by the
+   * "Quản lý thông báo" page to see platform-wide activity.
+   */
+  async findAllForAdmin(options: {
+    page: number;
+    limit: number;
+    search?: string;
+    type?: string;
+    isRead?: boolean;
+    userId?: string;
+    campaignsOnly?: boolean;
+  }) {
+    const where: Prisma.InAppNotificationWhereInput = {};
+    if (options.type) where.type = options.type;
+    if (options.isRead !== undefined) where.isRead = options.isRead;
+    if (options.userId) where.userId = options.userId;
+    if (options.search?.trim()) {
+      const q = options.search.trim();
+      where.OR = [
+        { title: { contains: q, mode: "insensitive" } },
+        { content: { contains: q, mode: "insensitive" } },
+      ];
+    }
+    if (options.campaignsOnly) {
+      where.metadata = { path: ["campaign"], equals: true };
+    }
+
+    const [notifications, total] = await Promise.all([
+      this.prisma.inAppNotification.findMany({
+        where,
+        skip: (options.page - 1) * options.limit,
+        take: options.limit,
+        orderBy: { createdAt: "desc" },
+      }),
+      this.prisma.inAppNotification.count({ where }),
+    ]);
+
+    return {
+      data: notifications,
+      total,
+      page: options.page,
+      limit: options.limit,
+      totalPages: Math.ceil(total / options.limit),
+    };
+  }
+
   async markAsRead(id: string) {
     return await this.prisma.inAppNotification.update({
       where: { id },

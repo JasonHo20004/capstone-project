@@ -80,6 +80,37 @@ export class NotificationService {
     };
   }
 
+  /**
+   * Admin-only: list notifications across all users (with optional filters).
+   */
+  async listAllForAdmin(query: {
+    page?: number | string;
+    limit?: number | string;
+    search?: string;
+    type?: string;
+    isRead?: boolean;
+    userId?: string;
+    campaignsOnly?: boolean;
+  }) {
+    const result = await this.repository.findAllForAdmin({
+      page: Number(query.page) || 1,
+      limit: Math.min(100, Number(query.limit) || 20),
+      search: query.search,
+      type: query.type,
+      isRead: query.isRead,
+      userId: query.userId,
+      campaignsOnly: query.campaignsOnly,
+    });
+
+    return {
+      data: result.data.map((n) => this.mapNotificationResponse(n)),
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+      totalPages: result.totalPages,
+    };
+  }
+
   async markAsRead(id: string, userId: string): Promise<NotificationResponse> {
     const notification = await this.repository.findNotificationById(id);
 

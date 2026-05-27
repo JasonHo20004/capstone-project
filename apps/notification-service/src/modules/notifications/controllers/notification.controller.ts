@@ -23,6 +23,22 @@ export class NotificationController {
     res.json({ success: true, ...result });
   });
 
+  /** Admin-only: platform-wide notification list. */
+  listAllForAdmin = asyncHandler(async (req: Request, res: Response) => {
+    const q = req.query as Record<string, string | undefined>;
+    const result = await this.service.listAllForAdmin({
+      page: q.page,
+      limit: q.limit,
+      search: q.search,
+      type: q.type,
+      isRead:
+        q.isRead === "true" ? true : q.isRead === "false" ? false : undefined,
+      userId: q.userId,
+      campaignsOnly: q.campaignsOnly === "true",
+    });
+    res.json({ success: true, ...result });
+  });
+
   getNotification = asyncHandler(async (req: Request, res: Response) => {
     const { id } = req.params;
     const userId = req.user!.userId;
