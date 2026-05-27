@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "users" ADD COLUMN     "last_active_date" TIMESTAMPTZ(6),
+ADD COLUMN     "streak" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "xp" INTEGER NOT NULL DEFAULT 0;
