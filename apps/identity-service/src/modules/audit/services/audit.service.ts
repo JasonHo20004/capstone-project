@@ -36,9 +36,11 @@ export class AuditService {
   }
 
   async list(query: ListAuditLogsQuery) {
+    const page = Number(query.page) || 1;
+    const limit = Number(query.limit) || 50;
     const filters: ListLogsFilters = {
-      page: query.page,
-      limit: query.limit,
+      page,
+      limit,
       action: query.action,
       entityType: query.entityType,
       entityId: query.entityId,
