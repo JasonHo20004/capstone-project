@@ -114,8 +114,14 @@ export class UserController {
   updateProfile = asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.userId;
     const user = await this.userService.update(userId, req.body);
-    
+
     res.json({ success: true, data: user });
+  });
+
+  updateGamification = asyncHandler(async (req: Request, res: Response) => {
+    const userId = req.user!.userId;
+    const result = await this.userService.updateGamification(userId, req.body);
+    res.json({ success: true, data: result });
   });
 
   getMany = asyncHandler(async (req: Request, res: Response) => {

@@ -33,6 +33,11 @@ model User {
   suspendedUntil          DateTime?                @map("suspended_until") @db.Timestamptz(6)
   statusReason            String?                  @map("status_reason") @db.Text
 
+  // Gamification — XP never decreases; streak resets when lastActiveDate gap > 1 day.
+  xp                      Int                      @default(0)
+  streak                  Int                      @default(0)
+  lastActiveDate          DateTime?                @map("last_active_date") @db.Timestamptz(6)
+
   // Relations within Identity Service
   administratorProfile    AdministratorProfile?
   courseSellerApplication CourseSellerApplication?

@@ -26,6 +26,14 @@ export const getUsersQuerySchema = {
 
 // Admin-only: change a user's account status (suspend/ban/restore).
 // Reason is required so the audit trail has context.
+export const updateGamificationSchema = {
+  body: z.object({
+    xp:             z.number().int().min(0).optional(),
+    streak:         z.number().int().min(0).optional(),
+    lastActiveDate: z.string().datetime().optional(),
+  }),
+};
+
 export const updateUserStatusSchema = {
   body: z
     .object({
@@ -40,6 +48,7 @@ export const updateUserStatusSchema = {
 export type UpdateUserInput = z.infer<typeof updateUserSchema.body>;
 export type GetUsersQuery = z.infer<typeof getUsersQuerySchema.query>;
 export type UpdateUserStatusInput = z.infer<typeof updateUserStatusSchema.body>;
+export type GamificationInput = z.infer<typeof updateGamificationSchema.body>;
 
 export interface CourseSellerApplicationSummary {
   id: string;
@@ -63,6 +72,9 @@ export interface UserResponse {
   role: string | null;
   isEmailVerified: boolean;
   createdAt: Date;
+  xp: number;
+  streak: number;
+  lastActiveDate: Date | null;
   courseSellerApplication?: CourseSellerApplicationSummary | null;
 }
 

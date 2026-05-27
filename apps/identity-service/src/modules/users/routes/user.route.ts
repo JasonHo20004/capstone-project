@@ -5,7 +5,7 @@
 import { Router } from "express";
 import { UserController } from "../controllers/user.controller.js";
 import { authenticateToken, requireAdmin, validate } from "@capstone/common";
-import { updateUserSchema, getUsersQuerySchema, updateUserStatusSchema } from "../dtos/user.dto.js";
+import { updateUserSchema, getUsersQuerySchema, updateUserStatusSchema, updateGamificationSchema } from "../dtos/user.dto.js";
 
 const router: Router = Router();
 const userController = new UserController();
@@ -13,6 +13,7 @@ const userController = new UserController();
 // Protected routes
 router.get("/profile", authenticateToken, userController.getProfile);
 router.patch("/profile", authenticateToken, validate(updateUserSchema), userController.updateProfile);
+router.patch("/profile/gamification", authenticateToken, validate(updateGamificationSchema), userController.updateGamification);
 
 // Internal API for other services
 router.post("/internal/batch", userController.getBasicInfoBatch);

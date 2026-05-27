@@ -9,6 +9,7 @@ import type {
   UserResponse,
   UserBasicResponse,
   UpdateUserStatusInput,
+  GamificationInput,
 } from "../dtos/user.dto.js";
 import { getPaginationMeta } from "@capstone/common";
 import type { Prisma } from "../../../../generated/prisma/index.js";
@@ -32,6 +33,9 @@ export class UserService {
       role: user.role,
       isEmailVerified: user.isEmailVerified,
       createdAt: user.createdAt,
+      xp: user.xp,
+      streak: user.streak,
+      lastActiveDate: user.lastActiveDate,
       courseSellerApplication: user.courseSellerApplication
         ? {
             id: user.courseSellerApplication.id,
@@ -159,6 +163,37 @@ export class UserService {
       role: user.role,
       isEmailVerified: user.isEmailVerified,
       createdAt: user.createdAt,
+      xp: user.xp,
+      streak: user.streak,
+      lastActiveDate: user.lastActiveDate,
+    };
+  }
+
+  async updateGamification(id: string, data: GamificationInput): Promise<{ xp: number; streak: number; lastActiveDate: Date | null }> {
+    const user = await this.userRepository.findById(id);
+    if (!user) throw new Error("User not found");
+
+    const updateData: Prisma.UserUpdateInput = {};
+
+    // XP never decreases
+    if (data.xp !== undefined && data.xp > user.xp) {
+      updateData.xp = data.xp;
+    }
+
+    if (data.streak !== undefined) {
+      updateData.streak = data.streak;
+    }
+
+    if (data.lastActiveDate !== undefined) {
+      updateData.lastActiveDate = new Date(data.lastActiveDate);
+    }
+
+    const updated = await this.userRepository.update(id, updateData as any);
+
+    return {
+      xp: updated.xp,
+      streak: updated.streak,
+      lastActiveDate: updated.lastActiveDate,
     };
   }
 
