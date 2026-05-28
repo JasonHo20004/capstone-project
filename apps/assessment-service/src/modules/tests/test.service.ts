@@ -481,6 +481,7 @@ export class TestService {
         id: true,
         questionText: true,
         questionType: true,
+        options: true,
         content: true,
         answer: true,
         explanation: true,
@@ -496,16 +497,21 @@ export class TestService {
       let userAnswer = (submissions[q.id] || "").trim();
       const answerData = q.answer as any;
       const contentData = q.content as any;
+      // Options may live in `content.options` (legacy IELTS sections) or on
+      // the dedicated `options` column (seller-created quiz tests). Try both.
+      const resolvedOptions: string[] =
+        (contentData?.options as string[] | undefined) ??
+        (q.options as string[] | undefined) ??
+        [];
       let correctAnswer = "";
       let isCorrect = false;
 
       if (q.questionType === "MULTIPLE_CHOICE") {
-        const options = contentData?.options || [];
         const correctIndex = answerData?.correctIndex;
-        correctAnswer = options[correctIndex] || `Option ${correctIndex}`;
+        correctAnswer = resolvedOptions[correctIndex] || `Option ${correctIndex}`;
         isCorrect = userAnswer.toLowerCase().trim() === correctAnswer.toLowerCase().trim();
       } else if (q.questionType === "MULTIPLE_CHOICE_MULTI_ANSWER") {
-        const options = contentData?.options || [];
+        const options = resolvedOptions;
         const correctIndices: number[] = answerData?.correctIndices || [];
         correctAnswer = correctIndices.map(idx => String.fromCharCode(65 + idx) + ". " + options[idx]).join(", ");
         

@@ -67,14 +67,28 @@ for (const service of services) {
       },
       error: (err, req, res) => {
         console.error(`❌ [Gateway] Proxy error for ${req.url}:`, err.message);
-        if (res && "writeHead" in res) {
-          (res as any).writeHead(503, { "Content-Type": "application/json" });
-          (res as any).end(
+        if (!res || !("writeHead" in res)) return;
+        const r = res as any;
+        // If headers were already flushed (e.g. SSE stream), we can no longer
+        // write a 503 — just end the socket so the client sees the drop.
+        if (r.headersSent || r.writableEnded) {
+          try {
+            r.end();
+          } catch {
+            /* ignore */
+          }
+          return;
+        }
+        try {
+          r.writeHead(503, { "Content-Type": "application/json" });
+          r.end(
             JSON.stringify({
               success: false,
               error: `Service ${service.name} unavailable`,
             })
           );
+        } catch (e) {
+          console.error(`❌ [Gateway] Failed to write error response:`, e);
         }
       },
     },
