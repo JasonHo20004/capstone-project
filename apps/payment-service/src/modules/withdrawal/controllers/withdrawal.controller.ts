@@ -6,6 +6,7 @@ import { Request, Response } from "express";
 import { WithdrawalService } from "../services/withdrawal.service.js";
 import { asyncHandler } from "@capstone/common";
 import { WithdrawalRequestStatus } from "../../../../generated/prisma/index.js";
+import { s3Service } from "../../../services/s3.service.js";
 
 export class WithdrawalController {
   private withdrawalService = new WithdrawalService();
@@ -95,12 +96,39 @@ export class WithdrawalController {
     const id = req.params.id as string;
     const { proofImageUrl, adminNote } = req.body;
 
+    // Proof of transfer is now mandatory — it's the only audit artifact we
+    // have if a seller disputes "I never got paid".
+    if (typeof proofImageUrl !== "string" || !proofImageUrl.trim()) {
+      res.status(400).json({
+        success: false,
+        message: "Ảnh biên lai chuyển khoản là bắt buộc khi duyệt yêu cầu rút tiền",
+      });
+      return;
+    }
+
     try {
-      const result = await this.withdrawalService.approveWithdrawal(id, proofImageUrl, adminNote);
+      const result = await this.withdrawalService.approveWithdrawal(id, proofImageUrl.trim(), adminNote);
       res.json({ success: true, data: result, message: "Withdrawal approved successfully" });
     } catch (error) {
        const message = error instanceof Error ? error.message : "Failed to approve request";
        res.status(400).json({ success: false, message });
+    }
+  });
+
+  // Admin-only: upload a single proof image to S3. Returns the public URL the
+  // client should then pass back to /approve as `proofImageUrl`.
+  uploadProofImage = asyncHandler(async (req: Request, res: Response) => {
+    const file = (req as Request & { file?: Express.Multer.File }).file;
+    if (!file) {
+      res.status(400).json({ success: false, message: "Vui lòng chọn ảnh biên lai" });
+      return;
+    }
+    try {
+      const url = await s3Service.uploadFile(file);
+      res.json({ success: true, data: { url } });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Không tải lên được ảnh biên lai";
+      res.status(500).json({ success: false, message });
     }
   });
 

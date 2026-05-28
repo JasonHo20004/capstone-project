@@ -456,6 +456,9 @@ importers:
 
   apps/payment-service:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.917.0
+        version: 3.978.0
       '@capstone/common':
         specifier: workspace:*
         version: link:../../libs/common
@@ -474,6 +477,9 @@ importers:
       express:
         specifier: ^5.1.0
         version: 5.2.1
+      multer:
+        specifier: ^2.0.2
+        version: 2.0.2
       redis:
         specifier: ^5.10.0
         version: 5.10.0
@@ -490,6 +496,9 @@ importers:
       '@types/express':
         specifier: ^5.0.3
         version: 5.0.6
+      '@types/multer':
+        specifier: ^2.0.0
+        version: 2.0.0
       '@types/node':
         specifier: ^24.5.2
         version: 24.10.9

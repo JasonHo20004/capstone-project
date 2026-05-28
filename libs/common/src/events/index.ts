@@ -47,6 +47,8 @@ export enum EventNames {
   WITHDRAWAL_REQUESTED = "payment.withdrawal.requested",
   WITHDRAWAL_APPROVED = "payment.withdrawal.approved",
   WITHDRAWAL_REJECTED = "payment.withdrawal.rejected",
+  REFUND_APPROVED = "payment.refund.approved",
+  REFUND_REJECTED = "payment.refund.rejected",
 
   // Notification Events
   NOTIFICATION_CREATED = "notification.created",
@@ -131,6 +133,26 @@ export interface WithdrawalRejectedEvent {
   requestId: string;
   sellerId: string;
   amount: number;
+  reason: string;
+  processedAt: Date;
+}
+
+export interface RefundApprovedEvent {
+  refundId: string;
+  orderId: string;
+  requesterId: string;
+  amount: number;
+  adminId: string;
+  adminNote?: string;
+  processedAt: Date;
+}
+
+export interface RefundRejectedEvent {
+  refundId: string;
+  orderId: string;
+  requesterId: string;
+  amount: number;
+  adminId: string;
   reason: string;
   processedAt: Date;
 }

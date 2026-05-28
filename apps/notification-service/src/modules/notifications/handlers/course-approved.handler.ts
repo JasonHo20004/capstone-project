@@ -5,6 +5,10 @@ import {
   CourseRejectedEvent,
   WithdrawalApprovedEvent,
   WithdrawalRejectedEvent,
+  SellerApprovedEvent,
+  SellerRejectedEvent,
+  RefundApprovedEvent,
+  RefundRejectedEvent,
   DomainEvent,
 } from "@capstone/common";
 import { registerEmailVerificationHandler } from "./email-verification.handler.js";
@@ -113,6 +117,111 @@ export const initializeEventHandlers = async (dbService: any) => {
           },
         },
       });
+    }
+  );
+
+  await eventBus.subscribe<SellerApprovedEvent>(
+    EventNames.SELLER_APPROVED,
+    async (event: DomainEvent<SellerApprovedEvent>) => {
+      const payload = event.payload;
+      console.log(`📥 [${SERVICE_NAME}] Received EVENT ${EventNames.SELLER_APPROVED} for User ${payload.userId}`);
+      const prisma = dbService.getClient();
+
+      await prisma.inAppNotification.create({
+        data: {
+          userId: payload.userId,
+          title: "Đơn đăng ký giảng viên đã được duyệt!",
+          content: `Chúc mừng ${payload.fullName}! Đơn đăng ký trở thành giảng viên của bạn đã được Admin phê duyệt. Bạn có thể bắt đầu tạo khóa học ngay bây giờ.`,
+          type: "SELLER_APPROVED",
+        },
+      });
+
+      console.log(`✅ [${SERVICE_NAME}] SELLER_APPROVED notification created for User ${payload.userId}`);
+    }
+  );
+
+  await eventBus.subscribe<SellerRejectedEvent>(
+    EventNames.SELLER_REJECTED,
+    async (event: DomainEvent<SellerRejectedEvent>) => {
+      const payload = event.payload;
+      console.log(`📥 [${SERVICE_NAME}] Received EVENT ${EventNames.SELLER_REJECTED} for User ${payload.userId}`);
+      const prisma = dbService.getClient();
+
+      const shortReason = payload.reason && payload.reason.length > 200
+        ? `${payload.reason.slice(0, 200).trim()}…`
+        : payload.reason;
+
+      await prisma.inAppNotification.create({
+        data: {
+          userId: payload.userId,
+          title: "Đơn đăng ký giảng viên bị từ chối",
+          content: `Đơn đăng ký trở thành giảng viên của bạn chưa được duyệt. Lý do: ${shortReason || "(không có lý do cụ thể)"}. Bạn có thể chỉnh sửa và gửi lại đơn.`,
+          type: "SELLER_REJECTED",
+          metadata: {
+            rejectionReason: payload.reason,
+          },
+        },
+      });
+
+      console.log(`✅ [${SERVICE_NAME}] SELLER_REJECTED notification created for User ${payload.userId}`);
+    }
+  );
+
+  await eventBus.subscribe<RefundApprovedEvent>(
+    EventNames.REFUND_APPROVED,
+    async (event: DomainEvent<RefundApprovedEvent>) => {
+      const payload = event.payload;
+      console.log(`📥 [${SERVICE_NAME}] Received EVENT ${EventNames.REFUND_APPROVED} for User ${payload.requesterId}`);
+      const prisma = dbService.getClient();
+
+      await prisma.inAppNotification.create({
+        data: {
+          userId: payload.requesterId,
+          title: "Yêu cầu hoàn tiền đã được duyệt",
+          content: `Yêu cầu hoàn tiền ${payload.amount.toLocaleString("vi-VN")}đ cho đơn #${payload.orderId.slice(0, 8)} đã được duyệt. Số tiền đã được cộng vào ví của bạn.`,
+          type: "REFUND_APPROVED",
+          metadata: {
+            refundId: payload.refundId,
+            orderId: payload.orderId,
+            amount: payload.amount,
+            adminNote: payload.adminNote,
+            processedAt: payload.processedAt,
+          },
+        },
+      });
+
+      console.log(`✅ [${SERVICE_NAME}] REFUND_APPROVED notification created for User ${payload.requesterId}`);
+    }
+  );
+
+  await eventBus.subscribe<RefundRejectedEvent>(
+    EventNames.REFUND_REJECTED,
+    async (event: DomainEvent<RefundRejectedEvent>) => {
+      const payload = event.payload;
+      console.log(`📥 [${SERVICE_NAME}] Received EVENT ${EventNames.REFUND_REJECTED} for User ${payload.requesterId}`);
+      const prisma = dbService.getClient();
+
+      const shortReason = payload.reason && payload.reason.length > 200
+        ? `${payload.reason.slice(0, 200).trim()}…`
+        : payload.reason;
+
+      await prisma.inAppNotification.create({
+        data: {
+          userId: payload.requesterId,
+          title: "Yêu cầu hoàn tiền bị từ chối",
+          content: `Yêu cầu hoàn tiền ${payload.amount.toLocaleString("vi-VN")}đ cho đơn #${payload.orderId.slice(0, 8)} đã bị từ chối. Lý do: ${shortReason || "(không có lý do cụ thể)"}.`,
+          type: "REFUND_REJECTED",
+          metadata: {
+            refundId: payload.refundId,
+            orderId: payload.orderId,
+            amount: payload.amount,
+            reason: payload.reason,
+            processedAt: payload.processedAt,
+          },
+        },
+      });
+
+      console.log(`✅ [${SERVICE_NAME}] REFUND_REJECTED notification created for User ${payload.requesterId}`);
     }
   );
 

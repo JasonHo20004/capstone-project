@@ -3,6 +3,12 @@
 // =============================================================================
 
 import { databaseService } from "../../../services/database.service.js";
+import {
+  EventBusService,
+  EventNames,
+  type RefundApprovedEvent,
+  type RefundRejectedEvent,
+} from "@capstone/common";
 import type {
   Prisma,
   RefundRequestStatus,
@@ -25,6 +31,7 @@ interface ListAdminFilters {
 
 export class RefundService {
   private prisma = databaseService.getClient();
+  private eventBus = EventBusService.getInstance("payment-service");
 
   // ── [LEARNER] Submit a refund request ────────────────────────────────────
   async createRequest(input: CreateInput) {
@@ -147,7 +154,28 @@ export class RefundService {
       });
     });
 
-    return await this.prisma.refundRequest.findUnique({ where: { id: refundId } });
+    const finalRefund = await this.prisma.refundRequest.findUnique({
+      where: { id: refundId },
+    });
+
+    // Publish AFTER tx commits — notification-service consumes this to push
+    // an in-app notification to the learner.
+    if (finalRefund) {
+      const payload: RefundApprovedEvent = {
+        refundId: finalRefund.id,
+        orderId: finalRefund.orderId,
+        requesterId: finalRefund.requesterId,
+        amount: Number(finalRefund.amount),
+        adminId,
+        adminNote: adminNote ?? undefined,
+        processedAt: finalRefund.processedAt ?? new Date(),
+      };
+      await this.eventBus
+        .publish(EventNames.REFUND_APPROVED, payload)
+        .catch((err) => console.error("[Refund] publish REFUND_APPROVED failed:", err));
+    }
+
+    return finalRefund;
   }
 
   // ── [ADMIN] Reject refund ────────────────────────────────────────────────
@@ -163,7 +191,7 @@ export class RefundService {
       throw new Error("Vui lòng nhập lý do từ chối");
     }
 
-    return await this.prisma.refundRequest.update({
+    const updated = await this.prisma.refundRequest.update({
       where: { id: refundId },
       data: {
         status: "REJECTED" as RefundRequestStatus,
@@ -172,5 +200,20 @@ export class RefundService {
         processedAt: new Date(),
       },
     });
+
+    const payload: RefundRejectedEvent = {
+      refundId: updated.id,
+      orderId: updated.orderId,
+      requesterId: updated.requesterId,
+      amount: Number(updated.amount),
+      adminId,
+      reason: adminNote.trim(),
+      processedAt: updated.processedAt ?? new Date(),
+    };
+    await this.eventBus
+      .publish(EventNames.REFUND_REJECTED, payload)
+      .catch((err) => console.error("[Refund] publish REFUND_REJECTED failed:", err));
+
+    return updated;
   }
 }
