@@ -128,6 +128,15 @@ export class UserSubscriptionRepository {
     return rows.map((r) => ({ planId: r.planId, count: r._count._all }));
   }
 
+  /**
+   * Proxy for "total users on the platform" — wallets are lazy-created on
+   * first interaction, so this counts users who actually use the platform
+   * (excluding ghost registrations). Used to derive implicit-FREE count.
+   */
+  async countActiveWallets(): Promise<number> {
+    return await this.prisma.wallet.count();
+  }
+
   /** Subscriptions activated in the given window, grouped by planId. Used for trends. */
   async groupSubscriptionsSinceByPlan(since: Date) {
     const rows = await this.prisma.userSubscription.groupBy({

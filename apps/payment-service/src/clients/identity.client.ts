@@ -20,3 +20,21 @@ export async function getSellerStatus(
     return null;
   }
 }
+
+/**
+ * Authoritative total user count (vs wallet count which only includes users
+ * who've interacted with payment-service). Returns null on failure so callers
+ * can fall back to wallet count.
+ */
+export async function getTotalUserCount(): Promise<number | null> {
+  try {
+    const res = await fetch(`${IDENTITY_SERVICE_URL}/api/users/internal/stats`);
+    if (!res.ok) return null;
+    const json = (await res.json()) as { data?: { totalUsers?: number } };
+    const total = json.data?.totalUsers;
+    return typeof total === "number" ? total : null;
+  } catch (err) {
+    console.error("[Payment Service] Error fetching user stats:", err);
+    return null;
+  }
+}

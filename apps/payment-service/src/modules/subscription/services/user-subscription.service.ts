@@ -6,6 +6,7 @@ import { UserSubscriptionRepository } from "../repositories/user-subscription.re
 import { WalletRepository } from "../../wallet/repositories/wallet.repository.js";
 import { AppError, BadRequestError, NotFoundError } from "@capstone/common";
 import type { UserPlanType } from "../../../../generated/prisma/index.js";
+import { getTotalUserCount } from "../../../clients/identity.client.js";
 
 export class UserSubscriptionService {
   private repo = new UserSubscriptionRepository();
@@ -246,19 +247,40 @@ export class UserSubscriptionService {
    * - `mrr`: active subscriber count × plan price (paid plans only).
    */
   async getPlanStats() {
-    const [plans, activeByPlan, last30dByPlan] = await Promise.all([
-      this.repo.findAllPlansAdmin(),
-      this.repo.groupActiveSubscribersByPlan(),
-      this.repo.groupSubscriptionsSinceByPlan(
-        new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      ),
-    ]);
+    const [plans, activeByPlan, last30dByPlan, walletCount, identityCount] =
+      await Promise.all([
+        this.repo.findAllPlansAdmin(),
+        this.repo.groupActiveSubscribersByPlan(),
+        this.repo.groupSubscriptionsSinceByPlan(
+          new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        ),
+        this.repo.countActiveWallets(),
+        getTotalUserCount(),
+      ]);
 
     const activeMap = new Map(activeByPlan.map((r) => [r.planId, r.count]));
     const last30Map = new Map(last30dByPlan.map((r) => [r.planId, r.count]));
 
+    // Prefer identity-service's authoritative count (counts every registered
+    // user, not just those who've touched the wallet). Fall back to wallet
+    // count if the cross-service call fails so the page still renders.
+    const totalUsers = identityCount ?? walletCount;
+
+    // FREE plan is "default" — users start there without a UserSubscription row
+    // (see getMySubscription). To get the real count, subtract every user with
+    // an explicit non-FREE active sub from the total.
+    const nonFreeActive = plans
+      .filter((p) => p.type !== "FREE")
+      .reduce((sum, p) => sum + (activeMap.get(p.id) ?? 0), 0);
+    const implicitFreeCount = Math.max(0, totalUsers - nonFreeActive);
+
     const perPlan = plans.map((p) => {
-      const activeCount = activeMap.get(p.id) ?? 0;
+      const explicitActive = activeMap.get(p.id) ?? 0;
+      // For FREE: explicit rows (users who cancelled PRO) + implicit users
+      // (registered but never subscribed to PRO). Capped at the implicit total
+      // so explicit-FREE rows aren't double-counted.
+      const activeCount =
+        p.type === "FREE" ? Math.max(explicitActive, implicitFreeCount) : explicitActive;
       const price = Number(p.price);
       return {
         planId: p.id,
