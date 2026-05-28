@@ -191,6 +191,16 @@ export class NotificationRepository {
     });
   }
 
+  async unarchiveNotification(id: string) {
+    return await this.prisma.inAppNotification.update({
+      where: { id },
+      data: {
+        isArchived: false,
+        archivedAt: null,
+      },
+    });
+  }
+
   async deleteNotification(id: string) {
     return await this.prisma.inAppNotification.delete({
       where: { id },

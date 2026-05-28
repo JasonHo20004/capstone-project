@@ -18,7 +18,16 @@ export class NotificationController {
 
   listNotifications = asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.userId;
-    const result = await this.service.listNotifications(userId, req.query as any);
+    const q = req.query as Record<string, string | undefined>;
+    const toBool = (v: string | undefined) =>
+      v === "true" ? true : v === "false" ? false : undefined;
+    const result = await this.service.listNotifications(userId, {
+      page: q.page,
+      limit: q.limit,
+      type: q.type,
+      isRead: toBool(q.isRead),
+      isArchived: toBool(q.isArchived),
+    } as any);
 
     res.json({ success: true, ...result });
   });
@@ -80,6 +89,18 @@ export class NotificationController {
       success: true,
       data: notification,
       message: "Notification archived",
+    });
+  });
+
+  unarchiveNotification = asyncHandler(async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const userId = req.user!.userId;
+    const notification = await this.service.unarchiveNotification(id as string, userId);
+
+    res.json({
+      success: true,
+      data: notification,
+      message: "Notification unarchived",
     });
   });
 

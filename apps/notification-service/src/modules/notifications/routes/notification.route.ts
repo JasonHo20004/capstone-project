@@ -45,6 +45,9 @@ router.post("/read-all", authenticateToken, validate(markAllAsReadSchema), contr
 // Protected: Archive notification
 router.patch("/:id/archive", authenticateToken, validate(archiveNotificationSchema), controller.archiveNotification);
 
+// Protected: Unarchive notification (restore from saved list back to active inbox)
+router.patch("/:id/unarchive", authenticateToken, validate(archiveNotificationSchema), controller.unarchiveNotification);
+
 // Protected: Delete notification
 router.delete("/:id", authenticateToken, validate(getNotificationSchema), controller.deleteNotification);
 

@@ -150,6 +150,21 @@ export class NotificationService {
     return this.mapNotificationResponse(updated);
   }
 
+  async unarchiveNotification(id: string, userId: string): Promise<NotificationResponse> {
+    const notification = await this.repository.findNotificationById(id);
+
+    if (!notification) {
+      throw new NotFoundError("Notification not found");
+    }
+
+    if (notification.userId !== userId) {
+      throw new ForbiddenError("You don't have access to this notification");
+    }
+
+    const updated = await this.repository.unarchiveNotification(id);
+    return this.mapNotificationResponse(updated);
+  }
+
   async deleteNotification(id: string, userId: string): Promise<void> {
     const notification = await this.repository.findNotificationById(id);
 
