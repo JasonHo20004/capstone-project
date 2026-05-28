@@ -115,4 +115,58 @@ export class UserSubscriptionRepository {
       take: limit,
     });
   }
+
+  // ── Plan-level stats (admin dashboard) ─────────────────────────────────
+
+  /** Active subscriber count grouped by planId. */
+  async groupActiveSubscribersByPlan() {
+    const rows = await this.prisma.userSubscription.groupBy({
+      by: ["planId"],
+      where: { isActive: true },
+      _count: { _all: true },
+    });
+    return rows.map((r) => ({ planId: r.planId, count: r._count._all }));
+  }
+
+  /** Subscriptions activated in the given window, grouped by planId. Used for trends. */
+  async groupSubscriptionsSinceByPlan(since: Date) {
+    const rows = await this.prisma.userSubscription.groupBy({
+      by: ["planId"],
+      where: { createdAt: { gte: since } },
+      _count: { _all: true },
+    });
+    return rows.map((r) => ({ planId: r.planId, count: r._count._all }));
+  }
+
+  // ── Plan Feature Definitions ───────────────────────────────────────────
+
+  async findAllFeatures() {
+    return await this.prisma.planFeatureDefinition.findMany({
+      orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }],
+    });
+  }
+
+  async findFeatureByKey(key: string) {
+    return await this.prisma.planFeatureDefinition.findUnique({ where: { key } });
+  }
+
+  async createFeature(data: {
+    key: string;
+    label: string;
+    isPremium?: boolean;
+    displayOrder?: number;
+  }) {
+    return await this.prisma.planFeatureDefinition.create({ data });
+  }
+
+  async updateFeature(
+    id: string,
+    data: { label?: string; isPremium?: boolean; displayOrder?: number }
+  ) {
+    return await this.prisma.planFeatureDefinition.update({ where: { id }, data });
+  }
+
+  async deleteFeature(id: string) {
+    return await this.prisma.planFeatureDefinition.delete({ where: { id } });
+  }
 }

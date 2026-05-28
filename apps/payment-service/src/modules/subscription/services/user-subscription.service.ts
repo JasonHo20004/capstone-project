@@ -236,6 +236,94 @@ export class UserSubscriptionService {
     return results;
   }
 
+  // ── Admin: Plan Stats (dashboard) ─────────────────────────────────────
+
+  /**
+   * Aggregate per-plan stats for the admin dashboard.
+   * - `activeCount`: currently active subscriptions per plan.
+   * - `last30dCount`: subscriptions whose `createdAt` is within the last 30 days
+   *   (used as a leading indicator of growth).
+   * - `mrr`: active subscriber count × plan price (paid plans only).
+   */
+  async getPlanStats() {
+    const [plans, activeByPlan, last30dByPlan] = await Promise.all([
+      this.repo.findAllPlansAdmin(),
+      this.repo.groupActiveSubscribersByPlan(),
+      this.repo.groupSubscriptionsSinceByPlan(
+        new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      ),
+    ]);
+
+    const activeMap = new Map(activeByPlan.map((r) => [r.planId, r.count]));
+    const last30Map = new Map(last30dByPlan.map((r) => [r.planId, r.count]));
+
+    const perPlan = plans.map((p) => {
+      const activeCount = activeMap.get(p.id) ?? 0;
+      const price = Number(p.price);
+      return {
+        planId: p.id,
+        name: p.name,
+        type: p.type,
+        price,
+        activeCount,
+        last30dCount: last30Map.get(p.id) ?? 0,
+        mrr: price > 0 ? activeCount * price : 0,
+      };
+    });
+
+    return {
+      perPlan,
+      totals: {
+        activeCount: perPlan.reduce((s, r) => s + r.activeCount, 0),
+        mrr: perPlan.reduce((s, r) => s + r.mrr, 0),
+        last30dCount: perPlan.reduce((s, r) => s + r.last30dCount, 0),
+      },
+    };
+  }
+
+  // ── Admin: Plan Feature Definitions ────────────────────────────────────
+
+  async listFeatures() {
+    return await this.repo.findAllFeatures();
+  }
+
+  async createFeature(input: {
+    key: string;
+    label: string;
+    isPremium?: boolean;
+    displayOrder?: number;
+  }) {
+    const key = input.key.trim();
+    if (!key || !/^[a-z0-9_]+$/i.test(key)) {
+      throw new BadRequestError("Feature key must be alphanumeric/underscore only");
+    }
+    const label = input.label.trim();
+    if (!label) throw new BadRequestError("Feature label is required");
+    const existing = await this.repo.findFeatureByKey(key);
+    if (existing) throw new BadRequestError(`Feature key '${key}' already exists`);
+    return await this.repo.createFeature({
+      key,
+      label,
+      isPremium: input.isPremium ?? false,
+      displayOrder: input.displayOrder ?? 0,
+    });
+  }
+
+  async updateFeature(
+    id: string,
+    input: { label?: string; isPremium?: boolean; displayOrder?: number }
+  ) {
+    return await this.repo.updateFeature(id, {
+      label: input.label?.trim(),
+      isPremium: input.isPremium,
+      displayOrder: input.displayOrder,
+    });
+  }
+
+  async deleteFeature(id: string) {
+    return await this.repo.deleteFeature(id);
+  }
+
   // ── Feature Access Check ──────────────────────────────────────────────
 
   async checkFeatureAccess(userId: string, feature: string): Promise<boolean> {

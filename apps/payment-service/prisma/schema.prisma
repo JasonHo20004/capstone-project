@@ -212,6 +212,21 @@ model UserSubscription {
   @@map("user_subscriptions")
 }
 
+// Master list of feature flags that UserPlan.features[] can reference.
+// Admin manages this at runtime instead of redeploying the FE every time a
+// new product capability ships.
+model PlanFeatureDefinition {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key          String    @unique @db.VarChar(64)
+  label        String    @db.VarChar(255)
+  isPremium    Boolean   @default(false) @map("is_premium")
+  displayOrder Int       @default(0) @map("display_order")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime? @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("plan_feature_definitions")
+}
+
 // ── Revenue Split (Commission) ──────────────────────────────────────────
 
 model SellerEarning {

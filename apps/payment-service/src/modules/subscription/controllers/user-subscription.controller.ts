@@ -79,6 +79,36 @@ export class UserSubscriptionController {
     res.json({ success: true, data: results, message: "Plans seeded successfully" });
   });
 
+  // Per-plan dashboard stats: subscriber counts + MRR + 30-day growth.
+  getPlanStats = asyncHandler(async (_req: Request, res: Response) => {
+    const stats = await this.service.getPlanStats();
+    res.json({ success: true, data: stats });
+  });
+
+  // ── Plan Feature Definitions (admin manages, FE reads to build UI) ─────
+
+  getFeatures = asyncHandler(async (_req: Request, res: Response) => {
+    const features = await this.service.listFeatures();
+    res.json({ success: true, data: features });
+  });
+
+  createFeature = asyncHandler(async (req: Request, res: Response) => {
+    const feature = await this.service.createFeature(req.body);
+    res.status(201).json({ success: true, data: feature });
+  });
+
+  updateFeature = asyncHandler(async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    const feature = await this.service.updateFeature(id, req.body);
+    res.json({ success: true, data: feature });
+  });
+
+  deleteFeature = asyncHandler(async (req: Request, res: Response) => {
+    const id = req.params.id as string;
+    await this.service.deleteFeature(id);
+    res.json({ success: true });
+  });
+
   // ── Internal (service-to-service) ──────────────────────────────────────
 
   checkAccessInternal = asyncHandler(async (req: Request, res: Response) => {
