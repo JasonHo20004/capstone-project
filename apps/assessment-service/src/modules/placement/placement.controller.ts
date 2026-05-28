@@ -45,6 +45,19 @@ export class PlacementController {
       next(error);
     }
   }
+
+  async latest(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = (req.query.userId as string) ?? "";
+      if (!userId) {
+        return res.status(400).json({ error: "userId query required" });
+      }
+      const result = await placementService.getLatestForUser(userId);
+      res.status(200).json({ message: "Latest placement fetched", data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const placementController = new PlacementController();

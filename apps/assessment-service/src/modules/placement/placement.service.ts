@@ -329,6 +329,52 @@ export class PlacementService {
     return this.buildResultPayload(session.id);
   }
 
+  async getLatestForUser(userId: string) {
+    const session = await placementRepository.findLatestCompletedSession(userId);
+    if (!session) {
+      return { cefrLevel: null, takenAt: null, skillBreakdown: {} };
+    }
+
+    const questions = await placementRepository.findByIds(session.questionIds);
+    const qById = new Map(questions.map((q) => [q.id, q]));
+
+    const buckets: Record<string, { earned: number; max: number }> = {
+      Listening: { earned: 0, max: 0 },
+      Reading: { earned: 0, max: 0 },
+      Grammar: { earned: 0, max: 0 },
+      Vocabulary: { earned: 0, max: 0 },
+    };
+
+    for (const a of session.answers) {
+      const q = qById.get(a.questionId);
+      if (!q) continue;
+      const weight = DIFFICULTY_WEIGHTS[q.difficulty] ?? 1;
+
+      let bucket: keyof typeof buckets | null = null;
+      if (q.section === 3) bucket = "Listening";
+      else if (q.section === 2) bucket = "Reading";
+      else if (q.section === 1) {
+        if (q.skillTag?.startsWith("Grammar")) bucket = "Grammar";
+        else if (q.skillTag?.startsWith("Vocabulary")) bucket = "Vocabulary";
+      }
+      if (!bucket) continue;
+
+      buckets[bucket].max += weight;
+      if (a.isCorrect) buckets[bucket].earned += weight;
+    }
+
+    const skillBreakdown: Record<string, number> = {};
+    for (const [skill, { earned, max }] of Object.entries(buckets)) {
+      if (max > 0) skillBreakdown[skill] = Math.round((earned / max) * 100);
+    }
+
+    return {
+      cefrLevel: session.cefrLevel ?? null,
+      takenAt: session.completedAt ? session.completedAt.toISOString() : null,
+      skillBreakdown,
+    };
+  }
+
   async getResult(sessionId: string, userId: string) {
     const prisma = databaseService.getClient();
     const session = await prisma.placementSession.findUnique({

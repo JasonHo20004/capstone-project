@@ -38,6 +38,15 @@ export class PlacementRepository {
       orderBy: { createdAt: "desc" },
     });
   }
+
+  async findLatestCompletedSession(userId: string) {
+    const prisma = databaseService.getClient();
+    return prisma.placementSession.findFirst({
+      where: { userId, status: "completed" },
+      orderBy: { completedAt: "desc" },
+      include: { answers: true },
+    });
+  }
 }
 
 function shuffle<T>(arr: T[]): T[] {
