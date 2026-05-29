@@ -492,7 +492,10 @@ export class TestService {
 
     if (questions.length === 0) throw new Error("No questions found for this test.");
 
-    let correct = 0;
+    const norm = (s: string) => (s || "").trim().toLowerCase().replace(/\s+/g, " ");
+
+    let correct = 0; // total points earned across all questions/gaps
+    let total = 0; // total points available (gaps count individually)
     const details = questions.map((q) => {
       let userAnswer = (submissions[q.id] || "").trim();
       const answerData = q.answer as any;
@@ -505,6 +508,8 @@ export class TestService {
         [];
       let correctAnswer = "";
       let isCorrect = false;
+      let maxPoints = 1; // gaps override this with the gap count
+      let earnedPoints = 0;
 
       if (q.questionType === "MULTIPLE_CHOICE") {
         const correctIndex = answerData?.correctIndex;
@@ -514,34 +519,69 @@ export class TestService {
         const options = resolvedOptions;
         const correctIndices: number[] = answerData?.correctIndices || [];
         correctAnswer = correctIndices.map(idx => String.fromCharCode(65 + idx) + ". " + options[idx]).join(", ");
-        
+
         const userIndices = userAnswer.split(',').map(s => s.trim()).filter(s => s !== '');
         userAnswer = userIndices.map((idxStr) => {
           const idx = parseInt(idxStr, 10);
           return isNaN(idx) ? idxStr : (String.fromCharCode(65 + Math.max(0, idx)) + ". " + (options[idx] || ""));
         }).join(", ");
 
-        if (userIndices.length > 0 && userIndices.length === correctIndices.length && 
+        if (userIndices.length > 0 && userIndices.length === correctIndices.length &&
             userIndices.every((idxStr) => correctIndices.includes(parseInt(idxStr, 10)))) {
           isCorrect = true;
         } else {
           isCorrect = false;
         }
       } else if (q.questionType === "GAP_FILL" || q.questionType === "SHORT_ANSWER") {
-        const acceptedAnswers: string[] = answerData?.text || [];
-        correctAnswer = acceptedAnswers[0] || "";
-        isCorrect = acceptedAnswers.some(
-          (a: string) => a.toLowerCase().trim() === userAnswer.toLowerCase()
-        );
+        // Two shapes:
+        //  • Multi-gap Summary Completion → answer = { "9": ["Ridgeway"], "10": ["manuscript"] }
+        //    submission = JSON string { "9": "ridgeway", "10": "..." }; each gap is 1 IELTS mark.
+        //  • Single fill / short answer → answer = { text: ["variant1", "variant2"] }; submission = plain string.
+        const isMultiGap =
+          answerData && typeof answerData === "object" && !Array.isArray(answerData) &&
+          !Array.isArray(answerData.text) &&
+          Object.values(answerData).some((v) => Array.isArray(v));
+
+        if (isMultiGap) {
+          const gapKeys = Object.keys(answerData);
+          maxPoints = gapKeys.length;
+          let userGaps: Record<string, string> = {};
+          try {
+            const parsed = JSON.parse(submissions[q.id] || "{}");
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) userGaps = parsed;
+          } catch { /* malformed submission → no gaps credited */ }
+
+          for (const gid of gapKeys) {
+            const accepts: string[] = Array.isArray(answerData[gid]) ? answerData[gid] : [];
+            const ua = (userGaps[gid] ?? "").toString();
+            if (ua.trim() && accepts.some((a) => norm(a) === norm(ua))) earnedPoints++;
+          }
+          isCorrect = maxPoints > 0 && earnedPoints === maxPoints;
+          correctAnswer = gapKeys
+            .map((g) => `${g}: ${(Array.isArray(answerData[g]) ? answerData[g] : []).join(" / ")}`)
+            .join("  •  ");
+          userAnswer = gapKeys.map((g) => `${g}: ${userGaps[g]?.trim() || "—"}`).join("  •  ");
+        } else {
+          const acceptedAnswers: string[] = answerData?.text || [];
+          correctAnswer = acceptedAnswers[0] || "";
+          isCorrect = acceptedAnswers.some((a: string) => norm(a) === norm(userAnswer));
+        }
       } else if (q.questionType === "TRUE_FALSE_NOT_GIVEN" || q.questionType === "YES_NO_NOT_GIVEN") {
         correctAnswer = answerData?.correctAnswer || "";
         isCorrect = userAnswer.toUpperCase() === correctAnswer.toUpperCase();
       } else if (q.questionType === "MATCHING") {
-        correctAnswer = answerData?.text?.[0] || answerData?.correctAnswer || "";
-        isCorrect = userAnswer.toLowerCase() === correctAnswer.toLowerCase();
+        // Authoring stores the matched option under `correctOption` (a letter/text);
+        // fall back to legacy `text[]` / `correctAnswer` shapes.
+        correctAnswer = answerData?.correctOption || answerData?.text?.[0] || answerData?.correctAnswer || "";
+        isCorrect = norm(userAnswer) === norm(correctAnswer);
       }
 
-      if (isCorrect) correct++;
+      // Single-point question types derive their earned points from correctness.
+      // (Multi-gap GAP_FILL already accumulated earnedPoints above.)
+      if (maxPoints === 1) earnedPoints = isCorrect ? 1 : 0;
+
+      correct += earnedPoints;
+      total += maxPoints;
 
       return {
         questionId: q.id,
@@ -551,11 +591,12 @@ export class TestService {
         userAnswer: userAnswer || "(no answer)",
         correctAnswer,
         isCorrect,
+        scoreEarned: earnedPoints,
+        scoreMax: maxPoints,
         explanation: q.explanation || null,
       };
     });
 
-    const total = questions.length;
     const percentage = total > 0 ? Math.round((correct / total) * 100) : 0;
 
     // ─── Look up Band Score from score_conversions ─────────────────────
@@ -634,7 +675,7 @@ export class TestService {
                 explanation: q.explanation,
               }
             : null,
-          scoreAtSubmit: d.isCorrect ? 1 : 0,
+          scoreAtSubmit: d.scoreEarned,
         };
       });
 
