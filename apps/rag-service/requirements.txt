@@ -13,3 +13,5 @@ google-cloud-texttospeech
 google-generativeai
 redis[asyncio]
 PyJWT
+mutagen
+boto3

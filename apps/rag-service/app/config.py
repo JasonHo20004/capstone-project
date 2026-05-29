@@ -34,10 +34,18 @@ class Settings(BaseSettings):
     jwt_secret: str = ""
     jwt_algorithm: str = "HS256"
 
+    # CORS — comma-separated allowed origins (per environment). In production most
+    # browser traffic goes through the api-gateway, but this still applies to any
+    # direct/WS access. Set to the gateway + frontend origins for your env.
+    cors_origins: str = "http://localhost:8080,http://localhost:5173,http://localhost:3000"
+
     # Livestream
     audio_base_url: str = "http://localhost:8000"
     max_room_participants: int = 30
-    questions_per_minute: int = 3
+    questions_per_minute: int = 6
+    # Comma-separated roles allowed to create/host a live room (e.g. "ADMIN,TEACHER").
+    # Empty = any authenticated user may host. Requires jwt_secret to be set.
+    livestream_host_roles: str = ""
 
     # TTS — "gcloud" (Google Cloud Neural2, premium) or "edge" (free fallback)
     tts_provider: str = "gcloud"

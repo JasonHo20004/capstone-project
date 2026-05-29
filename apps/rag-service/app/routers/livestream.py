@@ -13,6 +13,7 @@ Features:
 """
 
 import asyncio
+import hashlib
 import json
 import re
 import time
@@ -20,8 +21,15 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+try:
+    from mutagen.mp3 import MP3
+    _MUTAGEN_AVAILABLE = True
+except ImportError:
+    MP3 = None  # type: ignore
+    _MUTAGEN_AVAILABLE = False
+
 import jwt as pyjwt
-from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import redis.asyncio as aioredis
@@ -29,38 +37,92 @@ import redis.asyncio as aioredis
 from app.services.tts_service import AUDIO_DIR, synthesize_to_file
 from app.services.llm_service import generate_text, extract_json_object
 from app.services.image_service import fetch_images_for_queries
+from app.services.storage import store_audio_and_url
 
 router = APIRouter(prefix="/api/livestream", tags=["Livestream"])
 
-# ── In-process WebSocket registry ─────────────────────────────────────────────
+# ── In-process WebSocket registry (LOCAL sockets only) ────────────────────────
+# Only the live WebSocket objects live in-process. All *shared* room state
+# (presence + raised-hand queue) lives in Redis so the feature behaves correctly
+# across multiple uvicorn workers / replicas, and broadcasting goes through
+# Redis Pub/Sub (see _broadcast / _pubsub_listener) so a message published on one
+# worker reaches sockets connected to any other worker.
 _connections: dict[str, dict[str, WebSocket]] = {}
-_user_names: dict[str, dict[str, str]] = {}
-_raised_hands: dict[str, list[str]] = {}  # room_id → ordered queue of user_ids
 
 # Reactions allowlist — only these emojis can be broadcast
 ALLOWED_REACTIONS = {"👍", "❤️", "👏", "🎉", "🤔", "😮", "🔥", "😂"}
 
 
-def _participants_payload(room_id: str, host_id: str) -> list[dict]:
-    """Build participant list snapshot for a room."""
-    names = _user_names.get(room_id, {})
-    raised = _raised_hands.get(room_id, [])
+# ── Redis-backed presence + raised-hand queue ─────────────────────────────────
+
+def _presence_key(room_id: str) -> str:
+    return f"livestream:presence:{room_id}"
+
+
+def _hands_key(room_id: str) -> str:
+    return f"livestream:hands:{room_id}"
+
+
+def _speaker_key(room_id: str) -> str:
+    """The student currently invited to speak (spotlight). TTL-bounded."""
+    return f"livestream:speaker:{room_id}"
+
+
+SPEAKER_TTL = 300  # 5-minute spotlight window
+
+
+async def _presence_count(r: aioredis.Redis, room_id: str) -> int:
+    return await r.hlen(_presence_key(room_id))
+
+
+async def _add_presence(r: aioredis.Redis, room_id: str, user_id: str, user_name: str):
+    await r.hset(_presence_key(room_id), user_id, user_name)
+    await r.expire(_presence_key(room_id), ROOM_TTL)
+
+
+async def _remove_presence(r: aioredis.Redis, room_id: str, user_id: str):
+    await r.hdel(_presence_key(room_id), user_id)
+    await r.lrem(_hands_key(room_id), 0, user_id)
+
+
+async def _is_present(r: aioredis.Redis, room_id: str, user_id: str) -> bool:
+    return await r.hexists(_presence_key(room_id), user_id)
+
+
+async def _raise_hand(r: aioredis.Redis, room_id: str, user_id: str) -> bool:
+    """Append to the queue if not already present. Returns True if newly added."""
+    if user_id in await r.lrange(_hands_key(room_id), 0, -1):
+        return False
+    await r.rpush(_hands_key(room_id), user_id)
+    await r.expire(_hands_key(room_id), ROOM_TTL)
+    return True
+
+
+async def _lower_hand(r: aioredis.Redis, room_id: str, user_id: str) -> bool:
+    """Remove from the queue. Returns True if it was present."""
+    return (await r.lrem(_hands_key(room_id), 0, user_id)) > 0
+
+
+async def _participants_payload(r: aioredis.Redis, room_id: str, host_id: str) -> list[dict]:
+    """Build participant list snapshot for a room from Redis presence."""
+    names = await r.hgetall(_presence_key(room_id))
+    raised = await r.lrange(_hands_key(room_id), 0, -1)
     return [
         {
             "user_id": uid,
-            "user_name": names.get(uid, "Student"),
+            "user_name": name or "Student",
             "is_host": uid == host_id,
             "hand_raised": uid in raised,
             "hand_position": (raised.index(uid) + 1) if uid in raised else 0,
         }
-        for uid in _connections.get(room_id, {})
+        for uid, name in names.items()
     ]
 
 
-async def _broadcast_participants(room_id: str, host_id: str):
+async def _broadcast_participants(r: aioredis.Redis, room_id: str, host_id: str):
     await _broadcast(room_id, {
         "type": "participant_list",
-        "participants": _participants_payload(room_id, host_id),
+        "participants": await _participants_payload(r, room_id, host_id),
     })
 
 # ── Acronym normaliser for TTS ─────────────────────────────────────────────────
@@ -130,7 +192,17 @@ async def _list_rooms(r: aioredis.Redis) -> list[dict]:
     if not keys:
         return []
     values = await r.mget(*keys)
-    return [json.loads(v) for v in values if v and json.loads(v)["status"] != "ended"]
+    rooms: list[dict] = []
+    for v in values:
+        if not v:
+            continue
+        try:
+            room = json.loads(v)
+        except json.JSONDecodeError:
+            continue
+        if room.get("status") != "ended":
+            rooms.append(room)
+    return rooms
 
 
 async def _load_recording(r: aioredis.Redis, room_id: str) -> dict | None:
@@ -223,9 +295,40 @@ async def cleanup_audio_loop():
             print(f"[Livestream] Cleanup error: {e}")
 
 
-# ── Broadcast ──────────────────────────────────────────────────────────────────
+# ── Broadcast via Redis Pub/Sub ──────────────────────────────────────────────
+# _broadcast publishes to a per-room channel; every worker runs _pubsub_listener
+# which delivers the message to its *local* sockets. This is what makes a room
+# work across multiple uvicorn workers — an in-process dict broadcast would only
+# reach the sockets that happen to live on the same worker as the publisher.
+
+_pub_redis: aioredis.Redis | None = None
+
+
+def _channel(room_id: str) -> str:
+    return f"livestream:channel:{room_id}"
+
+
+async def _get_pub_redis() -> aioredis.Redis:
+    global _pub_redis
+    if _pub_redis is None:
+        from app.config import get_settings
+        _pub_redis = aioredis.from_url(get_settings().redis_url, decode_responses=True)
+    return _pub_redis
+
 
 async def _broadcast(room_id: str, message: dict):
+    """Publish a message to every participant of a room, across all workers."""
+    try:
+        r = await _get_pub_redis()
+        await r.publish(_channel(room_id), json.dumps({"room_id": room_id, "message": message}))
+    except Exception as e:
+        # Redis unreachable — degrade gracefully to local-only delivery.
+        print(f"[Livestream] publish failed, local-only delivery: {e}")
+        await _local_deliver(room_id, message)
+
+
+async def _local_deliver(room_id: str, message: dict):
+    """Send a message to the sockets connected to THIS worker."""
     dead = []
     for uid, ws in list(_connections.get(room_id, {}).items()):
         try:
@@ -234,7 +337,50 @@ async def _broadcast(room_id: str, message: dict):
             dead.append(uid)
     for uid in dead:
         _connections.get(room_id, {}).pop(uid, None)
-        _user_names.get(room_id, {}).pop(uid, None)
+
+
+async def _pubsub_listener():
+    """Per-process loop: receive published room messages and fan out to local sockets."""
+    from app.config import get_settings
+    settings = get_settings()
+    while True:
+        try:
+            r = aioredis.from_url(settings.redis_url, decode_responses=True)
+            pubsub = r.pubsub()
+            await pubsub.psubscribe("livestream:channel:*")
+            print("[Livestream] Pub/Sub listener subscribed")
+            async for msg in pubsub.listen():
+                if msg.get("type") != "pmessage":
+                    continue
+                try:
+                    data = json.loads(msg["data"])
+                    await _local_deliver(data["room_id"], data["message"])
+                except Exception as e:
+                    print(f"[Livestream] deliver error: {e}")
+        except Exception as e:
+            print(f"[Livestream] Pub/Sub listener crashed, restarting in 5s: {e}")
+            await asyncio.sleep(5)
+
+
+def start_pubsub_listener():
+    """Kick off the per-process Pub/Sub listener (called from app startup)."""
+    asyncio.create_task(_pubsub_listener())
+
+
+# ── Audio duration ───────────────────────────────────────────────────────────
+
+def _audio_duration(filename: str, fallback: float) -> float:
+    """Real MP3 length in seconds (so slides advance in sync with the narration).
+
+    Falls back to a word-count estimate if mutagen is unavailable or the file
+    can't be read.
+    """
+    if not filename or not _MUTAGEN_AVAILABLE:
+        return fallback
+    try:
+        return max(2.0, float(MP3(AUDIO_DIR / filename).info.length))
+    except Exception:
+        return fallback
 
 
 # ── Lesson generation ──────────────────────────────────────────────────────────
@@ -380,7 +526,27 @@ def _fallback_sections(topic: str, level: str, language: str) -> list[dict]:
     ]
 
 
-async def _generate_lesson(topic: str, lesson_prompt: str, level: str, language: str, settings) -> list[dict]:
+async def _generate_lesson(
+    r: aioredis.Redis, topic: str, lesson_prompt: str, level: str, language: str, settings,
+) -> tuple[list[dict], bool]:
+    """Returns (sections, used_fallback). used_fallback=True means the AI call
+    failed/returned unusable output and we served the generic template instead.
+
+    Generated lessons are cached in Redis keyed by (language, level, topic,
+    prompt) for 7 days, so re-running the same lesson skips the expensive LLM call.
+    """
+    cache_key = "livestream:lesson:" + hashlib.sha1(
+        f"{language}|{level}|{topic.strip()}|{lesson_prompt.strip()}".encode("utf-8")
+    ).hexdigest()
+    try:
+        cached = await r.get(cache_key)
+        if cached:
+            secs = json.loads(cached)
+            if secs:
+                return secs, False
+    except Exception:
+        pass
+
     prompt_tpl = _LESSON_PROMPT_VI if language == "vi" else _LESSON_PROMPT_EN
     lesson_focus = lesson_prompt.strip() if lesson_prompt.strip() else f"Teach the topic: {topic}"
     prompt = prompt_tpl.format(topic=topic, lesson_focus=lesson_focus, level=level)
@@ -393,10 +559,14 @@ async def _generate_lesson(topic: str, lesson_prompt: str, level: str, language:
         if parsed:
             sections = parsed.get("sections", [])
             if sections:
-                return sections
+                try:
+                    await r.set(cache_key, json.dumps(sections), ex=7 * 86400)
+                except Exception:
+                    pass
+                return sections, False
     except Exception as e:
         print(f"[Livestream] Lesson generation failed: {e}")
-    return _fallback_sections(topic, level, language)
+    return _fallback_sections(topic, level, language), True
 
 
 # ── REST: rooms ────────────────────────────────────────────────────────────────
@@ -408,31 +578,48 @@ async def list_rooms():
     r = await _get_redis(settings)
     try:
         rooms = await _list_rooms(r)
-        return {
-            "rooms": [
-                {
-                    "id": room["id"],
-                    "topic": room["topic"],
-                    "lesson_prompt": room.get("lesson_prompt", ""),
-                    "level": room["level"],
-                    "language": room.get("language", "en"),
-                    "level_label": LEVEL_LABELS.get(room["level"], room["level"]),
-                    "host_name": room["host_name"],
-                    "participant_count": len(_connections.get(room["id"], {})),
-                    "status": room["status"],
-                    "created_at": room["created_at"],
-                }
-                for room in rooms
-            ]
-        }
+        out = []
+        for room in rooms:
+            out.append({
+                "id": room["id"],
+                "topic": room["topic"],
+                "lesson_prompt": room.get("lesson_prompt", ""),
+                "level": room["level"],
+                "language": room.get("language", "en"),
+                "level_label": LEVEL_LABELS.get(room["level"], room["level"]),
+                "host_name": room["host_name"],
+                "participant_count": await _presence_count(r, room["id"]),
+                "status": room["status"],
+                "created_at": room["created_at"],
+            })
+        return {"rooms": out}
     finally:
         await r.aclose()
 
 
 @router.post("/rooms")
-async def create_room(body: CreateRoomRequest):
+async def create_room(body: CreateRoomRequest, authorization: str = Header(default="")):
     from app.config import get_settings
     settings = get_settings()
+
+    # Derive host identity from the JWT (anti-spoof). When a secret is configured
+    # a valid token is REQUIRED to create/host a room and the client-supplied
+    # host_id is ignored. Optionally restrict hosting to specific roles. In
+    # no-JWT dev mode we fall back to the body value.
+    token = authorization[7:].strip() if authorization.lower().startswith("bearer ") else authorization
+    payload = _verify_jwt(token, settings.jwt_secret, settings.jwt_algorithm)
+    if settings.jwt_secret:
+        if not payload:
+            raise HTTPException(401, "Authentication required to create a room")
+        host_id = str(payload.get("userId") or payload.get("sub") or "")
+        allowed = [x.strip().upper() for x in settings.livestream_host_roles.split(",") if x.strip()]
+        if allowed and str(payload.get("role") or "").upper() not in allowed:
+            raise HTTPException(403, "Your account is not allowed to host a live room")
+    else:
+        host_id = body.host_id
+    if not host_id:
+        raise HTTPException(400, "Missing host identity")
+
     r = await _get_redis(settings)
     try:
         room_id = str(uuid.uuid4())[:8].upper()
@@ -442,7 +629,7 @@ async def create_room(body: CreateRoomRequest):
             "lesson_prompt": body.lesson_prompt.strip(),
             "level": body.level,
             "language": body.language if body.language in ("en", "vi") else "en",
-            "host_id": body.host_id,
+            "host_id": host_id,
             "host_name": body.host_name,
             "status": "waiting",
             "transcript": [],
@@ -467,7 +654,7 @@ async def get_room(room_id: str):
         return {
             **room,
             "level_label": LEVEL_LABELS.get(room["level"], room["level"]),
-            "participant_count": len(_connections.get(room_id, {})),
+            "participant_count": await _presence_count(r, room_id),
         }
     finally:
         await r.aclose()
@@ -603,7 +790,7 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
             await websocket.close(code=4001)
             return
 
-        if len(_connections.get(room_id, {})) >= settings.max_room_participants:
+        if await _presence_count(r, room_id) >= settings.max_room_participants:
             await websocket.close(code=4003)
             return
 
@@ -619,25 +806,34 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
             await websocket.close(code=4001)
             return
 
-        user_id = (payload or {}).get("sub") or raw.get("user_id") or str(uuid.uuid4())
+        # Identity: when a JWT is present we trust ONLY its claim, so a client
+        # cannot spoof another user (e.g. the host) by sending an arbitrary
+        # user_id. identity-service issues `userId`; `sub` kept as a fallback.
+        # The client-supplied id is honoured only in no-JWT dev mode.
+        token_uid = (payload or {}).get("userId") or (payload or {}).get("sub")
+        if token_uid:
+            user_id = str(token_uid)
+        else:
+            user_id = raw.get("user_id") or str(uuid.uuid4())
         user_name = raw.get("user_name", "Student")
 
         _connections.setdefault(room_id, {})[user_id] = websocket
-        _user_names.setdefault(room_id, {})[user_id] = user_name
+        await _add_presence(r, room_id, user_id, user_name)
 
         room = await _load_room(r, room_id) or room
+        count = await _presence_count(r, room_id)
         await websocket.send_json({
             "type": "room_state",
             "room": {**room, "level_label": LEVEL_LABELS.get(room["level"], room["level"])},
-            "participant_count": len(_connections.get(room_id, {})),
+            "participant_count": count,
             "is_host": user_id == room["host_id"],
         })
         await _broadcast(room_id, {
             "type": "participant_join",
             "user_name": user_name,
-            "participant_count": len(_connections.get(room_id, {})),
+            "participant_count": count,
         })
-        await _broadcast_participants(room_id, room["host_id"])
+        await _broadcast_participants(r, room_id, room["host_id"])
 
         while True:
             msg = await websocket.receive_json()
@@ -659,10 +855,8 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
                     await websocket.send_json({"type": "error", "message": "Too many questions — please wait."})
                     continue
                 # Auto-lower hand if user was in the queue
-                queue = _raised_hands.get(room_id, [])
-                if user_id in queue:
-                    queue.remove(user_id)
-                    await _broadcast_participants(room_id, room["host_id"])
+                if await _lower_hand(r, room_id, user_id):
+                    await _broadcast_participants(r, room_id, room["host_id"])
                 asyncio.create_task(_answer_question(room_id, question, user_name, settings))
 
             elif msg_type == "reaction":
@@ -676,16 +870,12 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
                     })
 
             elif msg_type == "raise_hand":
-                queue = _raised_hands.setdefault(room_id, [])
-                if user_id not in queue:
-                    queue.append(user_id)
-                    await _broadcast_participants(room_id, room["host_id"])
+                if await _raise_hand(r, room_id, user_id):
+                    await _broadcast_participants(r, room_id, room["host_id"])
 
             elif msg_type == "lower_hand":
-                queue = _raised_hands.get(room_id, [])
-                if user_id in queue:
-                    queue.remove(user_id)
-                    await _broadcast_participants(room_id, room["host_id"])
+                if await _lower_hand(r, room_id, user_id):
+                    await _broadcast_participants(r, room_id, room["host_id"])
 
             elif msg_type == "invite_speaker":
                 # Host calls on a student who raised their hand
@@ -695,16 +885,46 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
                 target_id = msg.get("target_user_id")
                 if not target_id:
                     continue
-                queue = _raised_hands.get(room_id, [])
-                if target_id in queue:
-                    queue.remove(target_id)
-                target_name = _user_names.get(room_id, {}).get(target_id, "Student")
+                await _lower_hand(r, room_id, target_id)
+                target_name = await r.hget(_presence_key(room_id), target_id) or "Student"
+                # Mark this student as the current spotlight speaker so the server
+                # accepts live transcripts only from them.
+                await r.set(_speaker_key(room_id), target_id, ex=SPEAKER_TTL)
                 await _broadcast(room_id, {
                     "type": "speaker_invited",
                     "target_user_id": target_id,
                     "target_user_name": target_name,
                 })
-                await _broadcast_participants(room_id, room["host_id"])
+                await _broadcast_participants(r, room_id, room["host_id"])
+
+            elif msg_type == "speaker_transcript":
+                # Live speech-to-text from the spotlighted student, relayed to the
+                # whole room. On the final chunk the spoken text is handed to the AI
+                # exactly like a typed question, and the spotlight is released.
+                if await r.get(_speaker_key(room_id)) != user_id:
+                    continue
+                text = str(msg.get("text", "")).strip()[:300]
+                final = bool(msg.get("final"))
+                await _broadcast(room_id, {
+                    "type": "speaker_transcript",
+                    "user_id": user_id,
+                    "user_name": user_name,
+                    "text": text,
+                    "final": final,
+                })
+                if final:
+                    await r.delete(_speaker_key(room_id))
+                    await _broadcast(room_id, {"type": "speaker_ended", "user_id": user_id})
+                    if text and not await _is_rate_limited(r, user_id, settings.questions_per_minute):
+                        asyncio.create_task(_answer_question(room_id, text, user_name, settings))
+
+            elif msg_type == "end_speaking":
+                # Speaker (or host) cancels the spotlight without submitting.
+                room = await _load_room(r, room_id) or room
+                current = await r.get(_speaker_key(room_id))
+                if current and (current == user_id or user_id == room["host_id"]):
+                    await r.delete(_speaker_key(room_id))
+                    await _broadcast(room_id, {"type": "speaker_ended", "user_id": current})
 
             elif msg_type == "practice_result":
                 # Student submitted a practice attempt — broadcast for everyone to see
@@ -730,28 +950,48 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
     except Exception as e:
         print(f"[Livestream WS] Error: {e}")
     finally:
-        await r.aclose()
         if user_id:
             _connections.get(room_id, {}).pop(user_id, None)
-            _user_names.get(room_id, {}).pop(uid := user_id, None)
-            queue = _raised_hands.get(room_id, [])
-            if uid in queue:
-                queue.remove(uid)
+            await _remove_presence(r, room_id, user_id)
+            count = await _presence_count(r, room_id)
             await _broadcast(room_id, {
                 "type": "participant_leave",
-                "participant_count": len(_connections.get(room_id, {})),
+                "participant_count": count,
             })
-            r2 = await _get_redis(__import__('app.config', fromlist=['get_settings']).get_settings())
-            try:
-                room = await _load_room(r2, room_id)
-                if room:
-                    await _broadcast_participants(room_id, room["host_id"])
-                    if uid == room["host_id"] and room["status"] not in ("ended", "completed"):
-                        room["status"] = "ended"
-                        await _save_room(r2, room)
-                        await _broadcast(room_id, {"type": "room_ended"})
-            finally:
-                await r2.aclose()
+            room = await _load_room(r, room_id)
+            if room:
+                await _broadcast_participants(r, room_id, room["host_id"])
+                # Host left: don't kill the room instantly — give a grace window
+                # for a reconnect (network blip / refresh) before ending it.
+                if user_id == room["host_id"] and room["status"] not in ("ended", "completed"):
+                    asyncio.create_task(_end_room_if_host_absent(room_id, user_id, settings))
+        await r.aclose()
+
+
+# ── Host disconnect grace ──────────────────────────────────────────────────────
+
+HOST_GRACE_SECONDS = 45
+
+
+async def _end_room_if_host_absent(room_id: str, host_id: str, settings):
+    """End the room only if the host hasn't reconnected within the grace window.
+
+    Prevents a brief host network blip / page refresh from killing the room for
+    everyone. Presence is checked in Redis, so a host that reconnects on a
+    different worker is still detected.
+    """
+    await asyncio.sleep(HOST_GRACE_SECONDS)
+    r = await _get_redis(settings)
+    try:
+        if await _is_present(r, room_id, host_id):
+            return  # host came back — keep the room alive
+        room = await _load_room(r, room_id)
+        if room and room["status"] not in ("ended", "completed"):
+            room["status"] = "ended"
+            await _save_room(r, room)
+            await _broadcast(room_id, {"type": "room_ended"})
+    finally:
+        await r.aclose()
 
 
 # ── Background: deliver lesson ─────────────────────────────────────────────────
@@ -767,10 +1007,14 @@ async def _deliver_lesson(room_id: str, settings):
         level = room.get("level", "intermediate")
         await _broadcast(room_id, {"type": "lesson_generating"})
 
-        sections = await _generate_lesson(
-            room["topic"], room.get("lesson_prompt", ""), room["level"], lang,
+        sections, used_fallback = await _generate_lesson(
+            r, room["topic"], room.get("lesson_prompt", ""), room["level"], lang,
             settings,
         )
+        if used_fallback:
+            # AI generation failed — tell clients we're serving generic content so
+            # the UI can surface it instead of silently looking "done".
+            await _broadcast(room_id, {"type": "lesson_info", "fallback": True})
 
         # Kick off image fetch AND TTS synth for all sections in parallel.
         # Without this, each section had to wait for the next section's TTS to finish
@@ -799,10 +1043,14 @@ async def _deliver_lesson(room_id: str, settings):
             print(f"[Livestream] Image fetch failed: {e}")
             image_urls = ["" for _ in sections]
 
-        audio_urls = [
-            f"{settings.audio_base_url}/api/livestream/audio/{fn}" if fn else ""
-            for fn in tts_filenames
-        ]
+        # Upload each clip to S3 (when configured) so any worker — and the replay
+        # page days later — can serve it; falls back to the local audio route.
+        audio_urls: list[str] = []
+        for fn in tts_filenames:
+            if fn:
+                audio_urls.append(await store_audio_and_url(AUDIO_DIR / fn, fn, settings.audio_base_url))
+            else:
+                audio_urls.append("")
 
         sections_with_timing: list[dict] = []
 
@@ -812,7 +1060,11 @@ async def _deliver_lesson(room_id: str, settings):
                 break
 
             text = section_texts[i]
-            duration = max(4.0, len(text.split()) / 2.3)
+            # Pace slide transitions by the REAL audio length (+0.5s tail) so the
+            # narration never gets cut off by the next slide, and there are no long
+            # silent gaps. Falls back to a word-count estimate if the MP3 can't be read.
+            estimate = max(4.0, len(text.split()) / 2.3)
+            duration = _audio_duration(tts_filenames[i], estimate) + 0.5
             audio_url = audio_urls[i]
 
             practice_phrase = str(section.get("practice_phrase", "")).strip()
@@ -989,7 +1241,7 @@ async def _answer_question(room_id: str, question: str, user_name: str, settings
                 provider=settings.tts_provider,
                 credentials_path=settings.google_application_credentials,
             )
-            audio_url = f"{settings.audio_base_url}/api/livestream/audio/{filename}"
+            audio_url = await store_audio_and_url(AUDIO_DIR / filename, filename, settings.audio_base_url)
         except Exception as e:
             print(f"[TTS Q&A] Failed: {e}")
 

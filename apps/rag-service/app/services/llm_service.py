@@ -34,10 +34,19 @@ async def _generate_gemini(
             "temperature": temperature,
             "maxOutputTokens": max_tokens,
             "topP": 0.9,
+            # Gemini 2.5 models are "thinking" models: by default the model spends
+            # part of maxOutputTokens on internal reasoning, which can leave 0 tokens
+            # for the actual answer → empty `parts`. Disable thinking so the whole
+            # budget goes to the visible response.
+            "thinkingConfig": {"thinkingBudget": 0},
         },
     }
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(url, json=payload)
+        # Older models reject thinkingConfig — retry once without it.
+        if resp.status_code == 400 and "thinking" in resp.text.lower():
+            payload["generationConfig"].pop("thinkingConfig", None)
+            resp = await client.post(url, json=payload)
         resp.raise_for_status()
         data = resp.json()
 

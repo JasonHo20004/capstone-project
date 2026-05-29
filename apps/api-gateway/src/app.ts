@@ -13,14 +13,19 @@ const app: express.Express = express();
 // Trust proxy
 app.set("trust proxy", 1);
 
-// CORS configuration
+// CORS configuration — origins are environment-driven.
+// FRONTEND_URL: single primary origin. CORS_ORIGINS: optional comma-separated list
+// for additional environments (staging, preview deploys, etc.).
+const corsOrigins = [
+  "http://localhost:8080",
+  "http://localhost:5173",
+  process.env.FRONTEND_URL || "",
+  ...(process.env.CORS_ORIGINS?.split(",").map((s) => s.trim()) ?? []),
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:8080",
-      "http://localhost:5173",
-      process.env.FRONTEND_URL || "",
-    ].filter(Boolean),
+    origin: corsOrigins,
     credentials: true,
   })
 );
@@ -96,6 +101,35 @@ for (const service of services) {
 
   app.use(createProxyMiddleware(proxyOptions));
 }
+
+// Livestream (rag-service) — dedicated proxy with WebSocket support. The generic
+// loop above only proxies HTTP; the live classroom also needs the WS upgrade at
+// /api/livestream/rooms/{id}/ws. This middleware handles both HTTP and WS; its
+// `.upgrade` handler is wired to the raw HTTP server in server.ts.
+const RAG_URL = process.env.RAG_SERVICE_URL || "http://localhost:8000";
+export const livestreamProxy = createProxyMiddleware({
+  target: RAG_URL,
+  changeOrigin: true,
+  ws: true,
+  pathFilter: "/api/livestream",
+  proxyTimeout: 300000,
+  timeout: 300000,
+  on: {
+    error: (err, _req, res) => {
+      console.error(`❌ [Gateway] Livestream proxy error:`, err.message);
+      const r = res as any;
+      if (!r || !("writeHead" in r) || r.headersSent || r.writableEnded) {
+        try { r?.end?.(); } catch { /* ignore */ }
+        return;
+      }
+      try {
+        r.writeHead(503, { "Content-Type": "application/json" });
+        r.end(JSON.stringify({ success: false, error: "Service rag-service unavailable" }));
+      } catch { /* ignore */ }
+    },
+  },
+});
+app.use(livestreamProxy);
 
 // 404 handler
 app.use((_req, res) => {
