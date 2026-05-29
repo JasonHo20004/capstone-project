@@ -554,6 +554,7 @@ async def _generate_lesson(
         raw = await generate_text(
             prompt, settings,
             temperature=0.65, max_tokens=6144, timeout=120,
+            json_mode=True,
         )
         parsed = extract_json_object(raw)
         if parsed:
@@ -751,6 +752,7 @@ async def translate_word(body: TranslateRequest):
             raw = await generate_text(
                 prompt, settings,
                 temperature=0.2, max_tokens=160, timeout=15,
+                json_mode=True,
             )
             parsed = extract_json_object(raw)
             if parsed:

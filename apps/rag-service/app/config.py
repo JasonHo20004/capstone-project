@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # Ollama (via bore tunnel from Colab) — fallback when Gemini key empty/error
     ollama_base_url: str = "http://bore.pub:11434"
-    ollama_model: str = "llama3.1"
+    ollama_model: str = "qwen2.5:7b-instruct"
 
     # Internal services
     flashcard_service_url: str = "http://localhost:3004"

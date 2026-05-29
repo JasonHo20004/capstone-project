@@ -26,20 +26,25 @@ async def _generate_gemini(
     temperature: float,
     max_tokens: int,
     timeout: float,
+    json_mode: bool = False,
 ) -> str:
     url = f"{GEMINI_BASE}/{model}:generateContent?key={api_key}"
+    generation_config = {
+        "temperature": temperature,
+        "maxOutputTokens": max_tokens,
+        "topP": 0.9,
+        # Gemini 2.5 models are "thinking" models: by default the model spends
+        # part of maxOutputTokens on internal reasoning, which can leave 0 tokens
+        # for the actual answer → empty `parts`. Disable thinking so the whole
+        # budget goes to the visible response.
+        "thinkingConfig": {"thinkingBudget": 0},
+    }
+    if json_mode:
+        # Force a syntactically valid JSON response (used for lesson/translate).
+        generation_config["responseMimeType"] = "application/json"
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": temperature,
-            "maxOutputTokens": max_tokens,
-            "topP": 0.9,
-            # Gemini 2.5 models are "thinking" models: by default the model spends
-            # part of maxOutputTokens on internal reasoning, which can leave 0 tokens
-            # for the actual answer → empty `parts`. Disable thinking so the whole
-            # budget goes to the visible response.
-            "thinkingConfig": {"thinkingBudget": 0},
-        },
+        "generationConfig": generation_config,
     }
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(url, json=payload)
@@ -65,22 +70,27 @@ async def _generate_ollama(
     temperature: float,
     max_tokens: int,
     timeout: float,
+    json_mode: bool = False,
 ) -> str:
+    body = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "options": {
+            "temperature": temperature,
+            "num_predict": max_tokens,
+            # num_ctx is the TOTAL window (prompt + output) in Ollama. The lesson
+            # prompt is long and the output can be large; 4096 truncated the JSON
+            # mid-response. Size the window to comfortably fit both.
+            "num_ctx": max(8192, max_tokens + 2048),
+            "top_p": 0.9,
+        },
+    }
+    if json_mode:
+        # Force Ollama to emit valid JSON (used for lesson/translate generation).
+        body["format"] = "json"
     async with httpx.AsyncClient(timeout=timeout) as client:
-        resp = await client.post(
-            f"{base_url}/api/generate",
-            json={
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": temperature,
-                    "num_predict": max_tokens,
-                    "num_ctx": 4096,
-                    "top_p": 0.9,
-                },
-            },
-        )
+        resp = await client.post(f"{base_url}/api/generate", json=body)
         resp.raise_for_status()
         data = resp.json()
     return str(data.get("response", "")).strip()
@@ -93,8 +103,14 @@ async def generate_text(
     temperature: float = 0.7,
     max_tokens: int = 1024,
     timeout: float = 60.0,
+    json_mode: bool = False,
 ) -> str:
-    """Generate text from the configured LLM with automatic fallback to Ollama."""
+    """Generate text from the configured LLM with automatic fallback to Ollama.
+
+    Set json_mode=True when the prompt asks for a JSON object — both providers are
+    then constrained to emit valid JSON (much more reliable parsing). Leave it
+    False for free-form prose (e.g. Q&A answers).
+    """
     provider = (settings.llm_provider or "ollama").lower()
 
     if provider == "gemini" and settings.gemini_api_key:
@@ -106,6 +122,7 @@ async def generate_text(
                 temperature,
                 max_tokens,
                 timeout,
+                json_mode=json_mode,
             )
             if text:
                 return text
@@ -121,6 +138,7 @@ async def generate_text(
             temperature,
             max_tokens,
             timeout,
+            json_mode=json_mode,
         )
     except Exception as e:
         print(f"[LLM] Ollama fallback also failed: {e}")
