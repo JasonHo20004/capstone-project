@@ -55,6 +55,9 @@ export class CouponController {
   validate = asyncHandler(async (req: Request, res: Response) => {
     const userId = req.user!.userId;
     const code = (req.body?.code as string) || "";
+    const cartItemIds = Array.isArray(req.body?.cartItemIds)
+      ? (req.body.cartItemIds as string[])
+      : undefined;
 
     const cart = await this.prisma.cart.findUnique({
       where: { userId },
@@ -63,7 +66,19 @@ export class CouponController {
     if (!cart || cart.cartItems.length === 0) {
       throw new Error("Giỏ hàng trống");
     }
-    const subtotal = cart.cartItems.reduce(
+
+    // When the learner selects only part of the cart, validate against just
+    // those items (server-trusted prices) so minOrderAmount and the discount
+    // match exactly what checkoutPartial will compute. Falls back to the full
+    // cart when no selection is sent.
+    const items =
+      cartItemIds && cartItemIds.length > 0
+        ? cart.cartItems.filter((item) => cartItemIds.includes(item.id))
+        : cart.cartItems;
+    if (items.length === 0) {
+      throw new Error("Giỏ hàng trống");
+    }
+    const subtotal = items.reduce(
       (sum, item) => sum + Number(item.priceAtTime),
       0
     );
