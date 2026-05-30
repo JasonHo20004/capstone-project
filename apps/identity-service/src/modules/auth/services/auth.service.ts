@@ -19,10 +19,13 @@ import {
   EventBusService,
   EventNames,
   type EmailVerificationRequestedEvent,
+  type PasswordResetRequestedEvent,
 } from "@capstone/common";
 
 const EMAIL_VERIFICATION_TTL_MINUTES = 15;
 const RESEND_VERIFICATION_COOLDOWN_SECONDS = 60;
+const PASSWORD_RESET_TTL_MINUTES = 30;
+const PASSWORD_RESET_COOLDOWN_SECONDS = 60;
 
 export class AuthService {
   constructor(
@@ -289,5 +292,77 @@ export class AuthService {
     }
 
     await this.sendVerificationEmail(user.id);
+  }
+
+  private buildPasswordResetUrl(token: string, email: string): string {
+    const baseUrl =
+      process.env.PASSWORD_RESET_BASE_URL ||
+      `${process.env.FRONTEND_BASE_URL || "http://localhost:5173"}/reset-password`;
+    const params = new URLSearchParams({ token, email });
+    return `${baseUrl}?${params.toString()}`;
+  }
+
+  /**
+   * Start a "forgot password" flow.
+   * - Rate-limited per email via Redis cooldown (set BEFORE the user lookup so
+   *   we throttle and avoid leaking which emails are registered).
+   * - Returns silently for unknown emails — the caller always reports success.
+   */
+  async requestPasswordReset(email: string): Promise<void> {
+    const client = this.redisService.getClient();
+    const cooldownKey = `reset:cooldown:${email.toLowerCase()}`;
+
+    const ttl = await client.ttl(cooldownKey);
+    if (ttl > 0) {
+      throw new TooManyRequestsError(
+        `Please wait ${ttl} seconds before requesting another password reset email.`,
+        ttl
+      );
+    }
+    await client.set(cooldownKey, "1", { EX: PASSWORD_RESET_COOLDOWN_SECONDS });
+
+    const user = await this.userRepository.findByEmail(email);
+    if (!user) {
+      return; // silent — don't leak account existence
+    }
+
+    const token = randomBytes(32).toString("hex");
+    const key = `reset:${token}`;
+    await client.set(key, user.id, { EX: PASSWORD_RESET_TTL_MINUTES * 60 });
+
+    const resetUrl = this.buildPasswordResetUrl(token, user.email);
+    const payload: PasswordResetRequestedEvent = {
+      userId: user.id,
+      email: user.email,
+      fullName: user.fullName,
+      resetUrl,
+      expiresInMinutes: PASSWORD_RESET_TTL_MINUTES,
+    };
+
+    // Fire-and-forget: queue the email so SMTP failures don't block the caller.
+    await this.eventBus.publish(EventNames.PASSWORD_RESET_REQUESTED, payload);
+  }
+
+  /**
+   * Complete a "forgot password" flow.
+   * - Validates the single-use Redis token.
+   * - Hashes & stores the new password, then revokes all sessions so any
+   *   stolen-credential session is killed.
+   */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const client = this.redisService.getClient();
+    const key = `reset:${token}`;
+    const userId = await client.get(key);
+
+    if (!userId) {
+      throw new BadRequestError("Invalid or expired password reset token");
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await this.userRepository.update(userId, { password: hashedPassword });
+
+    // Burn the single-use token and invalidate existing refresh tokens.
+    await client.del(key);
+    await this.authRepository.deleteAllRefreshTokensForUser(userId);
   }
 }

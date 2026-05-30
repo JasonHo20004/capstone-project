@@ -12,6 +12,7 @@ import {
   DomainEvent,
 } from "@capstone/common";
 import { registerEmailVerificationHandler } from "./email-verification.handler.js";
+import { registerPasswordResetHandler } from "./password-reset.handler.js";
 import { SERVICE_NAME } from "../../../constants.js";
 let eventBus: EventBusService;
 
@@ -226,6 +227,7 @@ export const initializeEventHandlers = async (dbService: any) => {
   );
 
   await registerEmailVerificationHandler(eventBus);
+  await registerPasswordResetHandler(eventBus);
 
   console.log(`🐰 [${SERVICE_NAME}] RabbitMQ Event Handlers Initialized.`);
 };

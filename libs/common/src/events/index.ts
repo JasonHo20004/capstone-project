@@ -9,6 +9,7 @@ export enum EventNames {
   USER_VERIFIED = "identity.user.verified",
   USER_UPDATED = "identity.user.updated",
   EMAIL_VERIFICATION_REQUESTED = "identity.email.verification_requested",
+  PASSWORD_RESET_REQUESTED = "identity.password.reset_requested",
   SELLER_APPROVED = "identity.seller.approved",
   SELLER_REJECTED = "identity.seller.rejected",
 
@@ -72,6 +73,14 @@ export interface EmailVerificationRequestedEvent {
   email: string;
   fullName: string;
   verificationUrl: string;
+  expiresInMinutes: number;
+}
+
+export interface PasswordResetRequestedEvent {
+  userId: string;
+  email: string;
+  fullName: string;
+  resetUrl: string;
   expiresInMinutes: number;
 }
 

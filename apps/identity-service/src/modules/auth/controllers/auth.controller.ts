@@ -129,4 +129,25 @@ export class AuthController {
       message: "If an unverified account exists for this email, a new verification link has been sent.",
     });
   });
+
+  forgotPassword = asyncHandler(async (req: Request, res: Response) => {
+    const { email } = req.body as { email: string };
+    await this.authService.requestPasswordReset(email);
+
+    // Same response whether or not the email exists — avoids leaking accounts.
+    res.json({
+      success: true,
+      message: "If an account exists for this email, a password reset link has been sent.",
+    });
+  });
+
+  resetPassword = asyncHandler(async (req: Request, res: Response) => {
+    const { token, password } = req.body as { token: string; password: string };
+    await this.authService.resetPassword(token, password);
+
+    res.json({
+      success: true,
+      message: "Password has been reset. You can now log in with your new password.",
+    });
+  });
 }

@@ -11,6 +11,8 @@ import {
   verifyEmailSchema,
   refreshTokenSchema,
   resendVerificationSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
 } from "../dtos/auth.dto.js";
 
 const router: Router = Router();
@@ -26,6 +28,16 @@ router.post(
   "/resend-verification",
   validate(resendVerificationSchema),
   authController.resendVerification
+);
+router.post(
+  "/forgot-password",
+  validate(forgotPasswordSchema),
+  authController.forgotPassword
+);
+router.post(
+  "/reset-password",
+  validate(resetPasswordSchema),
+  authController.resetPassword
 );
 
 export default router;
