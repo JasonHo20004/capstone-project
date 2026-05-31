@@ -1,4 +1,5 @@
 import { randomBytes } from "crypto";
+import { ConflictError, ForbiddenError } from "@capstone/common";
 import { databaseService } from "../../services/database.service.js";
 import { CreateTestDto } from "./test.schema.js";
 
@@ -225,7 +226,41 @@ export class TestService {
       },
     });
 
+    await this.persistAudioSegments((newTest as any).sections ?? [], sectionsInput);
     return newTest;
+  }
+
+  /**
+   * Best-effort: store Whisper per-segment timestamps on each section AFTER the
+   * test is saved. Kept separate from the main create/update so a not-yet-applied
+   * `audio_segments` column can never break test saving — the transcript text is
+   * still saved inline regardless.
+   */
+  private async persistAudioSegments(
+    savedSections: { id: string; orderIndex: number | null }[],
+    sectionsInput: any[],
+  ) {
+    const targets = (sectionsInput ?? [])
+      .map((s, idx) => ({ idx, seg: (s as any)?.audioSegments }))
+      .filter((x) => Array.isArray(x.seg) && x.seg.length > 0);
+    if (targets.length === 0) return;
+    const prisma = databaseService.getClient();
+    for (const { idx, seg } of targets) {
+      const target =
+        savedSections.find((s) => s.orderIndex === idx) ?? savedSections[idx];
+      if (!target) continue;
+      try {
+        await prisma.section.update({
+          where: { id: target.id },
+          data: { audioSegments: seg } as any,
+        });
+      } catch (e) {
+        console.warn(
+          "[audioSegments] not stored — run the add_audio_segments migration + prisma generate:",
+          (e as any)?.message,
+        );
+      }
+    }
   }
 
   /**
@@ -414,6 +449,7 @@ export class TestService {
       },
     });
 
+    await this.persistAudioSegments((updated as any).sections ?? [], sections ?? []);
     return updated;
   }
 
@@ -433,11 +469,12 @@ export class TestService {
     // Verify test exists
     const test = await prisma.test.findFirst({
       where: isUUID(testId) ? { id: testId } : { slug: testId },
-      select: { id: true, title: true },
+      select: { id: true, title: true, durationInMinutes: true, maxAttempts: true },
     });
     if (!test) throw new Error("Test not found");
 
-    // Check for existing ONGOING session for this user+test
+    // Resume an existing ONGOING session if present. Its createdAt is the
+    // authoritative clock start, so the countdown can't be reset by refreshing.
     const existing = await prisma.practiceSession.findFirst({
       where: {
         userId,
@@ -449,7 +486,29 @@ export class TestService {
 
     if (existing) {
       console.log(`♻️ Reusing existing session ${existing.id} for user ${userId}`);
-      return { sessionId: existing.id, testId: test.id, resumed: true };
+      return {
+        sessionId: existing.id,
+        testId: test.id,
+        resumed: true,
+        startedAt: existing.createdAt,
+        durationInMinutes: test.durationInMinutes,
+        // Server-side draft so a resume on another device / after a localStorage
+        // wipe restores the in-progress answers. (undefined until the column
+        // migration is applied — harmless.)
+        draftAnswers: (existing as any).draftAnswers ?? null,
+      };
+    }
+
+    // Starting a NEW attempt — enforce the per-test attempt limit.
+    if (test.maxAttempts && test.maxAttempts > 0) {
+      const completed = await prisma.practiceSession.count({
+        where: { userId, testId: test.id, status: "COMPLETED" },
+      });
+      if (completed >= test.maxAttempts) {
+        throw new ForbiddenError(
+          `You have reached the maximum number of attempts (${test.maxAttempts}) for this test.`,
+        );
+      }
     }
 
     // Create new session
@@ -462,10 +521,42 @@ export class TestService {
       },
     });
 
-    return { sessionId: session.id, testId: test.id, resumed: false };
+    return {
+      sessionId: session.id,
+      testId: test.id,
+      resumed: false,
+      startedAt: session.createdAt,
+      durationInMinutes: test.durationInMinutes,
+    };
   }
 
-  public async gradeTest(testId: string, submissions: Record<string, string>, userId?: string) {
+  /**
+   * Autosave in-progress answers onto the ONGOING session so work survives a
+   * localStorage wipe or a device switch. Only the owner's active session is
+   * touched. (Requires the draft_answers column — see the add_draft_answers
+   * migration. Until applied, this throws and the client falls back to its local
+   * draft, which is harmless.)
+   */
+  public async saveDraft(
+    testId: string,
+    userId: string,
+    sessionId: string,
+    answers: Record<string, string>,
+  ) {
+    const prisma = databaseService.getClient();
+    const res = await prisma.practiceSession.updateMany({
+      where: { id: sessionId, userId, testId, status: "ONGOING" },
+      data: { draftAnswers: answers, draftSavedAt: new Date() } as any,
+    });
+    return { saved: res.count > 0 };
+  }
+
+  public async gradeTest(
+    testId: string,
+    submissions: Record<string, string>,
+    userId?: string,
+    sessionId?: string,
+  ) {
     const prisma = databaseService.getClient();
 
     // Fetch all questions with their answers (server-side only)
@@ -604,6 +695,7 @@ export class TestService {
       where: { id: testId },
       select: {
         englishTestTypeId: true,
+        durationInMinutes: true,
         testSkills: { select: { skill: true } },
       },
     });
@@ -638,21 +730,93 @@ export class TestService {
     }
 
     // ─── Save to PracticeSession + UserAnswer ──────────────────────────
-    let sessionId: string | null = null;
+    let savedSessionId: string | null = null;
     if (userId) {
-      const session = await prisma.practiceSession.create({
-        data: {
-          userId,
-          testId,
-          selectedSections: [],
-          status: "COMPLETED",
-          completedAt: new Date(),
-          overallScaledScore: bandScore ?? percentage,
-          rawScoresBySkill: { correct, total, percentage, bandScore },
-          scoresBySkill: { details },
-        },
-      });
-      sessionId = session.id;
+      const completedScores = {
+        status: "COMPLETED" as const,
+        completedAt: new Date(),
+        overallScaledScore: bandScore ?? percentage,
+        rawScoresBySkill: { correct, total, percentage, bandScore },
+        scoresBySkill: { details },
+      };
+
+      if (sessionId) {
+        // Load the session so we can enforce the time limit and replay
+        // idempotently if it was already submitted.
+        const sess = await prisma.practiceSession.findUnique({
+          where: { id: sessionId },
+          select: {
+            id: true, userId: true, status: true, createdAt: true,
+            rawScoresBySkill: true, scoresBySkill: true,
+          },
+        });
+        if (!sess || sess.userId !== userId) {
+          throw new ConflictError("This test session is no longer active.");
+        }
+        if (sess.status === "COMPLETED") {
+          // Idempotent replay (double-click / retried request) — return the
+          // stored result instead of grading a second time.
+          return {
+            sessionId: sess.id,
+            score: (sess.rawScoresBySkill as any) ?? { correct, total, percentage, bandScore },
+            details: ((sess.scoresBySkill as any)?.details as any[]) ?? details,
+            alreadySubmitted: true,
+          };
+        }
+        // Server-side time limit (defense-in-depth — the client also auto-submits
+        // on time). createdAt is the authoritative clock start, so a refreshed /
+        // tampered client can't gain extra time. A generous grace window absorbs
+        // clock skew and brief offline/sleep before the late submit is rejected.
+        const durMin = test?.durationInMinutes ?? null;
+        if (durMin && durMin > 0) {
+          const GRACE_MS = 10 * 60 * 1000;
+          const deadline = new Date(sess.createdAt).getTime() + durMin * 60_000 + GRACE_MS;
+          if (Date.now() > deadline) {
+            throw new ForbiddenError("Time is up — this test session has expired.");
+          }
+        }
+        // Close the ONGOING session atomically, so a double submit (double-click /
+        // retried request) can't record a second graded attempt.
+        const claim = await prisma.practiceSession.updateMany({
+          where: { id: sessionId, userId, testId, status: "ONGOING" },
+          data: completedScores,
+        });
+        if (claim.count === 0) {
+          // Raced with another submit that just completed it — return that result.
+          const prior = await prisma.practiceSession.findUnique({ where: { id: sessionId } });
+          if (prior && prior.userId === userId && prior.status === "COMPLETED") {
+            return {
+              sessionId: prior.id,
+              score: (prior.rawScoresBySkill as any) ?? { correct, total, percentage, bandScore },
+              details: ((prior.scoresBySkill as any)?.details as any[]) ?? details,
+              alreadySubmitted: true,
+            };
+          }
+          throw new ConflictError("This test session is no longer active.");
+        }
+        savedSessionId = sessionId;
+      } else {
+        // No session was opened (e.g. a lesson-embedded quiz). Enforce the
+        // attempt limit, then record a fresh completed attempt.
+        const limitInfo = await prisma.test.findUnique({
+          where: { id: testId },
+          select: { maxAttempts: true },
+        });
+        if (limitInfo?.maxAttempts && limitInfo.maxAttempts > 0) {
+          const done = await prisma.practiceSession.count({
+            where: { userId, testId, status: "COMPLETED" },
+          });
+          if (done >= limitInfo.maxAttempts) {
+            throw new ForbiddenError(
+              `You have reached the maximum number of attempts (${limitInfo.maxAttempts}) for this test.`,
+            );
+          }
+        }
+        const session = await prisma.practiceSession.create({
+          data: { userId, testId, selectedSections: [], ...completedScores },
+        });
+        savedSessionId = session.id;
+      }
 
       // Build snapshot map so historical answers survive future question edits.
       const questionMap = new Map(questions.map((q) => [q.id, q]));
@@ -661,7 +825,7 @@ export class TestService {
       const userAnswerData = details.map((d) => {
         const q = questionMap.get(d.questionId);
         return {
-          practiceSessionId: session.id,
+          practiceSessionId: savedSessionId!,
           questionId: d.questionId,
           userId,
           answerText: d.userAnswer,
@@ -683,7 +847,7 @@ export class TestService {
     }
 
     return {
-      sessionId,
+      sessionId: savedSessionId,
       score: { correct, total, percentage, bandScore },
       details,
     };

@@ -298,9 +298,10 @@ export class TestController {
   public async startSession(req: Request, res: Response, next: NextFunction) {
     try {
       const testId = req.params.id as string;
-      const { userId } = req.body as { userId?: string };
+      // Identity comes from the verified JWT — never trust a client-supplied id.
+      const userId = req.user?.userId;
       if (!userId) {
-        res.status(400).json({ message: "userId is required" });
+        res.status(401).json({ message: "Authentication required" });
         return;
       }
       const result = await testService.startSession(testId, userId);
@@ -313,13 +314,44 @@ export class TestController {
   public async submitTest(req: Request, res: Response, next: NextFunction) {
     try {
       const testId = req.params.id as string;
-      const { submissions, userId } = req.body as { submissions: Record<string, string>; userId?: string };
+      const userId = req.user?.userId;
+      if (!userId) {
+        res.status(401).json({ message: "Authentication required" });
+        return;
+      }
+      const { submissions, sessionId } = req.body as {
+        submissions: Record<string, string>;
+        sessionId?: string;
+      };
       if (!submissions || typeof submissions !== "object") {
         res.status(400).json({ message: "submissions object is required" });
         return;
       }
-      const result = await testService.gradeTest(testId, submissions, userId);
+      const result = await testService.gradeTest(testId, submissions, userId, sessionId);
       res.status(200).json({ message: "Test graded", data: result });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  public async saveDraft(req: Request, res: Response, next: NextFunction) {
+    try {
+      const testId = req.params.id as string;
+      const userId = req.user?.userId;
+      if (!userId) {
+        res.status(401).json({ message: "Authentication required" });
+        return;
+      }
+      const { sessionId, answers } = req.body as {
+        sessionId?: string;
+        answers?: Record<string, string>;
+      };
+      if (!sessionId || !answers || typeof answers !== "object") {
+        res.status(400).json({ message: "sessionId and answers are required" });
+        return;
+      }
+      const result = await testService.saveDraft(testId, userId, sessionId, answers);
+      res.status(200).json({ message: "Draft saved", data: result });
     } catch (error) {
       next(error);
     }
@@ -327,7 +359,17 @@ export class TestController {
 
   public async getTestHistory(req: Request, res: Response, next: NextFunction) {
     try {
+      const requesterId = req.user?.userId;
       const userId = req.params.userId as string;
+      if (!requesterId) {
+        res.status(401).json({ message: "Authentication required" });
+        return;
+      }
+      // A user may only read their own history (administrators may read anyone's).
+      if (requesterId !== userId && String(req.user?.role) !== "ADMINISTRATOR") {
+        res.status(403).json({ message: "You can only view your own test history" });
+        return;
+      }
       const history = await testService.getTestHistory(userId);
       res.status(200).json({ message: "History retrieved", data: history });
     } catch (error) {
@@ -337,8 +379,18 @@ export class TestController {
 
   public async getAttemptDetail(req: Request, res: Response, next: NextFunction) {
     try {
+      const requesterId = req.user?.userId;
       const sessionId = req.params.sessionId as string;
+      if (!requesterId) {
+        res.status(401).json({ message: "Authentication required" });
+        return;
+      }
       const attempt = await testService.getAttemptDetail(sessionId);
+      // Only the owner of the attempt (or an administrator) may view it.
+      if (attempt.userId !== requesterId && String(req.user?.role) !== "ADMINISTRATOR") {
+        res.status(403).json({ message: "You can only view your own attempts" });
+        return;
+      }
       res.status(200).json({ message: "Attempt detail retrieved", data: attempt });
     } catch (error) {
       next(error);
