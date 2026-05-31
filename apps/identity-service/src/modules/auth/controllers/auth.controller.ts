@@ -83,7 +83,7 @@ export class AuthController {
   });
 
   logout = asyncHandler(async (req: Request, res: Response) => {
-    const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
+    const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
     
     if (refreshToken) {
       await this.authService.logout(refreshToken);
