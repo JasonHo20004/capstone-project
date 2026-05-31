@@ -109,6 +109,7 @@ model Question {
   correctAnswer      String?      @map("correct_answer")
   content            Json?        // JSONB: UI render data (options, gaps, prompts)
   answer             Json?        // JSONB: grading data (correct keys, variants)
+  answerReference    Json?        @map("answer_reference") // JSONB: where the answer is justified in the passage/transcript — { snippet, passageId?, start?, end?, audioStart?, audioEnd?, source }
   explanation        String?      // Shown to student after submission
   questionOrder      Int?         @map("question_order")
   passageId          String?      @map("passage_id") @db.Uuid

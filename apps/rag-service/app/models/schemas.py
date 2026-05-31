@@ -63,6 +63,24 @@ class ExplainResponse(BaseModel):
     tips: str = Field("", description="Mẹo cho dạng câu hỏi này")
 
 
+class FindJustificationRequest(BaseModel):
+    passage: str = Field(..., min_length=1, description="Reading passage hoặc listening transcript")
+    question_text: str = Field("", description="Nội dung câu hỏi")
+    question_type: str = Field("MULTIPLE_CHOICE", description="Loại câu hỏi")
+    correct_answer: str = Field("", description="Đáp án đúng (dạng văn bản)")
+    skill: str = Field("READING", description="'READING' or 'LISTENING'")
+
+
+class FindJustificationResponse(BaseModel):
+    success: bool = True
+    snippet: str = Field("", description="Đoạn trích nguyên văn chứa đáp án, hoặc '' nếu không tìm thấy")
+    start: Optional[int] = Field(None, description="Char offset bắt đầu trong passage")
+    end: Optional[int] = Field(None, description="Char offset kết thúc trong passage")
+    audio_start: Optional[float] = Field(None, description="Listening — giây (thường để client map từ Whisper segments)")
+    audio_end: Optional[float] = Field(None, description="Listening — giây")
+    confidence: Optional[float] = Field(None, description="Độ tin cậy 0.0-1.0")
+
+
 class HealthResponse(BaseModel):
     service: str = "rag-service"
     status: str = "healthy"

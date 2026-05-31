@@ -74,8 +74,10 @@ export class TestService {
     };
 
     // Only include answer for admin / owner editing — never for students!
+    // The answer-location reference is gated the same way (it reveals the answer).
     if (options?.includeAnswers) {
       questionSelect.answer = true;
+      questionSelect.answerReference = true;
     }
 
     const test = await prisma.test.findFirst({
@@ -211,6 +213,7 @@ export class TestService {
                   options: q.options,
                   content: q.content as any,
                   answer,
+                  answerReference: ((q as any).answerReference ?? undefined) as any,
                   explanation: q.explanation,
                   questionOrder: q.questionOrder ?? qIdx + 1,
                   imageUrl: (q as any).imageUrl || undefined,
@@ -328,6 +331,7 @@ export class TestService {
         correctAnswerIndex?: number;
         content?: any;
         answer?: any;
+        answerReference?: any;
         explanation?: string;
         questionOrder?: number;
         imageUrl?: string;
@@ -341,6 +345,7 @@ export class TestService {
       correctAnswerIndex?: number;
       content?: any;
       answer?: any;
+      answerReference?: any;
       explanation?: string;
       questionOrder?: number;
       imageUrl?: string;
@@ -431,6 +436,7 @@ export class TestService {
                         options: q.options || [],
                         content: q.content as any,
                         answer,
+                        answerReference: ((q as any).answerReference ?? undefined) as any,
                         explanation: q.explanation,
                         questionOrder: q.questionOrder ?? qIdx + 1,
                         imageUrl: q.imageUrl || undefined,
@@ -892,7 +898,7 @@ export class TestService {
           include: {
             question: {
               select: { questionText: true, questionType: true, content: true,
-                answer: true, explanation: true, questionOrder: true },
+                answer: true, answerReference: true, explanation: true, questionOrder: true },
             },
           },
           orderBy: { question: { questionOrder: "asc" } },
