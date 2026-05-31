@@ -187,8 +187,17 @@ async def _save_room(r: aioredis.Redis, room: dict):
     await r.set(f"livestream:room:{room['id']}", json.dumps(room), ex=ROOM_TTL)
 
 
+async def _scan_keys(r: aioredis.Redis, pattern: str) -> list[str]:
+    """Non-blocking key enumeration. KEYS is O(N) and blocks the Redis event
+    loop on large keyspaces; SCAN walks the keyspace in small batches instead."""
+    keys: list[str] = []
+    async for k in r.scan_iter(match=pattern, count=200):
+        keys.append(k)
+    return keys
+
+
 async def _list_rooms(r: aioredis.Redis) -> list[dict]:
-    keys = await r.keys("livestream:room:*")
+    keys = await _scan_keys(r, "livestream:room:*")
     if not keys:
         return []
     values = await r.mget(*keys)
@@ -211,7 +220,7 @@ async def _load_recording(r: aioredis.Redis, room_id: str) -> dict | None:
 
 
 async def _list_recordings(r: aioredis.Redis) -> list[dict]:
-    keys = await r.keys("livestream:recording:*")
+    keys = await _scan_keys(r, "livestream:recording:*")
     if not keys:
         return []
     values = await r.mget(*keys)

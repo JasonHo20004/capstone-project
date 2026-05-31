@@ -43,8 +43,10 @@ class Settings(BaseSettings):
     audio_base_url: str = "http://localhost:8000"
     max_room_participants: int = 30
     questions_per_minute: int = 6
-    # Comma-separated roles allowed to create/host a live room (e.g. "ADMIN,TEACHER").
-    # Empty = any authenticated user may host. Requires jwt_secret to be set.
+    # Comma-separated roles allowed to create/host a live room
+    # (e.g. "ADMINISTRATOR,COURSESELLER"). Empty = any authenticated user may
+    # host. Requires jwt_secret to be set. Valid roles issued by identity-service:
+    # ADMINISTRATOR, COURSESELLER, STUDENT.
     livestream_host_roles: str = ""
 
     # TTS — "gcloud" (Google Cloud Neural2, premium) or "edge" (free fallback)
