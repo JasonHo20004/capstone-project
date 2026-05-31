@@ -16,6 +16,8 @@ const QuestionSchema = z.object({
   correctAnswerIndex: z.number().int().min(0).optional(),
   content: z.record(z.string(), z.any()).optional(),
   answer: z.record(z.string(), z.any()).optional(),
+  /** Where the answer is justified in the passage/transcript (Study4-style reference). */
+  answerReference: z.record(z.string(), z.any()).optional().nullable(),
   explanation: z.string().optional(),
   questionOrder: z.number().int().optional(),
   imageUrl: z.string().optional(),

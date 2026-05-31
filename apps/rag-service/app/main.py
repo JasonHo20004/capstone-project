@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from app.routers import health, generate, explain, reading_gen, listening_gen, livestream
+from app.routers import health, generate, explain, reading_gen, listening_gen, livestream, find_justification
 from app.routers.livestream import AUDIO_DIR, cleanup_audio_loop, start_pubsub_listener
 from app.config import get_settings
 from app.services.tts_service import is_gcloud_configured
@@ -41,6 +41,7 @@ def create_app() -> FastAPI:
     app.include_router(reading_gen.router)
     app.include_router(listening_gen.router)
     app.include_router(livestream.router)
+    app.include_router(find_justification.router)
 
     @app.on_event("startup")
     async def startup():
