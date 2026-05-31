@@ -46,6 +46,8 @@ router.post("/", async (req: Request, res: Response) => {
       data: {
         transcript: result.transcript,
         duration: result.duration,
+        // Per-segment timestamps for transcript↔audio sync (click line → seek).
+        segments: result.segments,
       },
     });
   } catch (error: any) {

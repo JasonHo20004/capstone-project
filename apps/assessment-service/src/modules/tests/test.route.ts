@@ -16,8 +16,8 @@ router.delete("/internal/:id/course-link", testController.unlinkCourseInternal.b
 // Public reads
 router.get("/", optionalAuth, testController.getAllTests.bind(testController));
 router.get("/types", testController.getTestTypes.bind(testController));
-router.get("/history/:userId", testController.getTestHistory.bind(testController));
-router.get("/attempts/:sessionId", testController.getAttemptDetail.bind(testController));
+router.get("/history/:userId", authenticateToken, testController.getTestHistory.bind(testController));
+router.get("/attempts/:sessionId", authenticateToken, testController.getAttemptDetail.bind(testController));
 router.get("/:id", optionalAuth, testController.getTestById.bind(testController));
 
 // Authenticated writes — seller (or admin). Ownership enforced in controller.
@@ -40,10 +40,13 @@ router.post(
   testController.uploadImage.bind(testController)
 );
 
-// Student start session
-router.post("/:id/start", testController.startSession.bind(testController));
+// Student start session (auth required — identity comes from the JWT)
+router.post("/:id/start", authenticateToken, testController.startSession.bind(testController));
 
-// Student submit
-router.post("/:id/submit", testController.submitTest.bind(testController));
+// Student submit (auth required — identity comes from the JWT)
+router.post("/:id/submit", authenticateToken, testController.submitTest.bind(testController));
+
+// Autosave in-progress answers to the ONGOING session (auth required).
+router.post("/:id/draft", authenticateToken, testController.saveDraft.bind(testController));
 
 export default router;

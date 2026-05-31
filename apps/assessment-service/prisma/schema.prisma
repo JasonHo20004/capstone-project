@@ -73,6 +73,9 @@ model Section {
   totalScore        Float?     @map("total_score")
   mediaUrl          String?    @map("media_url")
   audioTranscript   String?    @map("audio_transcript")
+  // Whisper per-segment timestamps [{ start, end, text }] for transcript↔audio
+  // sync in the post-submit review (click a line → seek the audio).
+  audioSegments     Json?      @map("audio_segments")
   imageUrl          String?    @map("image_url")
   orderIndex        Int?       @map("order_index")
   passages          Passage[]
@@ -130,6 +133,10 @@ model PracticeSession {
   overallScaledScore Float?        @map("overall_scaled_score")
   rawScoresBySkill   Json?         @map("raw_scores_by_skill")
   scoresBySkill      Json?         @map("scores_by_skill")
+  // In-progress answers autosaved by the client while the session is ONGOING, so
+  // work survives a localStorage wipe / switching device. Cleared on submit.
+  draftAnswers       Json?         @map("draft_answers")
+  draftSavedAt       DateTime?     @map("draft_saved_at") @db.Timestamptz(6)
   test               Test          @relation(fields: [testId], references: [id], onDelete: Cascade)
   userAnswers        UserAnswer[]
 

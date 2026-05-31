@@ -112,6 +112,7 @@ class LLMClient {
   public async transcribeAudio(audioFile: File | Blob, filename: string): Promise<{
     transcript: string;
     duration: number;
+    segments: { start: number; end: number; text: string }[];
   }> {
     const transcription = await this.groq.audio.transcriptions.create({
       file: audioFile as any,
@@ -120,9 +121,22 @@ class LLMClient {
       language: "en",
     });
 
+    // verbose_json includes per-segment timestamps — keep them so the UI can
+    // sync the transcript with the audio (click a line → seek to that moment).
+    const segments = Array.isArray((transcription as any).segments)
+      ? (transcription as any).segments
+          .map((s: any) => ({
+            start: Number(s.start) || 0,
+            end: Number(s.end) || 0,
+            text: String(s.text ?? "").trim(),
+          }))
+          .filter((s: { text: string }) => s.text)
+      : [];
+
     return {
       transcript: transcription.text,
       duration: (transcription as any).duration ?? 0,
+      segments,
     };
   }
 

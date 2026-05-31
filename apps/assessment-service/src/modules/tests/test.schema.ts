@@ -40,6 +40,9 @@ export const CreateTestSchema = z.object({
       durationInSeconds: z.number().optional(),
       mediaUrl: z.string().optional(),
       audioTranscript: z.string().optional(),
+      audioSegments: z
+        .array(z.object({ start: z.number(), end: z.number(), text: z.string() }))
+        .optional(),
       imageUrl: z.string().optional(),
       passageContent: z.string().optional(),
       questions: z.array(QuestionSchema).optional().default([]),
