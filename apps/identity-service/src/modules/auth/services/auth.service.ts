@@ -63,7 +63,7 @@ export class AuthService {
   private buildVerificationUrl(token: string, email: string): string {
     const baseUrl =
       process.env.EMAIL_VERIFICATION_BASE_URL ||
-      `${process.env.FRONTEND_BASE_URL || "http://localhost:5173"}/auth/verify`;
+      `${process.env.FRONTEND_BASE_URL || "http://localhost:8080"}/auth/verify`;
     const params = new URLSearchParams({ token, email });
     return `${baseUrl}?${params.toString()}`;
   }

@@ -1,10 +1,12 @@
 import { SellerRepository } from "../repositories/seller.repository";
+import { AuthRepository } from "../../auth/repositories/auth.repository";
 import { EventBusService } from "@capstone/common";
 import { EventNames } from "@capstone/common";
 import type { ApplyForSellerInput, UpdateApplicationStatusInput } from "../dtos/seller.dto";
 
 export class SellerService {
   private repository = new SellerRepository();
+  private authRepository = new AuthRepository();
   private eventBus: EventBusService;
 
   constructor() {
@@ -139,6 +141,10 @@ export class SellerService {
 
       // Update user role
       await this.repository.updateUserRole(application.userId);
+
+      // Revoke all existing refresh tokens so the user's next login
+      // issues a fresh token with the COURSESELLER role.
+      await this.authRepository.deleteAllRefreshTokensForUser(application.userId);
 
       // Create seller profile
       await this.repository.createSellerProfile({
