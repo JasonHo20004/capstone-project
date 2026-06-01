@@ -49,6 +49,38 @@ router = APIRouter(prefix="/api/livestream", tags=["Livestream"])
 # worker reaches sockets connected to any other worker.
 _connections: dict[str, dict[str, WebSocket]] = {}
 
+# Strong references to fire-and-forget background tasks. asyncio keeps only a
+# WEAK reference to a task returned by create_task, so a task whose return value
+# is discarded can be garbage-collected *before it runs*. That silently dropped
+# every Q&A broadcast: `ask_question` spawned `_answer_question` via a bare
+# create_task, the task was collected before broadcasting, and so neither the
+# asker nor anyone else ever received `question_asked` / `ai_answer`. Keeping the
+# task in this set until it finishes prevents the premature GC.
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _spawn(coro) -> asyncio.Task:
+    """create_task that won't be garbage-collected mid-flight (see above).
+
+    Also surfaces failures: a bare fire-and-forget task swallows its exception
+    (asyncio only logs it on GC, often never), so we log it on completion.
+    """
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+
+    def _done(t: asyncio.Task):
+        _background_tasks.discard(t)
+        if not t.cancelled():
+            exc = t.exception()
+            if exc:
+                import traceback
+                print(f"[Livestream] background task failed: {exc!r}")
+                traceback.print_exception(type(exc), exc, exc.__traceback__)
+
+    task.add_done_callback(_done)
+    return task
+
+
 # Reactions allowlist — only these emojis can be broadcast
 ALLOWED_REACTIONS = {"👍", "❤️", "👏", "🎉", "🤔", "😮", "🔥", "😂"}
 
@@ -312,6 +344,11 @@ async def cleanup_audio_loop():
 
 _pub_redis: aioredis.Redis | None = None
 
+# Unique id for THIS process. Published with every broadcast so the Pub/Sub
+# listener on the same process can skip messages it already delivered locally
+# (see _broadcast / _pubsub_listener) — prevents double delivery.
+_PROCESS_ID = uuid.uuid4().hex
+
 
 def _channel(room_id: str) -> str:
     return f"livestream:channel:{room_id}"
@@ -326,14 +363,26 @@ async def _get_pub_redis() -> aioredis.Redis:
 
 
 async def _broadcast(room_id: str, message: dict):
-    """Publish a message to every participant of a room, across all workers."""
+    """Publish a message to every participant of a room, across all workers.
+
+    Delivery is in two parts:
+      1. Deliver immediately to sockets on THIS process. This guarantees the
+         message reaches local participants even if Redis Pub/Sub is unavailable
+         or its listener is not (yet) subscribed — which is the common
+         single-process dev case, where relying on Pub/Sub alone silently dropped
+         every broadcast (host never saw participants join).
+      2. Fan out to OTHER processes via Pub/Sub, tagged with this process's id so
+         our own listener skips it (already delivered in step 1) — no double send.
+    """
+    await _local_deliver(room_id, message)
     try:
         r = await _get_pub_redis()
-        await r.publish(_channel(room_id), json.dumps({"room_id": room_id, "message": message}))
+        await r.publish(_channel(room_id), json.dumps({
+            "room_id": room_id, "message": message, "origin": _PROCESS_ID,
+        }))
     except Exception as e:
-        # Redis unreachable — degrade gracefully to local-only delivery.
-        print(f"[Livestream] publish failed, local-only delivery: {e}")
-        await _local_deliver(room_id, message)
+        # Other processes won't get it, but local sockets already did (step 1).
+        print(f"[Livestream] cross-process publish failed (local delivery done): {e}")
 
 
 async def _local_deliver(room_id: str, message: dict):
@@ -363,6 +412,10 @@ async def _pubsub_listener():
                     continue
                 try:
                     data = json.loads(msg["data"])
+                    # Skip messages we published ourselves — _broadcast already
+                    # delivered them to this process's local sockets.
+                    if data.get("origin") == _PROCESS_ID:
+                        continue
                     await _local_deliver(data["room_id"], data["message"])
                 except Exception as e:
                     print(f"[Livestream] deliver error: {e}")
@@ -373,7 +426,7 @@ async def _pubsub_listener():
 
 def start_pubsub_listener():
     """Kick off the per-process Pub/Sub listener (called from app startup)."""
-    asyncio.create_task(_pubsub_listener())
+    _spawn(_pubsub_listener())
 
 
 # ── Audio duration ───────────────────────────────────────────────────────────
@@ -856,7 +909,7 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
                     room["status"] = "live"
                     await _save_room(r, room)
                     await _broadcast(room_id, {"type": "lesson_start"})
-                    asyncio.create_task(_deliver_lesson(room_id, settings))
+                    _spawn(_deliver_lesson(room_id, settings))
 
             elif msg_type == "ask_question":
                 question = msg.get("question", "").strip()
@@ -868,7 +921,7 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
                 # Auto-lower hand if user was in the queue
                 if await _lower_hand(r, room_id, user_id):
                     await _broadcast_participants(r, room_id, room["host_id"])
-                asyncio.create_task(_answer_question(room_id, question, user_name, settings))
+                _spawn(_answer_question(room_id, question, user_name, settings))
 
             elif msg_type == "reaction":
                 emoji = msg.get("emoji", "")
@@ -927,7 +980,7 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
                     await r.delete(_speaker_key(room_id))
                     await _broadcast(room_id, {"type": "speaker_ended", "user_id": user_id})
                     if text and not await _is_rate_limited(r, user_id, settings.questions_per_minute):
-                        asyncio.create_task(_answer_question(room_id, text, user_name, settings))
+                        _spawn(_answer_question(room_id, text, user_name, settings))
 
             elif msg_type == "end_speaking":
                 # Speaker (or host) cancels the spotlight without submitting.
@@ -961,8 +1014,15 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
     except Exception as e:
         print(f"[Livestream WS] Error: {e}")
     finally:
-        if user_id:
-            _connections.get(room_id, {}).pop(user_id, None)
+        # Only tear down if WE are still the registered socket for this user. On a
+        # reconnect (token refresh, --reload restart, network blip) a NEWER socket
+        # may have already replaced us under the same user_id; popping by user_id
+        # here would evict that live socket and silently cut the client off from
+        # every future broadcast (questions, answers, slides). If superseded, we
+        # leave presence + registry to the connection that now owns them.
+        conns = _connections.get(room_id)
+        if user_id and conns is not None and conns.get(user_id) is websocket:
+            conns.pop(user_id, None)
             await _remove_presence(r, room_id, user_id)
             count = await _presence_count(r, room_id)
             await _broadcast(room_id, {
@@ -975,7 +1035,7 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
                 # Host left: don't kill the room instantly — give a grace window
                 # for a reconnect (network blip / refresh) before ending it.
                 if user_id == room["host_id"] and room["status"] not in ("ended", "completed"):
-                    asyncio.create_task(_end_room_if_host_absent(room_id, user_id, settings))
+                    _spawn(_end_room_if_host_absent(room_id, user_id, settings))
         await r.aclose()
 
 

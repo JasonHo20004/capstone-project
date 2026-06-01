@@ -46,7 +46,9 @@ def create_app() -> FastAPI:
     @app.on_event("startup")
     async def startup():
         AUDIO_DIR.mkdir(parents=True, exist_ok=True)
-        asyncio.create_task(cleanup_audio_loop())
+        # Keep a strong reference — asyncio only weakly references tasks, so a
+        # bare create_task whose return is discarded can be GC'd before it runs.
+        app.state.cleanup_task = asyncio.create_task(cleanup_audio_loop())
         # Per-process Redis Pub/Sub listener — delivers broadcast messages to the
         # sockets connected to THIS worker (required for multi-worker correctness).
         start_pubsub_listener()
