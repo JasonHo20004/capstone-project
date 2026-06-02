@@ -447,87 +447,83 @@ def _audio_duration(filename: str, fallback: float) -> float:
 
 # ── Lesson generation ──────────────────────────────────────────────────────────
 
-_LESSON_PROMPT_EN = """You are a master English teacher delivering a live lesson. Your ONLY job is to answer the teaching directive below — do NOT teach the general topic of the lesson title.
+_LESSON_PROMPT_EN = """You are a master English teacher delivering a live lesson.
 
-═══ THE TEACHING DIRECTIVE (this is what you MUST answer) ═══
+═══ TEACHING DIRECTIVE — this is the ONE thing you MUST answer ═══
 {lesson_focus}
-═══════════════════════════════════════════════════════════════
+════════════════════════════════════════════════════════════════
 
-LESSON LABEL (display only — DO NOT teach general background of this): "{topic}"
-AUDIENCE: {level} English learners.
+Lesson label (display only, do NOT explain this generically): "{topic}"
+Audience: {level} English learners.
 
-🚫 ABSOLUTE RULE: every section must directly serve the DIRECTIVE above. The label is just a display string for the slide header. If your sentence sounds like a generic intro to the lesson label (e.g. "IELTS is an important exam…"), DELETE IT and replace with content that directly advances the directive.
+Step 1 — classify the directive into one type:
+• TIMELINE/ROADMAP  (e.g. "how to reach 6.0 in 12 months") → 5 sequential phases with weeks/milestones
+• TECHNIQUE/HOW-TO  (e.g. "how to develop ideas in Speaking Part 2") → problem framing → technique 1 → technique 2 → worked example → mistakes & fix
+• COMPARISON        (e.g. "PTE vs IELTS") → criterion-by-criterion comparison + recommendation
+• TROUBLESHOOTING   (e.g. "why is my Writing stuck at 5.5?") → diagnosis → root causes → fixes → rescue plan
+• CONCEPT/EXPLAINER (e.g. "what is a band descriptor?") → core idea → mechanics → why it matters → real example → daily-practice impact
+Default if unsure: TECHNIQUE.
 
-═══ ADAPTIVE STRUCTURE — choose the 5-section decomposition that BEST fits the directive ═══
+Step 2 — write 5 sections that ADVANCE the directive step by step.
 
-First, identify what TYPE of question the directive is:
-- TIMELINE / ROADMAP question (e.g. "how to go from 0 to 6.0 in 12 months", "plan for 3 months") → 5 sections = sequential phases of the timeline. Each section is a concrete phase with weeks/months, what to focus on, what milestones.
-- TECHNIQUE / HOW-TO question (e.g. "how to develop ideas in Speaking Part 2") → 5 sections = problem framing → technique 1 → technique 2 → worked example → mistakes & action plan.
-- COMPARISON / OPTIONS question (e.g. "PTE vs IELTS, which fits me?") → 5 sections = criterion-by-criterion comparison + recommendation.
-- TROUBLESHOOTING question (e.g. "why is my Writing stuck at 5.5?") → 5 sections = diagnosis → top 3 root causes → fix for each → 7-day rescue plan.
-- CONCEPT / EXPLAINER question (e.g. "what is IELTS band descriptor?") → 5 sections = core idea → mechanics → why it matters → real example → how it changes student's daily practice.
+RULES (violating any = invalid output):
+1. Every sentence in every section must directly serve the directive. Generic background about the lesson label is FORBIDDEN.
+2. "title": 5-12 words naming the specific step/technique/phase — must NOT be a generic label name.
+3. "content": 80-130 words, warm & conversational, information-dense. NO platitudes. FORBIDDEN first words: "Welcome", "Today", "In this section", "Let's explore", "Many students".
+4. "key_points": EXACTLY 4 bullets, each 10-18 words, each a concrete actionable step (e.g. "Spend 20 min daily on Cambridge Listening Test 1 audio", NOT "practise listening").
+5. "keywords": EXACTLY 3 English terms directly tied to this section's content (not the lesson label).
+6. "example": 1 natural English sentence (12-20 words) showing the section's idea in use.
+7. "practice_phrase": exactly 2 of the 5 sections have a 6-12 word English phrase to read aloud; the other 3 are "".
+8. "image_query": 2-4 concrete English visual keywords for this section's content.
 
-DEFAULT if unsure: TECHNIQUE.
+═══ FINAL REMINDER — re-read before generating ═══
+Directive: {lesson_focus}
+Every section MUST advance THIS directive, not explain "{topic}" in general.
+═════════════════════════════════════════════════
 
-For the chosen structure, design 5 sections where EACH section advances the directive by a specific, concrete step. Section titles MUST reflect the directive — not the lesson label. Example: directive "12-month roadmap from 0 to 6.0" → titles like "Months 1-2: Survive English first", "Months 3-5: Build foundation grammar + 800 core words", NOT "Welcome to IELTS Foundation".
+Respond ONLY with valid JSON (no prose before or after):
+{{"sections": [{{"title": "...", "content": "...", "key_points": ["...","...","...","..."], "keywords": [{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}}], "example": "...", "practice_phrase": "...", "image_query": "..."}}, ...5 sections total]}}
 
-═══ HARD QUALITY RULES ═══
-1. EVERY section must concretely advance the directive. Background filler about the lesson label is FORBIDDEN.
-2. "title" 5-12 words, MUST reference the specific phase/technique/option this section covers — not the lesson label generically.
-3. "content" 80-130 words (5-7 sentences) — warm, conversational, information-dense. NO generic platitudes.
-4. "key_points" EXACTLY 4 bullets, each 10-18 words, CONCRETE actionable items (e.g. "Drill 20 minutes of Cambridge listening test 1 daily", NOT "practice listening regularly").
-5. "keywords" EXACTLY 3 English terms relevant to this section's specific content.
-6. "example" a natural English sentence (12-20 words) demonstrating the section's idea in real use.
-7. "practice_phrase" empty string "" for 3 sections; for 2 sections, a 6-12 word natural English phrase to read aloud.
-8. "image_query" 2-4 concrete English visual keywords matching this section.
-9. FORBIDDEN openings for "content": "Welcome", "Today's lesson", "In this section", "Let's explore", "{topic} is important", "Many students…". Start each section with a concrete statement or scenario tied to the directive.
+All fields in {level}-appropriate English."""
 
-═══ OUTPUT ═══
-Respond ONLY with valid JSON, no extra text:
-{{"sections": [{{"title": "string", "content": "string (80-130 words)", "key_points": ["s","s","s","s"], "keywords": [{{"term":"s","meaning":"s"}},{{"term":"s","meaning":"s"}},{{"term":"s","meaning":"s"}}], "example": "string", "practice_phrase": "string", "image_query": "string"}}, ...5 total sections...]}}
+_LESSON_PROMPT_VI = """Bạn là giáo viên tiếng Anh giỏi đang dạy livestream.
 
-LANGUAGE: {level}-appropriate English. Every field in English."""
-
-_LESSON_PROMPT_VI = """Bạn là giáo viên tiếng Anh giỏi đang dạy livestream. Nhiệm vụ DUY NHẤT là trả lời NỘI DUNG CẦN DẠY bên dưới — KHÔNG được dạy chung chung về tiêu đề bài.
-
-═══ NỘI DUNG CẦN DẠY (đây là cái bạn PHẢI trả lời) ═══
+═══ NỘI DUNG CẦN DẠY — đây là điều DUY NHẤT bạn phải trả lời ═══
 {lesson_focus}
-═══════════════════════════════════════════════════
+════════════════════════════════════════════════════════════════
 
-NHÃN BÀI (chỉ để hiển thị — KHÔNG được lan man về nhãn này): "{topic}"
-ĐỐI TƯỢNG: học viên trình độ {level}.
+Nhãn bài (chỉ để hiển thị, KHÔNG được giải thích chung chung về nhãn này): "{topic}"
+Đối tượng: học viên trình độ {level}.
 
-🚫 LUẬT TUYỆT ĐỐI: mỗi phần phải trực tiếp phục vụ NỘI DUNG CẦN DẠY ở trên. Nhãn bài chỉ là chuỗi hiển thị trên header slide. Nếu một câu nghe giống intro chung chung về nhãn bài (vd "IELTS là kỳ thi quốc tế quan trọng…"), XOÁ ĐI và thay bằng nội dung trực tiếp đẩy directive tiến lên.
+Bước 1 — xác định loại câu hỏi của directive:
+• LỘ TRÌNH/TIMELINE  (vd "lộ trình 12 tháng từ 0 đến 6.0") → 5 giai đoạn tuần tự với mốc thời gian & milestone cụ thể
+• KỸ THUẬT/HOW-TO   (vd "làm sao phát triển idea trong Speaking Part 2") → đặt vấn đề → kỹ thuật 1 → kỹ thuật 2 → ví dụ thực hành → lỗi & action plan
+• SO SÁNH           (vd "PTE vs IELTS nên thi cái nào?") → so sánh từng tiêu chí + khuyến nghị
+• GỠ RỐI            (vd "tại sao Writing tôi mãi 5.5?") → chẩn đoán → nguyên nhân → cách sửa → kế hoạch
+• GIẢI THÍCH KHÁI NIỆM (vd "band descriptor là gì?") → ý cốt lõi → cơ chế → tại sao quan trọng → ví dụ → ảnh hưởng hằng ngày
+Mặc định nếu không chắc: KỸ THUẬT.
 
-═══ CẤU TRÚC THÍCH NGHI — chọn cách chia 5 phần PHÙ HỢP NHẤT với directive ═══
+Bước 2 — viết 5 phần ĐẨY directive tiến lên từng bước.
 
-Đầu tiên, xác định LOẠI câu hỏi của directive:
-- CÂU HỎI LỘ TRÌNH / TIMELINE (vd "lộ trình 12 tháng từ 0 đến 6.0", "kế hoạch 3 tháng") → 5 phần = 5 GIAI ĐOẠN tuần tự theo thời gian. Mỗi phần là 1 mốc cụ thể với tuần/tháng, trọng tâm cần học, milestone đạt được.
-- CÂU HỎI KỸ THUẬT / HOW-TO (vd "làm sao phát triển idea trong Speaking Part 2") → 5 phần = đặt vấn đề → kỹ thuật 1 → kỹ thuật 2 → ví dụ thực hành → lỗi & action plan.
-- CÂU HỎI SO SÁNH / LỰA CHỌN (vd "PTE vs IELTS, nên thi cái nào?") → 5 phần = so sánh theo từng tiêu chí + khuyến nghị.
-- CÂU HỎI GỠ RỐI (vd "tại sao Writing tôi mãi 5.5?") → 5 phần = chẩn đoán → 3 nguyên nhân gốc → cách sửa cho từng nguyên nhân → kế hoạch giải cứu 7 ngày.
-- CÂU HỎI GIẢI THÍCH KHÁI NIỆM (vd "IELTS band descriptor là gì?") → 5 phần = ý cốt lõi → cơ chế hoạt động → tại sao quan trọng → ví dụ thật → ảnh hưởng tới luyện tập hằng ngày.
+LUẬT (vi phạm bất kỳ luật nào = đầu ra không hợp lệ):
+1. Mọi câu trong mọi phần phải trực tiếp phục vụ directive. Filler chung về nhãn bài BỊ CẤM.
+2. "title": 5-12 từ nêu rõ bước/kỹ thuật/giai đoạn cụ thể — KHÔNG được là tên nhãn bài chung chung.
+3. "content": 80-130 từ TIẾNG VIỆT, ấm áp & hội thoại, đặc thông tin. CẤM mở đầu bằng: "Chào mừng", "Bài học hôm nay", "Trong phần này", "Hãy cùng khám phá", "Nhiều bạn".
+4. "key_points": ĐÚNG 4 bullet, mỗi cái 10-18 từ TIẾNG VIỆT, actionable cụ thể (vd "Luyện 20 phút Cambridge Listening test 1 mỗi ngày", KHÔNG "luyện nghe thường xuyên").
+5. "keywords": ĐÚNG 3 từ tiếng Anh gắn trực tiếp với nội dung phần đó (không phải nhãn bài chung).
+6. "example": 1 câu tiếng Anh tự nhiên 12-20 từ minh hoạ ý của phần.
+7. "practice_phrase": đúng 2 trong 5 phần có cụm 6-12 từ tiếng Anh để đọc theo; 3 phần còn lại là "".
+8. "image_query": 2-4 từ tiếng Anh trực quan khớp nội dung phần đó.
 
-MẶC ĐỊNH nếu không chắc: dùng KỸ THUẬT.
+═══ NHẮC LẠI TRƯỚC KHI SINH — đọc lại trước khi viết ═══
+Directive: {lesson_focus}
+Mỗi phần PHẢI đẩy directive NÀY tiến lên, không giải thích "{topic}" một cách chung chung.
+═════════════════════════════════════════════════════════════
 
-Với loại đã chọn, thiết kế 5 phần mà MỖI PHẦN đẩy directive tiến lên 1 bước cụ thể. Tiêu đề phần phải phản ánh DIRECTIVE — không phản ánh nhãn bài. Ví dụ: directive "lộ trình 12 tháng 0 đến 6.0" → tiêu đề kiểu "Tháng 1-2: Sống sót tiếng Anh trước đã", "Tháng 3-5: Xây nền ngữ pháp + 800 từ cốt lõi", KHÔNG được kiểu "Giới thiệu IELTS Foundation".
+Chỉ trả về JSON hợp lệ (không có prose trước hoặc sau):
+{{"sections": [{{"title": "...", "content": "...", "key_points": ["...","...","...","..."], "keywords": [{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}}], "example": "...", "practice_phrase": "...", "image_query": "..."}}, ...5 phần]}}
 
-═══ NGUYÊN TẮC CHẤT LƯỢNG NGHIÊM NGẶT ═══
-1. MỌI phần phải cụ thể đẩy directive tiến lên. Filler chung về nhãn bài bị CẤM.
-2. "title" 5-12 từ, PHẢI nêu rõ giai đoạn/kỹ thuật/option cụ thể phần đó nói tới — không nêu nhãn bài chung chung.
-3. "content" 80-130 từ tiếng Việt (5-7 câu) — ấm áp, hội thoại, đặc thông tin. KHÔNG sáo rỗng.
-4. "key_points" ĐÚNG 4 bullet, mỗi cái 10-18 từ, CỤ THỂ và actionable (vd "Luyện 20 phút Cambridge Listening test 1 mỗi ngày", KHÔNG "luyện nghe thường xuyên").
-5. "keywords" ĐÚNG 3 từ tiếng Anh liên quan trực tiếp nội dung phần đó.
-6. "example" câu tiếng Anh tự nhiên 12-20 từ minh hoạ ý của phần.
-7. "practice_phrase" rỗng "" cho 3 phần; 2 phần có cụm 6-12 từ tiếng Anh để đọc theo.
-8. "image_query" 2-4 từ tiếng Anh trực quan khớp phần đó.
-9. CẤM mở đầu "content" bằng: "Chào mừng", "Bài học hôm nay", "Trong phần này", "Hãy cùng khám phá", "{topic} là kỳ thi quan trọng", "Nhiều bạn học viên…". Mỗi phần phải mở bằng phát biểu/tình huống cụ thể bám directive.
-
-═══ ĐẦU RA ═══
-Chỉ trả về JSON hợp lệ, không thêm chữ nào khác:
-{{"sections": [{{"title": "string", "content": "string (80-130 từ tiếng Việt)", "key_points": ["s","s","s","s"], "keywords": [{{"term":"s","meaning":"s"}},{{"term":"s","meaning":"s"}},{{"term":"s","meaning":"s"}}], "example": "string", "practice_phrase": "string", "image_query": "string"}}, ...5 phần]}}
-
-NGÔN NGỮ NGHIÊM NGẶT: title / content / key_points / keywords.meaning BẰNG TIẾNG VIỆT; keywords.term / example / practice_phrase / image_query BẰNG TIẾNG ANH."""
+NGÔN NGỮ: title / content / key_points / keywords.meaning → TIẾNG VIỆT; keywords.term / example / practice_phrase / image_query → TIẾNG ANH."""
 
 
 def _fallback_sections(topic: str, level: str, language: str) -> list[dict]:
@@ -597,7 +593,7 @@ async def _generate_lesson(
     Generated lessons are cached in Redis keyed by (language, level, topic,
     prompt) for 7 days, so re-running the same lesson skips the expensive LLM call.
     """
-    cache_key = "livestream:lesson:" + hashlib.sha1(
+    cache_key = "livestream:lesson:v2:" + hashlib.sha1(
         f"{language}|{level}|{topic.strip()}|{lesson_prompt.strip()}".encode("utf-8")
     ).hexdigest()
     try:
@@ -610,12 +606,23 @@ async def _generate_lesson(
         pass
 
     prompt_tpl = _LESSON_PROMPT_VI if language == "vi" else _LESSON_PROMPT_EN
-    lesson_focus = lesson_prompt.strip() if lesson_prompt.strip() else f"Teach the topic: {topic}"
+    if lesson_prompt.strip():
+        lesson_focus = lesson_prompt.strip()
+    elif language == "vi":
+        lesson_focus = (
+            f"Dạy những gì một học viên trình độ {level} CẦN BIẾT NHẤT về \"{topic}\": "
+            f"kỹ thuật cụ thể, ví dụ thực tế, lỗi phổ biến cần tránh, và bài tập có thể làm ngay hôm nay."
+        )
+    else:
+        lesson_focus = (
+            f"Teach what a {level} learner MOST NEEDS to know about \"{topic}\": "
+            f"concrete techniques, real examples, common mistakes to avoid, and exercises they can do today."
+        )
     prompt = prompt_tpl.format(topic=topic, lesson_focus=lesson_focus, level=level)
     try:
         raw = await generate_text(
             prompt, settings,
-            temperature=0.65, max_tokens=6144, timeout=120,
+            temperature=0.45, max_tokens=6144, timeout=120,
             json_mode=True,
         )
         parsed = extract_json_object(raw)
@@ -789,7 +796,7 @@ async def translate_word(body: TranslateRequest):
     if not word or len(word) > 80:
         raise HTTPException(400, "Invalid word")
 
-    cache_key = f"livestream:translate:{body.target}:{word.lower()}"
+    cache_key = f"livestream:translate:v2:{body.target}:{word.lower()}"
     r = await _get_redis(settings)
     try:
         cached = await r.get(cache_key)
@@ -798,15 +805,29 @@ async def translate_word(body: TranslateRequest):
 
         if body.target == "vi":
             prompt = (
-                f'Translate the English word or short phrase "{word}" into Vietnamese.\n'
-                "Respond ONLY with valid JSON, no extra text:\n"
-                '{"meaning": "Vietnamese meaning (1 short line)", "pronunciation": "IPA or empty", "example": "one short English example sentence"}'
+                f'You are a Vietnamese–English dictionary assistant.\n'
+                f'Translate the English word or phrase "{word}" into Vietnamese.\n'
+                f'\n'
+                f'Return ONLY a JSON object with exactly these fields:\n'
+                f'  "meaning"       — the Vietnamese translation (viết bằng tiếng Việt, NOT English)\n'
+                f'  "pronunciation" — IPA phonetic of the English word, e.g. /wɜːrd/  (empty string if unsure)\n'
+                f'  "example"       — one short English example sentence using "{word}"\n'
+                f'\n'
+                f'Example output for "beautiful":\n'
+                f'{{"meaning": "đẹp, xinh đẹp", "pronunciation": "ˈbjuːtɪfəl", "example": "She has a beautiful smile."}}\n'
+                f'\n'
+                f'Now translate "{word}". Output ONLY the JSON object, no extra text.'
             )
         else:
             prompt = (
-                f'Define the English word or short phrase "{word}".\n'
-                "Respond ONLY with valid JSON, no extra text:\n"
-                '{"meaning": "concise English definition", "pronunciation": "IPA or empty", "example": "one short example sentence"}'
+                f'Define the English word or phrase "{word}" concisely.\n'
+                f'\n'
+                f'Return ONLY a JSON object with exactly these fields:\n'
+                f'  "meaning"       — a concise English definition (1 short sentence)\n'
+                f'  "pronunciation" — IPA phonetic, e.g. /wɜːrd/  (empty string if unsure)\n'
+                f'  "example"       — one short English example sentence using "{word}"\n'
+                f'\n'
+                f'Output ONLY the JSON object, no extra text.'
             )
 
         result = {"word": word, "meaning": "", "pronunciation": "", "example": ""}
