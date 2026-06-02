@@ -171,6 +171,71 @@ export class DictationController {
       next(error);
     }
   }
+
+  /**
+   * POST /dictation/transcribe — Admin: upload an audio file and auto-generate
+   * dictation sentences + timestamps via Whisper (rag-service, CPU). Stores the
+   * audio on S3 and runs transcription in parallel, then returns clean sentences
+   * for preview/edit before the exercise is created. Replaces the old Kaggle
+   * JSON workflow.
+   */
+  async transcribeAudio(req: Request, res: Response, next: NextFunction) {
+    try {
+      const file = req.file;
+      if (!file) {
+        res.status(400).json({ message: "No audio file provided" });
+        return;
+      }
+
+      const RAG_SERVICE_URL = process.env.RAG_SERVICE_URL || "http://localhost:8000";
+
+      // Forward the audio to the Whisper service for transcription.
+      const form = new FormData();
+      form.append(
+        "audio",
+        new Blob([file.buffer], { type: file.mimetype || "application/octet-stream" }),
+        file.originalname
+      );
+      if (req.body?.skipBeforeSeconds) form.append("skip_before_seconds", String(req.body.skipBeforeSeconds));
+      if (req.body?.skipFirstN) form.append("skip_first_n", String(req.body.skipFirstN));
+
+      // Upload to S3 (durable audio) and transcribe (CPU, slow) concurrently.
+      // CPU transcription of a few-minute clip can take several minutes, so the
+      // timeout is generous (10 min).
+      const [audioUrl, ragResp] = await Promise.all([
+        s3Service.uploadFile(file, "dictation-audio"),
+        fetch(`${RAG_SERVICE_URL}/transcribe/dictation`, {
+          method: "POST",
+          body: form,
+          signal: AbortSignal.timeout(600_000),
+        }),
+      ]);
+
+      if (!ragResp.ok) {
+        const detail = await ragResp.text().catch(() => "");
+        res.status(502).json({ message: "Transcription service error", detail });
+        return;
+      }
+
+      const result = (await ragResp.json()) as {
+        sentences: { index: number; text: string; startTime: number; endTime: number }[];
+        totalSentences: number;
+        report?: Record<string, unknown>;
+      };
+
+      res.status(200).json({
+        message: "Audio transcribed",
+        data: {
+          audioUrl,
+          sentences: result.sentences,
+          totalSentences: result.totalSentences,
+          report: result.report ?? {},
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const dictationController = new DictationController();

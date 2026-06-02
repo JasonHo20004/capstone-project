@@ -25,5 +25,6 @@ router.post("/", dictationController.createExercise.bind(dictationController));
 router.put("/:id", dictationController.updateExercise.bind(dictationController));
 router.delete("/:id", dictationController.deleteExercise.bind(dictationController));
 router.post("/upload-audio", upload.single("audio"), dictationController.uploadAudio.bind(dictationController));
+router.post("/transcribe", upload.single("audio"), dictationController.transcribeAudio.bind(dictationController));
 
 export default router;

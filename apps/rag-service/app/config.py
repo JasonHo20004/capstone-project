@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     # Get a free key at https://www.pexels.com/api/
     pexels_api_key: str = ""
 
+    # Whisper (dictation timestamp generator) — runs locally on CPU via
+    # faster-whisper. "large-v3-turbo" matches the original Kaggle notebook for
+    # accuracy; downloads ~1.5GB on first use, then cached. Compute "int8" keeps
+    # CPU RAM/latency reasonable. device "cpu" is the supported default here.
+    whisper_model: str = "large-v3-turbo"
+    whisper_device: str = "cpu"
+    whisper_compute_type: str = "int8"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

@@ -277,6 +277,29 @@ def _build_prompt(body: ExplainRequest) -> str:
     )
 
 
+# Local multilingual models (e.g. Qwen) often drift into Chinese for the
+# explanatory prose even though the prompt is Vietnamese. Force the output
+# language explicitly (following the UI's i18n language) and forbid other scripts.
+_LANGUAGE_NAMES = {
+    "vi": "Tiếng Việt (Vietnamese)",
+    "en": "English",
+}
+
+
+def _language_directive(lang: str) -> str:
+    """Append a strong instruction to answer in the UI language and nothing else."""
+    code = (lang or "vi").split("-")[0].lower()
+    name = _LANGUAGE_NAMES.get(code, "Tiếng Việt (Vietnamese)")
+    return (
+        "\n\n---\n"
+        f"IMPORTANT — LANGUAGE: Write the ENTIRE answer in {name}, including the "
+        "section headings (translate the Vietnamese headings in the format above "
+        f"into {name}). Do NOT use Chinese (中文/汉字), Japanese, Korean, or any "
+        "other language. Keep the original English only for direct quotes copied "
+        "from the passage/transcript (inside quotation marks)."
+    )
+
+
 _OLLAMA_OPTIONS = {
     "temperature": 0.3,
     "num_predict": 1024,
@@ -292,7 +315,7 @@ _OLLAMA_OPTIONS = {
 async def explain_answer(body: ExplainRequest):
     """AI Tutor: Non-streaming explanation (legacy)."""
     settings = get_settings()
-    prompt = _build_prompt(body)
+    prompt = _build_prompt(body) + _language_directive(body.language)
     url = f"{settings.ollama_base_url}/api/generate"
     print(f"[AI Tutor] Calling Ollama at: {url}")
 
@@ -337,7 +360,7 @@ async def explain_answer_stream(body: ExplainRequest):
     Returns text/event-stream with tokens as they arrive from Ollama.
     """
     settings = get_settings()
-    prompt = _build_prompt(body)
+    prompt = _build_prompt(body) + _language_directive(body.language)
 
     def generate_sse():
         url = f"{settings.ollama_base_url}/api/generate"

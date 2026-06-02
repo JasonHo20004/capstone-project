@@ -54,6 +54,7 @@ class ExplainRequest(BaseModel):
     user_answer: str = Field(..., description="Đáp án user đã chọn")
     test_skill: str = Field("READING", description="'READING' or 'LISTENING'")
     conversation_history: list[ChatMessage] = Field(default_factory=list, description="Lịch sử hội thoại cho follow-up")
+    language: str = Field("vi", description="UI language code (i18n), e.g. 'vi' | 'en' — tutor replies in this language")
 
 
 class ExplainResponse(BaseModel):

@@ -55,8 +55,11 @@ for (const service of services) {
     pathFilter: service.pathFilter ?? service.prefix,
     cookieDomainRewrite: "",
     cookiePathRewrite: "/",
-    // RAG service needs longer timeout for LLM calls (5 min)
-    ...(service.name === "rag-service" && { proxyTimeout: 300000, timeout: 300000 }),
+    // RAG service needs longer timeout for LLM calls (5 min). assessment-service
+    // also needs it: POST /api/dictation/transcribe runs CPU Whisper via rag and
+    // can take several minutes for a few-minute audio clip (10 min ceiling).
+    ...(service.name === "rag-service" && { proxyTimeout: 600000, timeout: 600000 }),
+    ...(service.name === "assessment-service" && { proxyTimeout: 600000, timeout: 600000 }),
     on: {
       proxyReq: (proxyReq, req, _res) => {
         console.log(`➡️ [Gateway] ${req.method} ${req.url} -> ${service.url}${proxyReq.path} (${service.name})`);

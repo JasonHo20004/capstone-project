@@ -53,8 +53,13 @@ def _locate(passage: str, snippet: str):
     idx = passage.find(snippet)
     if idx >= 0:
         return idx, idx + len(snippet)
-    # 2) Whitespace-flexible regex (handles newline/spacing differences).
-    pattern = re.sub(r"\s+", r"\\s+", re.escape(snippet.strip()))
+    # 2) Whitespace/case-flexible match. re.escape() escapes spaces on Python
+    # 3.7+, so escape each non-space token and rejoin with \s+ (running re.sub
+    # over the escaped string would corrupt the pattern and never match).
+    tokens = snippet.split()
+    if not tokens:
+        return None, None
+    pattern = r"\s+".join(re.escape(tok) for tok in tokens)
     m = re.search(pattern, passage, re.IGNORECASE)
     if m:
         return m.start(), m.end()
