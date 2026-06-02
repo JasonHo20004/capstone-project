@@ -137,6 +137,51 @@ router.get(
   })
 );
 
+// ── Certificate helpers ────────────────────────────────────────────────────────
+
+function generateCertNumber(): string {
+  const year = new Date().getFullYear();
+  const rand = Math.random().toString(36).substring(2, 10).toUpperCase();
+  return `CERT-${year}-${rand}`;
+}
+
+async function tryIssueCertificate(
+  prisma: any,
+  userId: string,
+  courseId: string,
+  userName: string,
+) {
+  const course = await prisma.course.findUnique({
+    where: { id: courseId },
+    include: { lessons: { select: { id: true } } },
+  });
+  if (!course) return null;
+
+  const totalLessons = course.lessons.length;
+  if (totalLessons === 0) return null;
+
+  const completedCount = await prisma.userLesson.count({
+    where: { userId, lessonId: { in: course.lessons.map((l: { id: string }) => l.id) } },
+  });
+
+  // Only issue when ALL lessons done and course has no finalTest
+  // (courses with a finalTest issue the cert via POST .../certificate/issue after passing)
+  if (completedCount < totalLessons || course.finalTestId) return null;
+
+  return prisma.certificate.upsert({
+    where: { userId_courseId: { userId, courseId } },
+    create: {
+      certificateNumber: generateCertNumber(),
+      userId,
+      courseId,
+      userName,
+      courseName: course.title,
+      courseLevel: course.courseLevel ?? null,
+    },
+    update: {},
+  });
+}
+
 // POST /student/courses/:courseId/lessons/:lessonId/complete
 router.post(
   "/courses/:courseId/lessons/:lessonId/complete",
@@ -145,6 +190,7 @@ router.post(
     const courseId = req.params.courseId as string;
     const lessonId = req.params.lessonId as string;
     const userId = req.user!.userId as string;
+    const userName: string = (req.user as any)?.fullName ?? (req.user as any)?.name ?? "Học viên";
     const prisma = databaseService.getClient();
 
     const hasAccess = await prisma.userActivity.findFirst({
@@ -162,7 +208,14 @@ router.post(
       update: {},
     });
 
-    res.json({ success: true, message: "Lesson marked as complete" });
+    // Auto-issue certificate if this was the last lesson (no finalTest courses)
+    const cert = await tryIssueCertificate(prisma, userId, courseId, userName);
+
+    res.json({
+      success: true,
+      message: "Lesson marked as complete",
+      data: { certificateIssued: !!cert, certificate: cert ?? null },
+    });
   })
 );
 
@@ -497,6 +550,87 @@ router.post(
         : "Đã ghi nhận báo cáo. Cám ơn bạn đã giúp giữ cộng đồng lành mạnh.",
       data: { autoHidden, totalReports: pendingCount },
     });
+  })
+);
+
+// GET /student/courses/:courseId/certificate
+// Returns the certificate if it exists, 404 otherwise.
+router.get(
+  "/courses/:courseId/certificate",
+  authenticateToken,
+  asyncHandler(async (req: Request, res: Response) => {
+    const courseId = req.params.courseId as string;
+    const userId = req.user!.userId as string;
+    const prisma = databaseService.getClient();
+
+    const cert = await prisma.certificate.findUnique({
+      where: { userId_courseId: { userId, courseId } },
+    });
+
+    if (!cert) {
+      res.status(404).json({ success: false, message: "Certificate not found" });
+      return;
+    }
+
+    res.json({ success: true, data: cert });
+  })
+);
+
+// POST /student/courses/:courseId/certificate/issue
+// Manually issue a certificate — used for courses with a finalTest after the
+// student passes (the assessment-service doesn't write into this DB, so the
+// frontend calls this endpoint after receiving a passing score).
+router.post(
+  "/courses/:courseId/certificate/issue",
+  authenticateToken,
+  asyncHandler(async (req: Request, res: Response) => {
+    const courseId = req.params.courseId as string;
+    const userId = req.user!.userId as string;
+    const userName: string = (req.user as any)?.fullName ?? (req.user as any)?.name ?? "Học viên";
+    const prisma = databaseService.getClient();
+
+    const hasAccess = await prisma.userActivity.findFirst({
+      where: { userId, courseId },
+    });
+    if (!hasAccess) {
+      res.status(403).json({ success: false, message: "Access denied" });
+      return;
+    }
+
+    // Verify all lessons are completed
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      include: { lessons: { select: { id: true } } },
+    });
+    if (!course) {
+      res.status(404).json({ success: false, message: "Course not found" });
+      return;
+    }
+
+    const totalLessons = course.lessons.length;
+    const completedCount = await prisma.userLesson.count({
+      where: { userId, lessonId: { in: course.lessons.map((l: { id: string }) => l.id) } },
+    });
+
+    if (totalLessons > 0 && completedCount < totalLessons) {
+      res.status(400).json({ success: false, message: "Not all lessons completed yet" });
+      return;
+    }
+
+    const cert = await prisma.certificate.upsert({
+      where: { userId_courseId: { userId, courseId } },
+      create: {
+        certificateNumber: generateCertNumber(),
+        userId,
+        courseId,
+        userName,
+        courseName: course.title,
+        courseLevel: course.courseLevel ?? null,
+      },
+      update: {},
+    });
+
+    res.status(201).json({ success: true, data: cert });
   })
 );
 

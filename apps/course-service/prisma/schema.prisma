@@ -42,6 +42,7 @@ model Course {
   reports        Report[]
   userActivities UserActivity[]
   reviewHistory  CourseReviewHistory[]
+  certificates   Certificate[]
 
   @@index([courseSellerId])
   @@index([status])
@@ -235,6 +236,26 @@ model UserActivity {
   course        Course    @relation(fields: [courseId], references: [id])
 
   @@map("user_activities")
+}
+
+model Certificate {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Short human-readable code displayed on the certificate, e.g. "CERT-2024-A1B2C3D4"
+  certificateNumber String   @unique @map("certificate_number") @db.VarChar(50)
+  userId            String   @map("user_id") @db.Uuid
+  courseId          String   @map("course_id") @db.Uuid
+  /// Snapshot of the learner's name at issuance (guard against later profile edits)
+  userName          String   @map("user_name") @db.VarChar(200)
+  /// Snapshot of the course title at issuance
+  courseName        String   @map("course_name") @db.VarChar(200)
+  courseLevel       String?  @map("course_level") @db.VarChar(10)
+  issuedAt          DateTime @default(now()) @map("issued_at") @db.Timestamptz(6)
+
+  course            Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@map("certificates")
 }
 
 enum CourseStatus {
