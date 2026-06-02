@@ -157,6 +157,9 @@ importers:
       file-type:
         specifier: ^19.0.0
         version: 19.6.0
+      groq-sdk:
+        specifier: ^0.18.0
+        version: 0.18.0
       mammoth:
         specifier: ^1.6.0
         version: 1.12.0

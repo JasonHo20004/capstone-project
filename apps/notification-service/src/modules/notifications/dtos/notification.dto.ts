@@ -18,6 +18,14 @@ export const createNotificationSchema = {
   }),
 };
 
+export const sendEmailSchema = {
+  body: z.object({
+    to: z.string().email("Valid recipient email is required"),
+    subject: z.string().min(1, "Subject is required").max(255),
+    html: z.string().min(1, "Email body is required"),
+  }),
+};
+
 export const createBulkNotificationSchema = {
   body: z.object({
     userIds: z.array(z.string().uuid()).min(1, "At least one user ID required"),

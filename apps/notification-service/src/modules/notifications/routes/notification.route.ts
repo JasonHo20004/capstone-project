@@ -9,6 +9,7 @@ import { authenticateToken, requireAdmin, validate } from "@capstone/common";
 import {
   createNotificationSchema,
   createBulkNotificationSchema,
+  sendEmailSchema,
   getNotificationSchema,
   listNotificationsSchema,
   markAsReadSchema,
@@ -58,6 +59,9 @@ router.post("/internal/create", validate(createNotificationSchema), controller.c
 
 // Internal: Create bulk notifications
 router.post("/internal/bulk", validate(createBulkNotificationSchema), controller.createBulkNotifications);
+
+// Internal: Send a transactional email (service-to-service)
+router.post("/internal/email", validate(sendEmailSchema), controller.sendEmail);
 
 // ============== Admin Routes ==============
 

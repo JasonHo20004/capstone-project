@@ -57,6 +57,9 @@ export class CartService {
     if (!course || course.price <= 0) {
       throw new Error("Course not found or invalid price");
     }
+    if (course.status !== "ACTIVE") {
+      throw new Error("Khoá học hiện không còn được bán");
+    }
 
     let cart = await this.prisma.cart.findUnique({
       where: { userId },
@@ -226,6 +229,9 @@ export class CartService {
     const course = await getCourseById(courseId);
     if (!course || course.price <= 0) {
       throw new Error("Course not found or invalid price");
+    }
+    if (course.status !== "ACTIVE") {
+      throw new Error("Khoá học hiện không còn được bán");
     }
 
     let cart = await this.prisma.cart.findUnique({

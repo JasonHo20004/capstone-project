@@ -52,6 +52,27 @@ export class NotificationClient {
   }
 
   /**
+   * Send a transactional email via notification-service (fire-and-forget).
+   * Reuses the notification-service SMTP transport so course-service doesn't
+   * need its own mailer.
+   */
+  async sendEmail(data: { to: string; subject: string; html: string }): Promise<void> {
+    try {
+      const response = await fetch(`${NOTIFICATION_SERVICE_URL}/api/notifications/internal/email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        console.warn(`[Course Service] Email send failed: ${response.status}`);
+      }
+    } catch (error) {
+      console.error(`[Course Service] Error sending email:`, error);
+    }
+  }
+
+  /**
    * Send notifications to multiple users (fire-and-forget)
    */
   async createBulkNotifications(data: CreateBulkNotificationInput): Promise<void> {

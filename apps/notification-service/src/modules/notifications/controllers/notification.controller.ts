@@ -6,6 +6,7 @@ import { Request, Response } from "express";
 import { NotificationService } from "../services/notification.service.js";
 import { NotificationRepository } from "../repositories/notification.repository.js";
 import { asyncHandler } from "@capstone/common";
+import { emailService } from "../../../services/index.js";
 
 export class NotificationController {
   private service: NotificationService;
@@ -136,6 +137,15 @@ export class NotificationController {
       data: notification,
       message: "Notification created",
     });
+  });
+
+  // Internal: send a transactional email (called by other services). Reuses
+  // the shared SMTP transport so callers don't need their own mailer.
+  sendEmail = asyncHandler(async (req: Request, res: Response) => {
+    const { to, subject, html } = req.body as { to: string; subject: string; html: string };
+    await emailService.sendMail({ to, subject, html });
+
+    res.status(200).json({ success: true, message: "Email sent" });
   });
 
   createBulkNotifications = asyncHandler(async (req: Request, res: Response) => {
