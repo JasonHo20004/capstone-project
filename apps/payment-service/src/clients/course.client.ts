@@ -11,6 +11,7 @@ export interface CourseInfo {
   price: number;
   thumbnailUrl?: string;
   courseSellerId?: string;
+  status?: string;
 }
 
 export async function getCourseById(courseId: string): Promise<CourseInfo | null> {
@@ -25,6 +26,7 @@ export async function getCourseById(courseId: string): Promise<CourseInfo | null
       price: Number(data.price) || 0,
       thumbnailUrl: data.thumbnailUrl || undefined,
       courseSellerId: data.courseSellerId || undefined,
+      status: data.status || undefined,
     };
   } catch {
     return null;

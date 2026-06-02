@@ -5,7 +5,12 @@
 // a predictable shape: consistent line endings, canonical markers, and merged
 // soft-wrapped lines. Option lines and question markers are preserved.
 
-const QUESTION_MARKER_RE = /^(?:Question|Câu)\s+\d+/i;
+import {
+  ANSWER_LINE_RE,
+  EXPLANATION_LINE_RE,
+} from "./inline-answer-parser.service.js";
+
+const QUESTION_MARKER_RE = /^(?:Question|Quiz|Câu)\s+\d+/i;
 const QUESTION_SHORTHAND_RE = /^Q\s*\d+\s*[:.\)]/i;
 const OPTION_MARKER_RE = /^[A-D][.\)]\s+/;
 const ANSWER_SECTION_RE =
@@ -18,6 +23,10 @@ const looksLikeBoundary = (line: string): boolean => {
     QUESTION_SHORTHAND_RE.test(line) ||
     OPTION_MARKER_RE.test(line) ||
     ANSWER_SECTION_RE.test(line) ||
+    // Inline per-question answer/explanation lines must stay on their own line
+    // so the inline-answer parser can extract them (don't glue onto option D).
+    ANSWER_LINE_RE.test(line) ||
+    EXPLANATION_LINE_RE.test(line) ||
     /^\d+\s*[.\)\-:]\s*[A-D]/.test(line) // answer key entries like "1. A"
   );
 };
@@ -37,6 +46,8 @@ export class TextNormalizationService {
     text = text.replace(/^Q\s*(\d+)[A-Za-z]?\s*[:.\)]/gim, "Question $1:");
     // `Câu 1:` → `Question 1:`
     text = text.replace(/^Câu\s+(\d+)[A-Za-z]?\s*[:.\)]/gim, "Question $1:");
+    // `Quiz 1.` / `Quiz 1:` / `Quiz 1)` → `Question 1:`
+    text = text.replace(/^Quiz\s+(\d+)[A-Za-z]?\s*[:.\)]/gim, "Question $1:");
 
     // 3) Canonical option markers: `A)` → `A.`
     text = text.replace(/^([A-D])\)\s+/gim, "$1. ");

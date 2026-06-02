@@ -43,6 +43,19 @@ export type CreateCourseInput = z.infer<typeof createCourseSchema>["body"];
 export type UpdateCourseInput = z.infer<typeof updateCourseSchema>["body"];
 export type GetCoursesQuery = z.infer<typeof getCoursesQuerySchema>["query"];
 
+export interface CourseLessonResponse {
+  id: string;
+  title: string;
+  description: string | null;
+  durationInSeconds: number | null;
+  lessonOrder: number | null;
+  materials: string[];
+  commentCount: number | null;
+  courseId: string;
+  moduleId: string | null;
+  testId: string | null;
+}
+
 export interface CourseResponse {
   id: string;
   title: string;
@@ -56,6 +69,7 @@ export interface CourseResponse {
   status: string;
   ratingCount: number | null;
   lessonCount: number;
+  lessons?: CourseLessonResponse[];
   createdAt: Date;
   submittedAt?: Date | null;
   approvedAt?: Date | null;

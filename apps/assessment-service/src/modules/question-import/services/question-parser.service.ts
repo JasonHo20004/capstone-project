@@ -4,7 +4,7 @@
 // Splits normalised text into question blocks keyed by their numeric marker.
 // Each block contains the text between `Question N:` and the next marker.
 
-const PRIMARY_MARKER_RE = /^Question\s+(\d+)([A-Za-z]?)\s*[:.]/i;
+const PRIMARY_MARKER_RE = /^(?:Question|Quiz|Câu)\s+(\d+)([A-Za-z]?)\s*[:.\)]/i;
 // Phụ: `1.` / `1)` at start of line — only used when no primary markers found.
 const FALLBACK_MARKER_RE = /^(\d+)\s*[.\)]\s+/;
 

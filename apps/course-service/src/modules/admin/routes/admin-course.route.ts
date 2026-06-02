@@ -11,6 +11,7 @@ import { identityClient } from "../../../clients/identity.client.js";
 import { paymentClient } from "../../../clients/payment.client.js";
 import { s3Service } from "../../../services/s3.service.js";
 import { CourseRepository } from "../../courses/repositories/course.repository.js";
+import { deriveQualityFlag } from "../helpers/quality-flag.helper.js";
 import type { CourseStatus } from "../../../../generated/prisma/index.js";
 
 const upload = multer({
@@ -104,6 +105,7 @@ router.get(
       include: {
         lessons: true,
         modules: true,
+        reviewHistory: { orderBy: { createdAt: "desc" }, take: 50 },
       },
     });
 
@@ -113,6 +115,7 @@ router.get(
     }
 
     const seller = await identityClient.getUserBasicInfo(course.courseSellerId);
+    const qualityFlag = deriveQualityFlag(course.reviewHistory);
 
     res.json({
       success: true,
@@ -120,6 +123,7 @@ router.get(
         ...course,
         price: Number(course.price),
         sellerName: seller?.fullName,
+        qualityFlag,
       },
     });
   })

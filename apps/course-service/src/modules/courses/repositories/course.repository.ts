@@ -178,17 +178,18 @@ export class CourseRepository {
         });
 
         if (conflict) {
-          if (data.moduleId) {
-            await tx.$executeRaw`
-              UPDATE lessons SET lesson_order = lesson_order + 1
-              WHERE module_id = ${data.moduleId}::uuid AND lesson_order >= ${data.lessonOrder}
-            `;
-          } else {
-            await tx.$executeRaw`
-              UPDATE lessons SET lesson_order = lesson_order + 1
-              WHERE course_id = ${data.courseId}::uuid AND module_id IS NULL AND lesson_order >= ${data.lessonOrder}
-            `;
-          }
+          // Shift every lesson at or after the target order up by one to make
+          // room. Use Prisma's typed `updateMany` (not raw SQL) so the query is
+          // schema-qualified — the DB URL pins a non-public `schema=course_db`,
+          // and an unqualified raw `UPDATE lessons` resolves against the
+          // connection search_path, which fails with `relation "lessons" does
+          // not exist`.
+          await tx.lesson.updateMany({
+            where: data.moduleId
+              ? { moduleId: data.moduleId, lessonOrder: { gte: data.lessonOrder } }
+              : { courseId: data.courseId, moduleId: null, lessonOrder: { gte: data.lessonOrder } },
+            data: { lessonOrder: { increment: 1 } },
+          });
         }
       }
 
