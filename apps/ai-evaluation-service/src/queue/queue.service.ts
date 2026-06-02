@@ -4,6 +4,7 @@
 
 import { Queue, QueueEvents } from "bullmq";
 import { EvaluationJobData } from "./types.js";
+import { getBullMQConnection } from "./redis-connection.js";
 
 const QUEUE_NAME = "ai-evaluation-queue";
 
@@ -13,10 +14,7 @@ class QueueService {
   private queueEvents: QueueEvents;
 
   private constructor() {
-    const connection = {
-      host: process.env.REDIS_HOST || "localhost",
-      port: parseInt(process.env.REDIS_PORT || "6379"),
-    };
+    const connection = getBullMQConnection();
 
     this.queue = new Queue(QUEUE_NAME, { connection });
     this.queueEvents = new QueueEvents(QUEUE_NAME, { connection });

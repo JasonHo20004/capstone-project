@@ -4,6 +4,7 @@
 
 import { Worker, Job } from "bullmq";
 import { WritingJobData, WritingEvaluationResult } from "../types.js";
+import { getBullMQConnection } from "../redis-connection.js";
 import { geminiClient } from "../../llm/gemini.client.js";
 import { WRITING_TASK1_PROMPT, WRITING_TASK2_PROMPT } from "../../llm/prompts.js";
 import { databaseService } from "../../services/database.service.js";
@@ -37,10 +38,7 @@ async function fetchImageAsBase64(imageUrl: string): Promise<{ base64: string; m
 }
 
 export function createWritingWorker(): Worker {
-  const connection = {
-    host: process.env.REDIS_HOST || "localhost",
-    port: parseInt(process.env.REDIS_PORT || "6379"),
-  };
+  const connection = getBullMQConnection();
 
   const worker = new Worker(
     QUEUE_NAME,

@@ -9,12 +9,19 @@ class RedisService {
   private client: RedisClientType;
 
   private constructor() {
-    this.client = createClient({
-      socket: {
-        host: process.env.REDIS_HOST || "localhost",
-        port: parseInt(process.env.REDIS_PORT || "6379"),
-      },
-    });
+    const redisHost = process.env.REDIS_HOST || "localhost";
+    const isUrl = redisHost.startsWith("redis://") || redisHost.startsWith("rediss://");
+
+    this.client = createClient(
+      isUrl
+        ? { url: redisHost }
+        : {
+            socket: {
+              host: redisHost,
+              port: parseInt(process.env.REDIS_PORT || "6379"),
+            },
+          }
+    );
 
     this.client.on("error", (err) => {
       console.error("❌ [AI Evaluation Service] Redis error:", err);

@@ -4,6 +4,7 @@
 
 import { Worker, Job } from "bullmq";
 import { SpeakingJobData, SpeakingEvaluationResult } from "../types.js";
+import { getBullMQConnection } from "../redis-connection.js";
 import { geminiClient } from "../../llm/gemini.client.js";
 import { SPEAKING_EVALUATION_PROMPT } from "../../llm/prompts.js";
 import { databaseService } from "../../services/database.service.js";
@@ -11,10 +12,7 @@ import { databaseService } from "../../services/database.service.js";
 const QUEUE_NAME = "ai-evaluation-queue";
 
 export function createSpeakingWorker(): Worker {
-  const connection = {
-    host: process.env.REDIS_HOST || "localhost",
-    port: parseInt(process.env.REDIS_PORT || "6379"),
-  };
+  const connection = getBullMQConnection();
 
   const worker = new Worker(
     QUEUE_NAME,
