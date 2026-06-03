@@ -5,10 +5,10 @@ POST /api/rag/reading/generate → Generate IELTS Reading questions from a passa
 
 import json
 import re
-import requests
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from app.config import get_settings
+from app.services.llm_service import generate_text
 
 router = APIRouter(tags=["Reading Generator"])
 
@@ -191,33 +191,6 @@ def _plan_allocation(types: list[str], target: int, min_per_type: int = MIN_PER_
 def _format_allocation(plan: list[tuple[str, int]]) -> str:
     """Human-readable per-type breakdown for the prompt."""
     return "\n".join(f"- {count} questions of type {t}" for t, count in plan)
-
-
-def _call_ollama(prompt: str, settings) -> str:
-    """Call Ollama /api/generate and return the raw text response."""
-    url = f"{settings.ollama_base_url}/api/generate"
-    try:
-        resp = requests.post(
-            url,
-            json={
-                "model": settings.ollama_model,
-                "prompt": prompt,
-                "stream": False,
-                # Large output budget: 14+ questions with options/content/
-                # explanations easily exceeds 8k tokens and gets truncated.
-                "options": {"temperature": 0.4, "num_predict": 16384},
-            },
-            timeout=600,  # LLM may take time for many questions
-        )
-    except requests.exceptions.ConnectionError as e:
-        print(f"[Reading Gen] Connection error: {e}")
-        raise HTTPException(503, "AI service unavailable. Check Colab tunnel.")
-
-    if resp.status_code != 200:
-        print(f"[Reading Gen] Ollama error {resp.status_code}: {resp.text[:500]}")
-        raise HTTPException(502, f"Ollama error: {resp.status_code}")
-
-    return resp.json().get("response", "").strip()
 
 
 def _extract_json_array(raw: str):
@@ -430,12 +403,51 @@ def _normalize(questions_raw: list, passage: str = "") -> list[GeneratedQuestion
         options = q.get("options", [])
         if not isinstance(options, list):
             options = []
+
+        # MULTIPLE_CHOICE needs real options. Local models often put them only in
+        # content.options (the same top-level-vs-content split we see with the
+        # stem), or omit them entirely. Backfill from content; if there still
+        # aren't at least 2 options the "MCQ" is really an open question, so
+        # reclassify it as SHORT_ANSWER — that renders an answerable input instead
+        # of a blank card with no choices.
+        if qt in ("MULTIPLE_CHOICE", "MULTIPLE_CHOICE_MULTI_ANSWER"):
+            options = [o for o in options if o]
+            if not options and isinstance(content.get("options"), list):
+                options = [o for o in content["options"] if o]
+            if len(options) < 2:
+                qt = "SHORT_ANSWER"
+                options = []
+
         explanation = q.get("explanation", "")
         if not isinstance(explanation, str):
             explanation = str(explanation)
 
+        # Resolve the question stem. GAP_FILL is intentionally blank (the gapped
+        # summary IS the question). For every other type, local models often leave
+        # top-level questionText empty and only fill content.text — backfill from
+        # there so MCQ/TFNG/etc. never come back with an empty stem.
+        if qt == "GAP_FILL":
+            qtext = ""
+            # A canonicalized GAP_FILL always carries a summaryText, but if the model
+            # produced no real sentence it's just a bare "{{1}}." — the student would
+            # see a blank input with no question. Drop those: keep only summaries that
+            # have real words besides the gap markers. (Top-up regenerates the deficit.)
+            summary = str(content.get("summaryText") or "")
+            if len(_GAP_RE.sub(" ", summary).strip(" .,:;-")) < 3:
+                continue
+        else:
+            qtext = (
+                str(q.get("questionText") or "").strip()
+                or str(content.get("text") or "").strip()
+            )
+            if not qtext:
+                # The model produced an answer with no question stem — unusable.
+                # Skip it (the caller's top-up loop regenerates the deficit) rather
+                # than shipping a meaningless "Question N" placeholder.
+                continue
+
         out.append(GeneratedQuestion(
-            questionText=str(q.get("questionText", f"Question {i+1}")),
+            questionText=qtext,
             questionType=qt,
             options=options,
             content=content,
@@ -473,7 +485,7 @@ async def generate_reading_questions(body: ReadingGenRequest):
         difficulty=body.difficulty,
     )
 
-    raw = _call_ollama(prompt, settings)
+    raw = await generate_text(prompt, settings, temperature=0.4, max_tokens=16384, timeout=300)
     print(f"[Reading Gen] Raw response length: {len(raw)}")
 
     try:
@@ -523,7 +535,7 @@ async def generate_reading_questions(body: ReadingGenRequest):
             difficulty=body.difficulty,
             existing=existing,
         )
-        topup_text = _call_ollama(topup_prompt, settings)
+        topup_text = await generate_text(topup_prompt, settings, temperature=0.4, max_tokens=16384, timeout=300)
         try:
             extra_raw = _extract_json_array(topup_text)
         except json.JSONDecodeError:

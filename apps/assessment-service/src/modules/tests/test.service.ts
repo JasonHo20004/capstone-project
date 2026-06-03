@@ -491,18 +491,37 @@ export class TestService {
     });
 
     if (existing) {
-      console.log(`♻️ Reusing existing session ${existing.id} for user ${userId}`);
-      return {
-        sessionId: existing.id,
-        testId: test.id,
-        resumed: true,
-        startedAt: existing.createdAt,
-        durationInMinutes: test.durationInMinutes,
-        // Server-side draft so a resume on another device / after a localStorage
-        // wipe restores the in-progress answers. (undefined until the column
-        // migration is applied — harmless.)
-        draftAnswers: (existing as any).draftAnswers ?? null,
-      };
+      // Don't resume a session that's already past its time limit — gradeTest
+      // would reject the submit ("Time is up"), trapping the user on a dead
+      // session forever. If the only ONGOING session has expired, drop it and
+      // start a fresh attempt below. (Grace window mirrors gradeTest.)
+      const durMin = test.durationInMinutes ?? 0;
+      const GRACE_MS = 10 * 60 * 1000;
+      const expired =
+        durMin > 0 &&
+        Date.now() > new Date(existing.createdAt).getTime() + durMin * 60_000 + GRACE_MS;
+
+      if (!expired) {
+        console.log(`♻️ Reusing existing session ${existing.id} for user ${userId}`);
+        return {
+          sessionId: existing.id,
+          testId: test.id,
+          resumed: true,
+          startedAt: existing.createdAt,
+          durationInMinutes: test.durationInMinutes,
+          // Server-side draft so a resume on another device / after a localStorage
+          // wipe restores the in-progress answers. (undefined until the column
+          // migration is applied — harmless.)
+          draftAnswers: (existing as any).draftAnswers ?? null,
+        };
+      }
+
+      // Expired in-progress session(s) can never be submitted — remove them so a
+      // new attempt can begin (cascades their UserAnswer draft rows).
+      await prisma.practiceSession.deleteMany({
+        where: { userId, testId: test.id, status: "ONGOING" },
+      });
+      console.log(`⌛ Cleared expired ONGOING session(s) for user ${userId} on test ${test.id} — starting fresh.`);
     }
 
     // Starting a NEW attempt — enforce the per-test attempt limit.

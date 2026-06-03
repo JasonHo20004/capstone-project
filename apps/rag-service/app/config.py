@@ -13,8 +13,20 @@ class Settings(BaseSettings):
     llm_provider: str = "gemini"
 
     # Gemini (Google AI Studio)
+    # Single key (backward compatible) OR several comma-separated keys in
+    # `gemini_api_keys` to rotate across free-tier accounts and multiply the
+    # per-minute / per-day rate limits. The service round-robins the keys and skips
+    # to the next one on a 429 (rate limit) before falling back to Ollama.
     gemini_api_key: str = ""
+    gemini_api_keys: str = ""  # e.g. "keyA,keyB,keyC" — takes priority over gemini_api_key
     gemini_model: str = "gemini-2.5-flash"
+
+    @property
+    def gemini_keys(self) -> list[str]:
+        """All configured Gemini keys, in order. Prefers the comma-separated
+        `gemini_api_keys`; falls back to the single `gemini_api_key`."""
+        raw = self.gemini_api_keys or self.gemini_api_key
+        return [k.strip() for k in raw.split(",") if k.strip()]
 
     # Ollama (via bore tunnel from Colab) — fallback when Gemini key empty/error
     ollama_base_url: str = "http://bore.pub:11434"

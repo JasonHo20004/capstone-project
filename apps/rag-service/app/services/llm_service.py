@@ -1,13 +1,14 @@
 """
 LLM service — unified text-generation interface across providers.
 
-Primary: Gemini Flash (Google AI Studio)
+Primary: Gemini Flash (Google AI Studio) — supports MULTIPLE keys, round-robined
+         and skipped on rate-limit (429) to multiply free-tier limits.
 Fallback: Ollama (local)
 
-The fallback chain triggers automatically when:
+The fallback to Ollama triggers automatically when:
   - llm_provider != "gemini", OR
-  - gemini_api_key is empty, OR
-  - the Gemini call raises / times out
+  - no Gemini keys are configured, OR
+  - every configured Gemini key raises / times out / is rate-limited
 """
 
 import json
@@ -17,6 +18,10 @@ import httpx
 
 
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+
+# Round-robin pointer across configured Gemini keys (in-memory, per process). Lets
+# multiple free-tier keys share the load and skip past a rate-limited one.
+_key_cursor = 0
 
 
 async def _generate_gemini(
@@ -122,28 +127,41 @@ async def generate_text(
 
     provider = (settings.llm_provider or "ollama").lower()
 
-    if provider == "gemini" and settings.gemini_api_key:
-        print(f"[LLM] Using Gemini model: {settings.gemini_model} (temp={temperature}, max_tokens={max_tokens})")
-        try:
-            text = await _generate_gemini(
-                prompt,
-                settings.gemini_api_key,
-                settings.gemini_model,
-                temperature,
-                max_tokens,
-                timeout,
-                json_mode=json_mode,
-            )
-            if text:
-                print(f"[LLM] Gemini ({settings.gemini_model}) responded OK ({len(text)} chars)")
-                if usage is not None:
-                    usage["provider"], usage["model"] = "gemini", settings.gemini_model
-                return text
-            print("[LLM] Gemini returned empty response — falling back to Ollama")
-        except Exception as e:
-            print(f"[LLM] Gemini error ({type(e).__name__}: {e}) — falling back to Ollama")
+    keys = settings.gemini_keys
+    if provider == "gemini" and keys:
+        global _key_cursor
+        n = len(keys)
+        start = _key_cursor % n
+        print(f"[LLM] Using Gemini model: {settings.gemini_model} ({n} key(s), temp={temperature}, max_tokens={max_tokens})")
+        # Round-robin across all keys, skipping to the next on rate-limit/error so a
+        # single exhausted free-tier key doesn't drop us to Ollama prematurely.
+        for offset in range(n):
+            idx = (start + offset) % n
+            try:
+                text = await _generate_gemini(
+                    prompt,
+                    keys[idx],
+                    settings.gemini_model,
+                    temperature,
+                    max_tokens,
+                    timeout,
+                    json_mode=json_mode,
+                )
+                if text:
+                    _key_cursor = (idx + 1) % n  # next request starts at the following key
+                    print(f"[LLM] Gemini key {idx + 1}/{n} responded OK ({len(text)} chars)")
+                    if usage is not None:
+                        usage["provider"], usage["model"] = "gemini", settings.gemini_model
+                    return text
+                print(f"[LLM] Gemini key {idx + 1}/{n} returned empty — trying next key")
+            except Exception as e:
+                msg = str(e).lower()
+                rate = "429" in msg or "quota" in msg or "rate" in msg or "resource_exhausted" in msg
+                print(f"[LLM] Gemini key {idx + 1}/{n} {'rate-limited' if rate else 'error'} ({type(e).__name__}) — trying next key")
+        _key_cursor = (start + 1) % n
+        print(f"[LLM] All {n} Gemini key(s) exhausted — falling back to Ollama")
     else:
-        print(f"[LLM] Skipping Gemini (provider={provider!r}, key_set={bool(settings.gemini_api_key)}) — going straight to Ollama")
+        print(f"[LLM] Skipping Gemini (provider={provider!r}, keys={len(keys)}) — going straight to Ollama")
 
     print(f"[LLM] Using Ollama model: {settings.ollama_model} at {settings.ollama_base_url}")
     try:
