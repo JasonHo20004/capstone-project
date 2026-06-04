@@ -344,6 +344,16 @@ async def cleanup_audio_loop():
 
 _pub_redis: aioredis.Redis | None = None
 
+# Keepalive / health-check options so managed Redis (Upstash) doesn't silently
+# drop idle pub/sub connections. Without periodic PINGs the blocking SUBSCRIBE
+# read eventually raises "Timeout reading from ..." and the listener crash-loops.
+_REDIS_KWARGS = dict(
+    decode_responses=True,
+    health_check_interval=30,
+    socket_keepalive=True,
+    socket_connect_timeout=10,
+)
+
 # Unique id for THIS process. Published with every broadcast so the Pub/Sub
 # listener on the same process can skip messages it already delivered locally
 # (see _broadcast / _pubsub_listener) — prevents double delivery.
@@ -358,7 +368,7 @@ async def _get_pub_redis() -> aioredis.Redis:
     global _pub_redis
     if _pub_redis is None:
         from app.config import get_settings
-        _pub_redis = aioredis.from_url(get_settings().redis_url, decode_responses=True)
+        _pub_redis = aioredis.from_url(get_settings().redis_url, **_REDIS_KWARGS)
     return _pub_redis
 
 
@@ -403,11 +413,23 @@ async def _pubsub_listener():
     settings = get_settings()
     while True:
         try:
-            r = aioredis.from_url(settings.redis_url, decode_responses=True)
+            r = aioredis.from_url(settings.redis_url, **_REDIS_KWARGS)
             pubsub = r.pubsub()
             await pubsub.psubscribe("livestream:channel:*")
             print("[Livestream] Pub/Sub listener subscribed")
-            async for msg in pubsub.listen():
+            # Bounded reads instead of a never-returning listen(): get_message
+            # returns None after `timeout` of silence (no crash), and on each idle
+            # tick we PING so Upstash doesn't close the connection as idle. An
+            # unbounded listen() parks in a blocking read where health-check PINGs
+            # never fire — which is exactly why the connection kept timing out.
+            while True:
+                msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=15.0)
+                if msg is None:
+                    # PING on the SUBSCRIBED connection (not r — that uses a
+                    # different pooled connection). Keeps Upstash from idle-closing
+                    # the pub/sub socket; raises if it already died → reconnect.
+                    await pubsub.ping()
+                    continue
                 if msg.get("type") != "pmessage":
                     continue
                 try:
