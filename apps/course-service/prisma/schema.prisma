@@ -316,3 +316,31 @@ enum EReasonType {
   UNRESPONSIVE_INSTRUCTOR
   INCOMPLETE_CONTENT
 }
+
+/// Durable archive of a completed AI livestream lesson. The live session lives in
+/// Redis (rag-service) with a 7-day TTL; this is the permanent, queryable copy
+/// written by rag-service via POST /api/livestream-recordings/internal when a
+/// lesson finishes. `roomId` is the rag-service room id (not a DB FK — the room
+/// lives in Redis, not Postgres), kept unique so re-saves upsert in place.
+model LivestreamRecording {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roomId      String   @unique @map("room_id")
+  topic       String
+  level       String   @db.VarChar(20)
+  levelLabel  String?  @map("level_label") @db.VarChar(50)
+  /// User id of the host (from identity-service); plain string, no FK.
+  hostId      String?  @map("host_id")
+  hostName    String?  @map("host_name") @db.VarChar(200)
+  language    String?  @db.VarChar(10)
+  /// Slides: [{ index, title, content, audio_url, duration, practice_phrase,
+  /// key_points, keywords, example, image_url }]
+  sections    Json
+  /// Q&A: [{ user_name, question, answer, audio_url }]
+  qa          Json     @default("[]")
+  completedAt DateTime @map("completed_at") @db.Timestamptz(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([completedAt])
+  @@index([hostId])
+  @@map("livestream_recordings")
+}

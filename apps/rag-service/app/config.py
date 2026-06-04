@@ -58,6 +58,8 @@ class Settings(BaseSettings):
 
     # Internal services
     flashcard_service_url: str = "http://localhost:3004"
+    # course-service owns the durable Postgres archive of livestream recordings.
+    course_service_url: str = "http://localhost:3002"
 
     # Chunking
     chunk_size: int = 1000
