@@ -15,7 +15,7 @@ export class WithdrawalController {
 
   requestWithdrawal = asyncHandler(async (req: Request, res: Response) => {
     const sellerId = req.user!.userId;
-    const { amount, bankName, accountName, accountNumber } = req.body;
+    const { amount, bankName, accountName, accountNumber, bankBin } = req.body;
 
     if (!amount || !bankName || !accountName || !accountNumber) {
       res.status(400).json({ success: false, message: "Missing required withdrawal details" });
@@ -27,6 +27,7 @@ export class WithdrawalController {
         bankName,
         accountName,
         accountNumber,
+        bankBin: typeof bankBin === "string" ? bankBin : null,
       });
 
       res.status(201).json({ success: true, data: request, message: "Withdrawal request submitted successfully" });
@@ -60,12 +61,13 @@ export class WithdrawalController {
   retryWithdrawal = asyncHandler(async (req: Request, res: Response) => {
     const sellerId = req.user!.userId;
     const sourceId = req.params.id as string;
-    const { amount, bankName, accountName, accountNumber } = req.body ?? {};
-    const overrides: { amount?: number; bankName?: string; accountName?: string; accountNumber?: string } = {};
+    const { amount, bankName, accountName, accountNumber, bankBin } = req.body ?? {};
+    const overrides: { amount?: number; bankName?: string; accountName?: string; accountNumber?: string; bankBin?: string } = {};
     if (amount !== undefined) overrides.amount = parseFloat(amount);
     if (typeof bankName === "string") overrides.bankName = bankName;
     if (typeof accountName === "string") overrides.accountName = accountName;
     if (typeof accountNumber === "string") overrides.accountNumber = accountNumber;
+    if (typeof bankBin === "string") overrides.bankBin = bankBin;
 
     try {
       const result = await this.withdrawalService.retryWithdrawal(sellerId, sourceId, overrides);
@@ -96,18 +98,13 @@ export class WithdrawalController {
     const id = req.params.id as string;
     const { proofImageUrl, adminNote } = req.body;
 
-    // Proof of transfer is now mandatory — it's the only audit artifact we
-    // have if a seller disputes "I never got paid".
-    if (typeof proofImageUrl !== "string" || !proofImageUrl.trim()) {
-      res.status(400).json({
-        success: false,
-        message: "Ảnh biên lai chuyển khoản là bắt buộc khi duyệt yêu cầu rút tiền",
-      });
-      return;
-    }
+    // Proof of transfer is optional — admin may approve without a receipt
+    // (e.g. transferred out-of-band). Stored only when provided.
+    const proof =
+      typeof proofImageUrl === "string" && proofImageUrl.trim() ? proofImageUrl.trim() : undefined;
 
     try {
-      const result = await this.withdrawalService.approveWithdrawal(id, proofImageUrl.trim(), adminNote);
+      const result = await this.withdrawalService.approveWithdrawal(id, proof, adminNote);
       res.json({ success: true, data: result, message: "Withdrawal approved successfully" });
     } catch (error) {
        const message = error instanceof Error ? error.message : "Failed to approve request";

@@ -21,6 +21,8 @@ interface BankDetails {
   bankName: string;
   accountName: string;
   accountNumber: string;
+  /** NAPAS bank BIN (6 digits) — drives the VietQR shown to admin on approval. */
+  bankBin?: string | null;
 }
 
 // Withdrawal limits (VND). Override via env if business rules change.
@@ -67,6 +69,11 @@ export class WithdrawalService {
     if (bankDetails.bankName.trim().length < 2) {
       throw new Error("Bank name is required");
     }
+    // BIN is optional (legacy clients omit it) but must be a valid 6-digit
+    // NAPAS code when present — otherwise the admin VietQR would be wrong.
+    if (bankDetails.bankBin && !/^\d{6}$/.test(bankDetails.bankBin)) {
+      throw new Error("Invalid bank BIN");
+    }
 
     // Block banned/inactive sellers from cashing out.
     const sellerStatus = await getSellerStatus(sellerId);
@@ -101,6 +108,7 @@ export class WithdrawalService {
           bankName: bankDetails.bankName,
           accountName: bankDetails.accountName,
           accountNumber: bankDetails.accountNumber,
+          bankBin: bankDetails.bankBin ?? null,
           status: "PENDING" as WithdrawalRequestStatus,
           retriedFromId: options?.retriedFromId ?? null,
         },
@@ -209,6 +217,7 @@ export class WithdrawalService {
       bankName: overrides?.bankName ?? source.bankName,
       accountName: overrides?.accountName ?? source.accountName,
       accountNumber: overrides?.accountNumber ?? source.accountNumber,
+      bankBin: overrides?.bankBin ?? source.bankBin,
     };
 
     return await this.requestWithdrawal(sellerId, amount, bankDetails, {

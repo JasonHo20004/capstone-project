@@ -14,6 +14,25 @@ import {
 import { registerEmailVerificationHandler } from "./email-verification.handler.js";
 import { registerPasswordResetHandler } from "./password-reset.handler.js";
 import { SERVICE_NAME } from "../../../constants.js";
+import { emailService } from "../../../services/index.js";
+import { getUserBasicInfo } from "../../../clients/identity.client.js";
+
+const renderWithdrawalApprovedEmail = (p: {
+  fullName: string;
+  amount: number;
+  bankName: string;
+  processedAt: Date | string;
+}): string => `
+  <p>Xin chào ${p.fullName || "bạn"},</p>
+  <p>Lệnh rút tiền của bạn đã được duyệt và xác nhận chuyển khoản.</p>
+  <ul>
+    <li>Số tiền: <strong>${p.amount.toLocaleString("vi-VN")}đ</strong></li>
+    <li>Ngân hàng nhận: <strong>${p.bankName}</strong></li>
+    <li>Thời gian xử lý: ${new Date(p.processedAt).toLocaleString("vi-VN")}</li>
+  </ul>
+  <p>Tiền thường về tài khoản trong 1–3 ngày làm việc tuỳ ngân hàng. Nếu quá thời gian này mà chưa nhận được, vui lòng liên hệ bộ phận hỗ trợ.</p>
+  <p>Trân trọng,<br/>Đội ngũ hỗ trợ</p>
+`;
 let eventBus: EventBusService;
 
 export function getNotificationEventBus(): EventBusService {
@@ -96,6 +115,29 @@ export const initializeEventHandlers = async (dbService: any) => {
           },
         },
       });
+
+      // Best-effort email — wrapped so an SMTP/identity hiccup never throws the
+      // handler (which would nack+drop the event and lose the in-app notice too).
+      try {
+        const seller = await getUserBasicInfo(payload.sellerId);
+        if (seller?.email) {
+          await emailService.sendMail({
+            to: seller.email,
+            subject: "Lệnh rút tiền đã được duyệt",
+            html: renderWithdrawalApprovedEmail({
+              fullName: seller.fullName,
+              amount: payload.amount,
+              bankName: payload.bankName,
+              processedAt: payload.processedAt,
+            }),
+          });
+          console.log(`📧 [${SERVICE_NAME}] WITHDRAWAL_APPROVED email sent to ${seller.email}`);
+        } else {
+          console.warn(`⚠️ [${SERVICE_NAME}] No email for seller ${payload.sellerId}; skipped withdrawal email`);
+        }
+      } catch (err) {
+        console.error(`❌ [${SERVICE_NAME}] WITHDRAWAL_APPROVED email failed:`, err);
+      }
     }
   );
 

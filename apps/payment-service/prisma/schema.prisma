@@ -314,6 +314,9 @@ model WithdrawalRequest {
   bankName      String                  @map("bank_name")
   accountName   String                  @map("account_name")
   accountNumber String                  @map("account_number")
+  /// NAPAS bank BIN (6 digits) used to render the VietQR for admin payouts.
+  /// Nullable for backward-compat with requests created before VietQR support.
+  bankBin       String?                 @map("bank_bin")
   status        WithdrawalRequestStatus @default(PENDING)
   proofImageUrl String?                 @map("proof_image_url")
   adminNote     String?                 @map("admin_note")
