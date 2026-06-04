@@ -1,0 +1,270 @@
+// =============================================================================
+// AI Evaluation Service - Prisma Schema
+// Tables: WritingEvaluation, SpeakingEvaluation, EvaluationJob, UserSkillTree
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("AI_EVALUATION_DATABASE_URL")
+  directUrl = env("AI_EVALUATION_DIRECT_URL")
+}
+
+// ─── Writing AI Evaluation ────────────────────────────────────────────────────
+
+model WritingEvaluation {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  sessionId       String?  @map("session_id") @db.Uuid
+  questionId      String?  @map("question_id") @db.Uuid
+  essayText       String   @map("essay_text")
+  overallBand     Float?   @map("overall_band")
+  criteria        Json?    // { task_achievement, coherence, lexical, grammar } with score + feedback
+  highlightedErrors Json?  @map("highlighted_errors") // [{ original, suggestion, type }]
+  overallFeedback String?  @map("overall_feedback")
+  status          EvaluationStatus @default(PENDING)
+  jobId           String?  @unique @map("job_id")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt     DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([status])
+  @@map("writing_evaluations")
+}
+
+// ─── Speaking AI Evaluation ───────────────────────────────────────────────────
+
+model SpeakingEvaluation {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  sessionId          String?  @map("session_id") @db.Uuid
+  questionId         String?  @map("question_id") @db.Uuid
+  audioUrl           String   @map("audio_url")
+  transcript         String?
+  duration           Float?   // audio duration in seconds
+  overallBand        Float?   @map("overall_band")
+  pronunciationScore Float?   @map("pronunciation_score")
+  fluencyScore       Float?   @map("fluency_score")
+  vocabScore         Float?   @map("vocab_score")
+  grammarScore       Float?   @map("grammar_score")
+  feedback           String?
+  status             EvaluationStatus @default(PENDING)
+  jobId              String?  @unique @map("job_id")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt        DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([status])
+  @@map("speaking_evaluations")
+}
+
+// ─── User Skill Tree (Dynamic AI Skill Tree) ───────────────────────────────────
+
+model UserSkillTree {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  topic     String   @db.VarChar(50)   // "travel" | "food" | "business" | "health" ...
+  level     String   @db.VarChar(10)   // "A1" | "A2" | "B1" | "B2" | "C1" | "C2"
+  nodes     Json     // [{ id, label, type, status, position, mixedSkills[], questionTypes[], description }]
+  edges     Json     // [{ id, source, target, animated }]
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([userId, topic, level])
+  @@map("user_skill_trees")
+}
+
+// ─── User Learning Goals (Phase 4) ─────────────────────────────────────────────
+
+model UserLearningGoal {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @unique @map("user_id") @db.Uuid
+  currentLevel String?  @map("current_level") @db.VarChar(20)
+  targetScore  String?  @map("target_score") @db.VarChar(50)
+  deadline     String?  @db.VarChar(50)
+  roadmap      Json?    // AI-generated learning roadmap
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("user_learning_goals")
+}
+
+// ─── Speaking Topic Bank (Admin-managed) ──────────────────────────────────────
+
+model SpeakingTopic {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title           String   @db.VarChar(200)
+  isActive        Boolean  @default(true) @map("is_active")
+  isPremium       Boolean  @default(false) @map("is_premium")
+
+  // Part 1: introductory questions (4-5)
+  part1Questions  Json     @default("[]") @map("part1_questions")
+
+  // Part 2: Cue card
+  part2Topic      String?  @map("part2_topic")
+  part2Bullets    Json     @default("[]") @map("part2_bullets")
+  part2FinalPrompt String? @map("part2_final_prompt")
+
+  // Part 3: Discussion questions (4-6)
+  part3Questions  Json     @default("[]") @map("part3_questions")
+
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  sessions        SpeakingSession[]
+
+  @@map("speaking_topics")
+}
+
+// ─── Interactive Speaking Session ──────────────────────────────────────────────
+
+model SpeakingSession {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  topicId            String?  @map("topic_id") @db.Uuid
+  currentPart        Int      @default(1) @map("current_part")       // 1, 2, 3
+  currentStep        Int      @default(0) @map("current_step")       // question index within part
+  status             SpeakingSessionStatus @default(IN_PROGRESS)
+  topic              String?                                          // Main topic for this session
+  cueCard            Json?    @map("cue_card")                       // Part 2 cue card data
+  turns              Json     @default("[]")                          // [{role, content, audioUrl?, timestamp}]
+
+  // Final scores (filled after GRADING)
+  overallBand        Float?   @map("overall_band")
+  fluencyScore       Float?   @map("fluency_score")
+  lexicalScore       Float?   @map("lexical_score")
+  grammarScore       Float?   @map("grammar_score")
+  pronunciationScore Float?   @map("pronunciation_score")
+  detailedFeedback   Json?    @map("detailed_feedback")
+
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt        DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  speakingTopic      SpeakingTopic? @relation(fields: [topicId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@map("speaking_sessions")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum EvaluationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum SpeakingSessionStatus {
+  IN_PROGRESS
+  GRADING
+  COMPLETED
+  ABANDONED
+}
+
+// ─── Mini Quiz (Dynamic AI Skill Tree) ─────────────────────────────────────────
+
+model MiniQuiz {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  skillTreeId    String         @map("skill_tree_id") @db.Uuid
+  nodeId         String         @map("node_id") @db.VarChar(100)
+  questions      Json           // [{ question, options, correctIndex, type, skill, tag }]
+  userAnswers    Json?          @map("user_answers") // [{ questionIndex, selectedIndex, isCorrect }]
+  score          Float?
+  totalQuestions Int            @map("total_questions")
+  status         MiniQuizStatus @default(PENDING)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt    DateTime?      @map("completed_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([skillTreeId, nodeId])
+  @@map("mini_quizzes")
+}
+
+enum MiniQuizStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+// =============================================================================
+// AI Advisor — Proactive Learning Ecosystem
+// =============================================================================
+
+// ─── User Learning Profile (AI Memory) ─────────────────────────────────────────
+
+model UserLearningProfile {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String   @unique @map("user_id") @db.Uuid
+
+  // Band score tracking
+  bandScoreTarget    Float    @default(6.5) @map("band_score_target")
+  bandScoreCurrent   Float    @default(0) @map("band_score_current")
+
+  // Per-skill gap scores (0.0 - 1.0, where 0 = far below target)
+  // Shape: { "listening": 0.4, "reading": 0.7, "writing": 0.3, "speaking": 0.5 }
+  skillGaps          Json     @default("{}") @map("skill_gaps")
+
+  // Learning personality derived from behavior
+  // Shape: { "best_time": "evening", "avg_session_min": 25, "error_patterns": [...], "total_quizzes": 12 }
+  learningPersonality Json    @default("{}") @map("learning_personality")
+
+  // Advisor delivery config — controls proactive push frequency
+  // Shape: { "proactive_enabled": true, "last_push_at": "ISO", "min_interval_hours": 4 }
+  advisorConfig      Json     @default("{}") @map("advisor_config")
+
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("user_learning_profiles")
+}
+
+// ─── IELTS Knowledge Base (pgvector RAG) ───────────────────────────────────────
+// Note: embedding column is managed via raw SQL migration (Prisma doesn't support vector natively)
+
+model IeltsKnowledgeBase {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  content     String   // The text chunk for retrieval
+  skill       String   @db.VarChar(20)  // 'listening' | 'reading' | 'writing' | 'speaking' | 'general'
+  bandRange   String   @map("band_range") @db.VarChar(10) // '4.0-5.0' | '5.0-6.0' | '6.0-7.0' | '7.0-9.0'
+  source      String?  @db.VarChar(200) // e.g. "Cambridge IELTS 17", "IELTS.org official band descriptors"
+  metadata    Json     @default("{}") // extra tags, topic, etc.
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // embedding VECTOR(768) — managed by raw SQL, not Prisma
+
+  @@index([skill])
+  @@index([bandRange])
+  @@map("ielts_knowledge_base")
+}
+
+// ─── Advisor Action Log (Action Registry audit trail) ──────────────────────────
+
+model AdvisorActionLog {
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String           @map("user_id") @db.Uuid
+  actionType    AdvisorActionType @map("action_type")
+  payload       Json             // { message, evidence, courseId?, tipId? }
+  triggerReason String           @map("trigger_reason") // 'quiz_failed' | 'idle_4h' | 'band_gap_detected' | 'user_request'
+  deliveredAt   DateTime?        @map("delivered_at") @db.Timestamptz(6)
+  acknowledgedAt DateTime?       @map("acknowledged_at") @db.Timestamptz(6)
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([actionType])
+  @@index([createdAt])
+  @@map("advisor_action_log")
+}
+
+enum AdvisorActionType {
+  SHOW_BANNER      // Show a tip/insight banner in the UI
+  SUGGEST_COURSE   // Recommend a course based on skill gap evidence
+  UNLOCK_TIP       // Surface a contextual IELTS tip
+  SEND_REMINDER    // Remind user to study (band-gap-based, not streak-based)
+}

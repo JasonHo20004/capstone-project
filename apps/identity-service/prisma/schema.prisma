@@ -1,0 +1,174 @@
+// =============================================================================
+// Identity Service - Prisma Schema
+// Tables: User, RefreshToken, AdministratorProfile, CourseSellerProfile,
+//         CourseSellerApplication, Policy
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("IDENTITY_DATABASE_URL")
+  directUrl = env("IDENTITY_DIRECT_URL")
+}
+
+model User {
+  id                      String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                   String                   @unique @db.VarChar(100)
+  password                String                   @db.VarChar(255)
+  fullName                String                   @map("full_name") @db.VarChar(255)
+  phoneNumber             String?                  @map("phone_number") @db.VarChar(20)
+  profilePicture          String?                  @map("profile_picture") @db.Text
+  dateOfBirth             DateTime                 @map("date_of_birth") @db.Date
+  createdAt               DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  englishLevel            String?                  @map("english_level") @db.VarChar(100)
+  learningGoals           String[]                 @map("learning_goals")
+  role                    UserRole?
+  isEmailVerified         Boolean                  @default(false) @map("is_email_verified")
+  // Soft moderation status — login is blocked unless ACTIVE.
+  userStatus              UserStatus               @default(ACTIVE) @map("user_status")
+  suspendedUntil          DateTime?                @map("suspended_until") @db.Timestamptz(6)
+  statusReason            String?                  @map("status_reason") @db.Text
+
+  // Gamification — XP never decreases; streak resets when lastActiveDate gap > 1 day.
+  xp                      Int                      @default(0)
+  streak                  Int                      @default(0)
+  lastActiveDate          DateTime?                @map("last_active_date") @db.Timestamptz(6)
+
+  // Relations within Identity Service
+  administratorProfile    AdministratorProfile?
+  courseSellerApplication CourseSellerApplication?
+  courseSellerProfile     CourseSellerProfile?
+  policy                  Policy?
+  refreshTokens           RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  hashedToken String   @unique @map("hashed_token")
+  userId      String   @map("user_id") @db.Uuid
+  revoked     Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model CourseSellerProfile {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  certification String[]
+  expertise     String[]
+  isActive      Boolean  @default(false) @map("is_active")
+  userId        String   @unique @map("user_id") @db.Uuid
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("course_seller_profiles")
+}
+
+model AdministratorProfile {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId String @unique @map("user_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("administrator_profiles")
+}
+
+model CourseSellerApplication {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String            @unique @map("user_id") @db.Uuid
+  certification   String[]
+  expertise       String[]
+  message         String?
+  status          ApplicationStatus @default(PENDING)
+  rejectionReason String?           @map("rejection_reason")
+  approvedBy      String?           @map("approved_by") @db.Uuid
+  approvedAt      DateTime?         @map("approved_at") @db.Timestamptz(6)
+  createdAt       DateTime          @default(now()) @map("created_at")
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("course_seller_applications")
+}
+
+model Policy {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  content   String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  userId    String   @unique @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("policies")
+}
+
+enum UserRole {
+  ADMINISTRATOR
+  COURSESELLER
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+  DELETED
+}
+
+// =============================================================================
+// Admin audit trail — records every sensitive admin action with reason +
+// metadata so disputes can be resolved by quoting prior decisions.
+// =============================================================================
+model AdminAuditLog {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId     String             @map("actor_id") @db.Uuid
+  // Email is denormalised so the log stays readable even if the admin account
+  // is later deleted/renamed.
+  actorEmail  String             @map("actor_email") @db.VarChar(100)
+  action      AdminAuditAction
+  entityType  AdminAuditEntity   @map("entity_type")
+  entityId    String?            @map("entity_id") @db.VarChar(100)
+  reason      String?            @db.Text
+  metadata    Json?
+  ipAddress   String?            @map("ip_address") @db.VarChar(45)
+  createdAt   DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@map("admin_audit_logs")
+}
+
+enum AdminAuditAction {
+  WALLET_ADJUST
+  USER_STATUS_CHANGE
+  USER_DELETE
+  APPLICATION_APPROVE
+  APPLICATION_REJECT
+  COURSE_APPROVE
+  COURSE_REJECT
+  COMMENT_MODERATE
+  WITHDRAWAL_APPROVE
+  WITHDRAWAL_REJECT
+  REFUND_APPROVE
+  REFUND_REJECT
+  OTHER
+}
+
+enum AdminAuditEntity {
+  USER
+  WALLET
+  APPLICATION
+  COURSE
+  COMMENT
+  WITHDRAWAL
+  REFUND
+  OTHER
+}
