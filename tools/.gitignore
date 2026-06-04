@@ -1,0 +1,9 @@
+__pycache__
+ocr_env/
+.env
+.agent/
+.venv/
+ocr_dump/
+llm_response/
+vlm_response/
+generated_tests/

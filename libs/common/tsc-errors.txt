@@ -1,0 +1,2 @@
+﻿src/middlewares/validation.middleware.ts(34,30): error TS2339: Property 'errors' does not exist on type 'ZodError<unknown>'.
+src/middlewares/validation.middleware.ts(34,42): error TS7006: Parameter 'e' implicitly has an 'any' type.
