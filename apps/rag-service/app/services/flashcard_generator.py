@@ -4,9 +4,9 @@ Calls Ollama LLM to generate flashcards from document chunks.
 """
 
 import json
-import requests
 from app.config import get_settings
 from app.models.schemas import FlashcardItem
+from app.services.llm_service import generate_text
 
 
 FLASHCARD_PROMPT = """You are an expert bilingual (English-Vietnamese) language teacher creating flashcards.
@@ -33,38 +33,22 @@ Content:
 Generate flashcards for ALL important terms/concepts as a JSON array:"""
 
 
-def generate_flashcards(chunks: list[str]) -> list[FlashcardItem]:
+async def generate_flashcards(chunks: list[str]) -> list[FlashcardItem]:
     """
-    Generate flashcards from document chunks using Ollama.
-    The LLM decides how many flashcards to create based on content.
+    Generate flashcards from document chunks. Uses Gemini first (multi-key, with
+    rate-limit rotation); falls back to Ollama only when every Gemini key is
+    exhausted. The LLM decides how many flashcards to create based on content.
     """
     settings = get_settings()
     context = "\n\n---\n\n".join(chunks[:10])  # Limit context size
 
     prompt = FLASHCARD_PROMPT.format(context=context)
 
-    url = f"{settings.ollama_base_url}/api/generate"
-    print(f"[RAG] Calling Ollama at: {url}")
-
-    resp = requests.post(
-        url,
-        json={
-            "model": settings.ollama_model,
-            "prompt": prompt,
-            "stream": False,
-            "options": {
-                "temperature": 0.3,
-                "num_predict": 8192,
-            },
-        },
-        timeout=300,
+    # json_mode constrains the provider to emit valid JSON (the prompt asks for a
+    # JSON array) so _parse_json_array rarely has to salvage.
+    raw_text = await generate_text(
+        prompt, settings, temperature=0.3, max_tokens=8192, timeout=300, json_mode=True,
     )
-
-    if resp.status_code != 200:
-        print(f"[RAG] Ollama error {resp.status_code}: {resp.text[:500]}")
-        resp.raise_for_status()
-
-    raw_text = resp.json().get("response", "")
 
     # Parse JSON from LLM response
     flashcards = _parse_json_array(raw_text)

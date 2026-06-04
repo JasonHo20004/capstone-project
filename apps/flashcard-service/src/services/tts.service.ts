@@ -35,7 +35,7 @@ export async function generateTTSAudio(
       return null;
     }
 
-    const data: TTSResponse = await response.json();
+    const data = (await response.json()) as TTSResponse;
     // The TTS service may return the URL under different keys
     const audioUrl = data.audio_url || data.url || data.file_url || null;
 

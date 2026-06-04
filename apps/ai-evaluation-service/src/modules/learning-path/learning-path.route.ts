@@ -237,7 +237,7 @@ router.post("/generate", async (req: Request, res: Response) => {
     ]);
 
     const generatedPlan = {
-      ...plan,
+      ...(plan as Record<string, unknown>),
       recommendedLessons: recommendedLessons as RecommendedItem[],
       recommendedFlashcards: recommendedFlashcards as RecommendedItem[],
       recommendedQuizzes: recommendedQuizzes as RecommendedItem[],
@@ -252,14 +252,14 @@ router.post("/generate", async (req: Request, res: Response) => {
         currentLevel: currentLevel ?? undefined,
         targetScore,
         deadline,
-        roadmap: generatedPlan,
+        roadmap: generatedPlan as any,
       },
       create: {
         userId,
         currentLevel: currentLevel ?? undefined,
         targetScore,
         deadline,
-        roadmap: generatedPlan,
+        roadmap: generatedPlan as any,
       },
     });
 

@@ -218,7 +218,7 @@ class AdvisorService {
     const profile = await memoryService.getOrCreate(userId);
 
     // Guard: don't spam the user
-    if (!isProactiveAllowed(profile.advisorConfig as Record<string, unknown>)) {
+    if (!isProactiveAllowed(profile.advisorConfig as unknown as Record<string, unknown>)) {
       console.log(`[Advisor] Skipping proactive push for ${userId} — min interval not reached`);
       return;
     }

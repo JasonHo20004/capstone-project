@@ -220,9 +220,14 @@ model Report {
 model UserLesson {
   lessonId String @map("lesson_id") @db.Uuid
   userId   String @map("user_id") @db.Uuid
+  /// When the learner first completed this lesson. Powers the "behind on
+  /// progress" inactivity detection (latest completedAt per user+course = last
+  /// study activity). Defaults to now() on insert.
+  completedAt DateTime @default(now()) @map("completed_at") @db.Timestamptz(6)
   lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@id([lessonId, userId])
+  @@index([userId])
   @@map("user_lessons")
 }
 
@@ -233,8 +238,12 @@ model UserActivity {
   courseId      String    @map("course_id") @db.Uuid
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   expiresAt     DateTime? @map("expires_at") @db.Timestamptz(6)
+  /// Last time a "behind on progress" reminder was sent for this enrollment.
+  /// Null = never reminded. Gates re-sends so the 60s cron can't spam learners.
+  lastProgressReminderAt DateTime? @map("last_progress_reminder_at") @db.Timestamptz(6)
   course        Course    @relation(fields: [courseId], references: [id])
 
+  @@index([lastProgressReminderAt])
   @@map("user_activities")
 }
 

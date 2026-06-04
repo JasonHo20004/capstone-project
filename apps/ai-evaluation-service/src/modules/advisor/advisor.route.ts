@@ -187,7 +187,7 @@ router.get("/profile/:userId", async (req: Request, res: Response) => {
   const { userId } = req.params;
 
   try {
-    const profile = await memoryService.getOrCreate(userId);
+    const profile = await memoryService.getOrCreate(String(userId));
     const criticalGaps = memoryService.getCriticalGaps(
       profile.skillGaps,
       profile.bandScoreTarget

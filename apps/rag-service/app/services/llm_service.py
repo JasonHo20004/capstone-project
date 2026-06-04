@@ -183,6 +183,165 @@ async def generate_text(
         return ""
 
 
+async def _stream_gemini(
+    prompt: str,
+    api_key: str,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+    timeout: float,
+    json_mode: bool = False,
+):
+    """Async generator yielding text tokens from Gemini's SSE streaming endpoint.
+
+    Raises BEFORE the first yield if the key errors / is rate-limited (so the
+    caller can rotate to the next key). Once a token has been yielded the stream
+    is committed — a later break is surfaced to the caller, not retried.
+    """
+    url = f"{GEMINI_BASE}/{model}:streamGenerateContent?alt=sse&key={api_key}"
+    generation_config = {
+        "temperature": temperature,
+        "maxOutputTokens": max_tokens,
+        "topP": 0.9,
+        "thinkingConfig": {"thinkingBudget": 0},
+    }
+    if json_mode:
+        generation_config["responseMimeType"] = "application/json"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": generation_config,
+    }
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        async with client.stream("POST", url, json=payload) as resp:
+            if resp.status_code != 200:
+                body = (await resp.aread()).decode("utf-8", "ignore")
+                raise httpx.HTTPStatusError(
+                    f"{resp.status_code}: {body[:300]}", request=resp.request, response=resp
+                )
+            async for line in resp.aiter_lines():
+                if not line or not line.startswith("data:"):
+                    continue
+                data_str = line[len("data:"):].strip()
+                if not data_str or data_str == "[DONE]":
+                    continue
+                try:
+                    chunk = json.loads(data_str)
+                except json.JSONDecodeError:
+                    continue
+                candidates = chunk.get("candidates", [])
+                if not candidates:
+                    continue
+                parts = candidates[0].get("content", {}).get("parts", [])
+                for p in parts:
+                    token = p.get("text", "")
+                    if token:
+                        yield token
+
+
+async def _stream_ollama(
+    prompt: str,
+    base_url: str,
+    model: str,
+    temperature: float,
+    max_tokens: int,
+    timeout: float,
+    json_mode: bool = False,
+):
+    """Async generator yielding text tokens from Ollama's streaming /api/generate."""
+    body = {
+        "model": model,
+        "prompt": prompt,
+        "stream": True,
+        "options": {
+            "temperature": temperature,
+            "num_predict": max_tokens,
+            "num_ctx": max(8192, max_tokens + 2048),
+            "top_p": 0.9,
+        },
+    }
+    if json_mode:
+        body["format"] = "json"
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        async with client.stream("POST", f"{base_url}/api/generate", json=body) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                token = chunk.get("response", "")
+                if token:
+                    yield token
+                if chunk.get("done"):
+                    break
+
+
+async def generate_text_stream(
+    prompt: str,
+    settings,
+    *,
+    temperature: float = 0.7,
+    max_tokens: int = 1024,
+    timeout: float = 120.0,
+    json_mode: bool = False,
+):
+    """Stream text tokens with the SAME Gemini-first / Ollama-fallback policy as
+    generate_text, but yielding tokens as they arrive (for SSE endpoints).
+
+    Rotation to the next Gemini key (then to Ollama) only happens BEFORE the first
+    token of an attempt — once tokens start flowing we commit to that stream to
+    avoid emitting duplicated text.
+    """
+    provider = (settings.llm_provider or "ollama").lower()
+    keys = settings.gemini_keys
+
+    if provider == "gemini" and keys:
+        global _key_cursor
+        n = len(keys)
+        start = _key_cursor % n
+        print(f"[LLM-stream] Using Gemini model: {settings.gemini_model} ({n} key(s), temp={temperature})")
+        for offset in range(n):
+            idx = (start + offset) % n
+            produced = False
+            try:
+                async for token in _stream_gemini(
+                    prompt, keys[idx], settings.gemini_model,
+                    temperature, max_tokens, timeout, json_mode=json_mode,
+                ):
+                    produced = True
+                    yield token
+                if produced:
+                    _key_cursor = (idx + 1) % n
+                    print(f"[LLM-stream] Gemini key {idx + 1}/{n} streamed OK")
+                    return
+                print(f"[LLM-stream] Gemini key {idx + 1}/{n} produced nothing — trying next key")
+            except Exception as e:
+                if produced:
+                    # Already emitted tokens — cannot safely restart on another
+                    # key/Ollama without duplicating output. End the stream here.
+                    print(f"[LLM-stream] Gemini key {idx + 1}/{n} broke mid-stream: {e}")
+                    return
+                msg = str(e).lower()
+                rate = "429" in msg or "quota" in msg or "rate" in msg or "resource_exhausted" in msg
+                print(f"[LLM-stream] Gemini key {idx + 1}/{n} {'rate-limited' if rate else 'error'} ({type(e).__name__}) — trying next key")
+        _key_cursor = (start + 1) % n
+        print(f"[LLM-stream] All {n} Gemini key(s) exhausted — falling back to Ollama")
+    else:
+        print(f"[LLM-stream] Skipping Gemini (provider={provider!r}, keys={len(keys)}) — going straight to Ollama")
+
+    print(f"[LLM-stream] Using Ollama model: {settings.ollama_model} at {settings.ollama_base_url}")
+    try:
+        async for token in _stream_ollama(
+            prompt, settings.ollama_base_url, settings.ollama_model,
+            temperature, max_tokens, timeout, json_mode=json_mode,
+        ):
+            yield token
+    except Exception as e:
+        print(f"[LLM-stream] Ollama fallback also failed: {e}")
+
+
 def extract_json_object(text: str) -> Optional[dict]:
     """Best-effort JSON extraction from an LLM response that may contain stray prose."""
     if not text:

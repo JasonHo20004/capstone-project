@@ -5,11 +5,11 @@ POST /api/rag/explain/stream  → SSE streaming (new)
 """
 
 import json
-import requests
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from app.models.schemas import ExplainRequest, ExplainResponse
 from app.config import get_settings
+from app.services.llm_service import generate_text, generate_text_stream
 
 router = APIRouter(tags=["AI Tutor"])
 
@@ -300,39 +300,24 @@ def _language_directive(lang: str) -> str:
     )
 
 
-_OLLAMA_OPTIONS = {
-    "temperature": 0.3,
-    "num_predict": 1024,
-    "num_ctx": 4096,
-    "top_p": 0.9,
-    "repeat_penalty": 1.1,
-}
+# Generation tuning for the AI Tutor (shared by both endpoints).
+_TUTOR_TEMPERATURE = 0.3
+_TUTOR_MAX_TOKENS = 1024
 
 
 # ── Legacy non-streaming endpoint ─────────────────────────────────────────────
 
 @router.post("/api/rag/explain", response_model=ExplainResponse)
 async def explain_answer(body: ExplainRequest):
-    """AI Tutor: Non-streaming explanation (legacy)."""
+    """AI Tutor: Non-streaming explanation (legacy). Gemini-first (multi-key),
+    automatic fallback to Ollama only when every Gemini key is exhausted."""
     settings = get_settings()
     prompt = _build_prompt(body) + _language_directive(body.language)
-    url = f"{settings.ollama_base_url}/api/generate"
-    print(f"[AI Tutor] Calling Ollama at: {url}")
 
-    try:
-        resp = requests.post(
-            url,
-            json={"model": settings.ollama_model, "prompt": prompt, "stream": False, "options": _OLLAMA_OPTIONS},
-            timeout=300,
-        )
-    except requests.exceptions.ConnectionError as e:
-        print(f"[AI Tutor] Connection error: {e}")
-        raise HTTPException(503, "Không thể kết nối AI. Kiểm tra Colab tunnel.")
-
-    if resp.status_code != 200:
-        raise HTTPException(502, f"Ollama lỗi: {resp.status_code}")
-
-    answer = resp.json().get("response", "").strip()
+    answer = (await generate_text(
+        prompt, settings,
+        temperature=_TUTOR_TEMPERATURE, max_tokens=_TUTOR_MAX_TOKENS, timeout=300,
+    )).strip()
     if not answer:
         raise HTTPException(500, "AI không tạo được giải thích. Thử lại.")
 
@@ -356,51 +341,34 @@ async def explain_answer(body: ExplainRequest):
 @router.post("/api/rag/explain/stream")
 async def explain_answer_stream(body: ExplainRequest):
     """
-    AI Tutor: SSE streaming explanation.
-    Returns text/event-stream with tokens as they arrive from Ollama.
+    AI Tutor: SSE streaming explanation. Streams tokens from Gemini (multi-key,
+    skipping rate-limited keys); falls back to Ollama only when every Gemini key
+    is exhausted.
     """
     settings = get_settings()
     prompt = _build_prompt(body) + _language_directive(body.language)
 
-    def generate_sse():
-        url = f"{settings.ollama_base_url}/api/generate"
+    async def generate_sse():
         print(f"[AI Tutor SSE] type={body.question_type} history={len(body.conversation_history)}")
-
-        try:
-            resp = requests.post(
-                url,
-                json={"model": settings.ollama_model, "prompt": prompt, "stream": True, "options": _OLLAMA_OPTIONS},
-                timeout=300,
-                stream=True,
-            )
-        except requests.exceptions.ConnectionError as e:
-            print(f"[AI Tutor SSE] Connection error: {e}")
-            yield f"event: error\ndata: {json.dumps({'error': 'Không thể kết nối AI. Hãy kiểm tra Colab tunnel đang chạy.'})}\n\n"
-            return
-
-        if resp.status_code != 200:
-            yield f"event: error\ndata: {json.dumps({'error': f'Ollama lỗi {resp.status_code}. Thử lại sau.'})}\n\n"
-            return
-
         full_response = ""
-        for line in resp.iter_lines():
-            if not line:
-                continue
-            try:
-                chunk = json.loads(line)
-                token = chunk.get("response", "")
-                done = chunk.get("done", False)
-
+        try:
+            async for token in generate_text_stream(
+                prompt, settings,
+                temperature=_TUTOR_TEMPERATURE, max_tokens=_TUTOR_MAX_TOKENS, timeout=300,
+            ):
                 if token:
                     full_response += token
                     yield f"data: {json.dumps({'token': token}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            print(f"[AI Tutor SSE] Generation error: {e}")
+            yield f"event: error\ndata: {json.dumps({'error': 'AI gặp lỗi khi tạo nội dung. Thử lại sau.'})}\n\n"
+            return
 
-                if done:
-                    yield f"event: done\ndata: {json.dumps({'done': True, 'full_response': full_response}, ensure_ascii=False)}\n\n"
-                    break
+        if not full_response:
+            yield f"event: error\ndata: {json.dumps({'error': 'AI không phản hồi. Thử lại sau.'})}\n\n"
+            return
 
-            except json.JSONDecodeError:
-                continue
+        yield f"event: done\ndata: {json.dumps({'done': True, 'full_response': full_response}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
         generate_sse(),
