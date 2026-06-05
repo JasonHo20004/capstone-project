@@ -554,7 +554,11 @@ router.post(
 );
 
 // GET /student/courses/:courseId/certificate
-// Returns the certificate if it exists, 404 otherwise.
+// Returns the certificate if it exists, or { data: null } if the student has
+// not earned it yet. A not-yet-issued certificate is a normal state (the
+// student simply hasn't finished the course), NOT an error — so we respond 200
+// with a null payload instead of 404 to avoid noisy "Certificate not found"
+// errors every time a student opens a course they're still studying.
 router.get(
   "/courses/:courseId/certificate",
   authenticateToken,
@@ -567,12 +571,7 @@ router.get(
       where: { userId_courseId: { userId, courseId } },
     });
 
-    if (!cert) {
-      res.status(404).json({ success: false, message: "Certificate not found" });
-      return;
-    }
-
-    res.json({ success: true, data: cert });
+    res.json({ success: true, data: cert ?? null });
   })
 );
 
