@@ -32,6 +32,7 @@ async def _generate_gemini(
     max_tokens: int,
     timeout: float,
     json_mode: bool = False,
+    system_prompt: Optional[str] = None,
 ) -> str:
     url = f"{GEMINI_BASE}/{model}:generateContent?key={api_key}"
     generation_config = {
@@ -51,6 +52,8 @@ async def _generate_gemini(
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": generation_config,
     }
+    if system_prompt:
+        payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(url, json=payload)
         # Older models reject thinkingConfig — retry once without it.
@@ -76,6 +79,7 @@ async def _generate_ollama(
     max_tokens: int,
     timeout: float,
     json_mode: bool = False,
+    system_prompt: Optional[str] = None,
 ) -> str:
     body = {
         "model": model,
@@ -94,6 +98,8 @@ async def _generate_ollama(
     if json_mode:
         # Force Ollama to emit valid JSON (used for lesson/translate generation).
         body["format"] = "json"
+    if system_prompt:
+        body["system"] = system_prompt
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.post(f"{base_url}/api/generate", json=body)
         resp.raise_for_status()
@@ -105,6 +111,7 @@ async def generate_text(
     prompt: str,
     settings,
     *,
+    system_prompt: Optional[str] = None,
     temperature: float = 0.7,
     max_tokens: int = 1024,
     timeout: float = 60.0,
@@ -146,6 +153,7 @@ async def generate_text(
                     max_tokens,
                     timeout,
                     json_mode=json_mode,
+                    system_prompt=system_prompt,
                 )
                 if text:
                     _key_cursor = (idx + 1) % n  # next request starts at the following key
@@ -173,6 +181,7 @@ async def generate_text(
             max_tokens,
             timeout,
             json_mode=json_mode,
+            system_prompt=system_prompt,
         )
         print(f"[LLM] Ollama ({settings.ollama_model}) responded OK ({len(text)} chars)")
         if usage is not None:
@@ -191,6 +200,7 @@ async def _stream_gemini(
     max_tokens: int,
     timeout: float,
     json_mode: bool = False,
+    system_prompt: Optional[str] = None,
 ):
     """Async generator yielding text tokens from Gemini's SSE streaming endpoint.
 
@@ -211,6 +221,8 @@ async def _stream_gemini(
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": generation_config,
     }
+    if system_prompt:
+        payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
     async with httpx.AsyncClient(timeout=timeout) as client:
         async with client.stream("POST", url, json=payload) as resp:
             if resp.status_code != 200:
@@ -246,6 +258,7 @@ async def _stream_ollama(
     max_tokens: int,
     timeout: float,
     json_mode: bool = False,
+    system_prompt: Optional[str] = None,
 ):
     """Async generator yielding text tokens from Ollama's streaming /api/generate."""
     body = {
@@ -261,6 +274,8 @@ async def _stream_ollama(
     }
     if json_mode:
         body["format"] = "json"
+    if system_prompt:
+        body["system"] = system_prompt
     async with httpx.AsyncClient(timeout=timeout) as client:
         async with client.stream("POST", f"{base_url}/api/generate", json=body) as resp:
             resp.raise_for_status()
@@ -282,6 +297,7 @@ async def generate_text_stream(
     prompt: str,
     settings,
     *,
+    system_prompt: Optional[str] = None,
     temperature: float = 0.7,
     max_tokens: int = 1024,
     timeout: float = 120.0,
@@ -309,6 +325,7 @@ async def generate_text_stream(
                 async for token in _stream_gemini(
                     prompt, keys[idx], settings.gemini_model,
                     temperature, max_tokens, timeout, json_mode=json_mode,
+                    system_prompt=system_prompt,
                 ):
                     produced = True
                     yield token
@@ -336,6 +353,7 @@ async def generate_text_stream(
         async for token in _stream_ollama(
             prompt, settings.ollama_base_url, settings.ollama_model,
             temperature, max_tokens, timeout, json_mode=json_mode,
+            system_prompt=system_prompt,
         ):
             yield token
     except Exception as e:

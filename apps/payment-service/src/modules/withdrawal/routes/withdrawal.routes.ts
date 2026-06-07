@@ -5,7 +5,16 @@
 import { Router, type Router as IRouter } from "express";
 import multer from "multer";
 import { WithdrawalController } from "../controllers/withdrawal.controller.js";
-import { authenticateToken, requireAdmin } from "@capstone/common";
+import { authenticateToken, requireAdmin, validate } from "@capstone/common";
+import {
+  requestWithdrawalSchema,
+  getHistoryQuerySchema,
+  cancelWithdrawalSchema,
+  retryWithdrawalSchema,
+  getAdminRequestsSchema,
+  approveWithdrawalSchema,
+  rejectWithdrawalSchema,
+} from "../dtos/withdrawal.dto.js";
 
 const router: IRouter = Router();
 const controller = new WithdrawalController();
@@ -25,14 +34,14 @@ const upload = multer({
 });
 
 // ── Seller endpoints ────────────────────────────────────────────────────
-router.post("/seller/request", authenticateToken, controller.requestWithdrawal);
-router.get("/seller/history", authenticateToken, controller.getSellerWithdrawals);
-router.post("/seller/requests/:id/cancel", authenticateToken, controller.cancelWithdrawal);
-router.post("/seller/requests/:id/retry", authenticateToken, controller.retryWithdrawal);
+router.post("/seller/request", authenticateToken, validate(requestWithdrawalSchema), controller.requestWithdrawal);
+router.get("/seller/history", authenticateToken, validate(getHistoryQuerySchema), controller.getSellerWithdrawals);
+router.post("/seller/requests/:id/cancel", authenticateToken, validate(cancelWithdrawalSchema), controller.cancelWithdrawal);
+router.post("/seller/requests/:id/retry", authenticateToken, validate(retryWithdrawalSchema), controller.retryWithdrawal);
 
 // ── Admin endpoints ─────────────────────────────────────────────────────
 router.get("/admin/summary", authenticateToken, requireAdmin, controller.getAdminSummary);
-router.get("/admin/requests", authenticateToken, requireAdmin, controller.getAdminRequests);
+router.get("/admin/requests", authenticateToken, requireAdmin, validate(getAdminRequestsSchema), controller.getAdminRequests);
 router.post(
   "/admin/upload-proof",
   authenticateToken,
@@ -40,7 +49,7 @@ router.post(
   upload.single("file"),
   controller.uploadProofImage
 );
-router.post("/admin/requests/:id/approve", authenticateToken, requireAdmin, controller.approveWithdrawal);
-router.post("/admin/requests/:id/reject", authenticateToken, requireAdmin, controller.rejectWithdrawal);
+router.post("/admin/requests/:id/approve", authenticateToken, requireAdmin, validate(approveWithdrawalSchema), controller.approveWithdrawal);
+router.post("/admin/requests/:id/reject", authenticateToken, requireAdmin, validate(rejectWithdrawalSchema), controller.rejectWithdrawal);
 
 export default router;
