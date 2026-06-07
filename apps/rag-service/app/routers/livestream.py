@@ -38,6 +38,7 @@ from app.services.tts_service import AUDIO_DIR, synthesize_to_file
 from app.services.llm_service import generate_text, extract_json_object
 from app.services.image_service import fetch_images_for_queries
 from app.services.storage import store_audio_and_url
+from app.clients.course_client import save_recording_to_course_service
 
 router = APIRouter(prefix="/api/livestream", tags=["Livestream"])
 
@@ -101,6 +102,49 @@ def _speaker_key(room_id: str) -> str:
 
 
 SPEAKER_TTL = 300  # 5-minute spotlight window
+
+
+# ── Q&A pause: hold the lecture while a learner question is being answered ──────
+# While this counter is > 0, `_deliver_lesson` stops sending the next slide so the
+# AI's spoken answer never overlaps the next slide's narration. Redis-backed so it
+# works across uvicorn workers (the answer task and the lesson loop may run in
+# different processes — see _broadcast / _pubsub_listener).
+
+def _qa_active_key(room_id: str) -> str:
+    return f"livestream:qa_active:{room_id}"
+
+
+# Max seconds the lecture will wait on a single Q&A before force-resuming, so a
+# crashed/hung answer task can never freeze slide delivery permanently.
+QA_PAUSE_MAX_SECONDS = 300
+
+
+async def _qa_begin(r: aioredis.Redis, room_id: str) -> None:
+    """Mark a learner Q&A as in flight. TTL-bounded as a deadlock guard."""
+    await r.incr(_qa_active_key(room_id))
+    await r.expire(_qa_active_key(room_id), QA_PAUSE_MAX_SECONDS)
+
+
+async def _qa_end(r: aioredis.Redis, room_id: str) -> None:
+    if await r.decr(_qa_active_key(room_id)) <= 0:
+        await r.delete(_qa_active_key(room_id))
+
+
+async def _qa_active(r: aioredis.Redis, room_id: str) -> bool:
+    raw = await r.get(_qa_active_key(room_id))
+    try:
+        return raw is not None and int(raw) > 0
+    except (TypeError, ValueError):
+        return False
+
+
+async def _wait_while_qa_active(r: aioredis.Redis, room_id: str) -> None:
+    """Block slide delivery while a learner Q&A is being answered, so the AI's
+    answer never overlaps the next slide. Bounded by QA_PAUSE_MAX_SECONDS."""
+    waited = 0.0
+    while waited < QA_PAUSE_MAX_SECONDS and await _qa_active(r, room_id):
+        await asyncio.sleep(0.5)
+        waited += 0.5
 
 
 async def _presence_count(r: aioredis.Redis, room_id: str) -> int:
@@ -267,12 +311,18 @@ async def _save_recording(r: aioredis.Redis, room: dict, sections: list[dict]):
         "topic": room["topic"],
         "level": room["level"],
         "level_label": LEVEL_LABELS.get(room["level"], room["level"]),
+        "host_id": room.get("host_id"),
         "host_name": room["host_name"],
+        "language": room.get("language", "en"),
         "completed_at": datetime.utcnow().isoformat(),
         "sections": sections,
         "qa": room.get("qa", []),
     }
     await r.set(f"livestream:recording:{room['id']}", json.dumps(recording), ex=RECORDING_TTL)
+    # Durable copy in Postgres (course-service) — queryable and survives the
+    # 7-day Redis TTL. Fire-and-forget: the client swallows + logs its own errors
+    # so a failed persist can never break lesson completion.
+    _spawn(save_recording_to_course_service(recording))
 
 
 def _protected_filenames(recording: dict) -> set[str]:
@@ -344,6 +394,16 @@ async def cleanup_audio_loop():
 
 _pub_redis: aioredis.Redis | None = None
 
+# Keepalive / health-check options so managed Redis (Upstash) doesn't silently
+# drop idle pub/sub connections. Without periodic PINGs the blocking SUBSCRIBE
+# read eventually raises "Timeout reading from ..." and the listener crash-loops.
+_REDIS_KWARGS = dict(
+    decode_responses=True,
+    health_check_interval=30,
+    socket_keepalive=True,
+    socket_connect_timeout=10,
+)
+
 # Unique id for THIS process. Published with every broadcast so the Pub/Sub
 # listener on the same process can skip messages it already delivered locally
 # (see _broadcast / _pubsub_listener) — prevents double delivery.
@@ -358,7 +418,7 @@ async def _get_pub_redis() -> aioredis.Redis:
     global _pub_redis
     if _pub_redis is None:
         from app.config import get_settings
-        _pub_redis = aioredis.from_url(get_settings().redis_url, decode_responses=True)
+        _pub_redis = aioredis.from_url(get_settings().redis_url, **_REDIS_KWARGS)
     return _pub_redis
 
 
@@ -403,11 +463,23 @@ async def _pubsub_listener():
     settings = get_settings()
     while True:
         try:
-            r = aioredis.from_url(settings.redis_url, decode_responses=True)
+            r = aioredis.from_url(settings.redis_url, **_REDIS_KWARGS)
             pubsub = r.pubsub()
             await pubsub.psubscribe("livestream:channel:*")
             print("[Livestream] Pub/Sub listener subscribed")
-            async for msg in pubsub.listen():
+            # Bounded reads instead of a never-returning listen(): get_message
+            # returns None after `timeout` of silence (no crash), and on each idle
+            # tick we PING so Upstash doesn't close the connection as idle. An
+            # unbounded listen() parks in a blocking read where health-check PINGs
+            # never fire — which is exactly why the connection kept timing out.
+            while True:
+                msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=15.0)
+                if msg is None:
+                    # PING on the SUBSCRIBED connection (not r — that uses a
+                    # different pooled connection). Keeps Upstash from idle-closing
+                    # the pub/sub socket; raises if it already died → reconnect.
+                    await pubsub.ping()
+                    continue
                 if msg.get("type") != "pmessage":
                     continue
                 try:
@@ -1176,6 +1248,11 @@ async def _deliver_lesson(room_id: str, settings):
         sections_with_timing: list[dict] = []
 
         for i, section in enumerate(sections):
+            # Hold between slides while a learner Q&A is being answered so the AI's
+            # spoken reply doesn't overlap the next slide's narration. No-op when
+            # no question is pending; bounded so a stuck answer can't freeze the lesson.
+            await _wait_while_qa_active(r, room_id)
+
             room = await _load_room(r, room_id)
             if not room or room["status"] == "ended":
                 break
@@ -1269,10 +1346,16 @@ async def _deliver_lesson(room_id: str, settings):
 
 async def _answer_question(room_id: str, question: str, user_name: str, settings):
     r = await _get_redis(settings)
+    qa_started = False
     try:
         room = await _load_room(r, room_id)
         if not room:
             return
+
+        # Pause slide delivery for the whole Q&A (generation + spoken answer) so the
+        # lecture doesn't roll on to the next slide while the AI is answering.
+        await _qa_begin(r, room_id)
+        qa_started = True
 
         await _broadcast(room_id, {"type": "question_asked", "user_name": user_name, "question": question})
 
@@ -1356,6 +1439,7 @@ async def _answer_question(room_id: str, question: str, user_name: str, settings
             answer = fallback
 
         audio_url = ""
+        filename = ""
         try:
             filename = await synthesize_to_file(
                 _normalize_tts(answer), level, lang,
@@ -1384,5 +1468,17 @@ async def _answer_question(room_id: str, question: str, user_name: str, settings
             "answer": answer,
             "audio_url": audio_url,
         })
+
+        # Keep the lecture paused while clients play the answer audio, so the next
+        # slide only resumes once the AI has finished speaking. Use the real clip
+        # length (falls back to a word-count estimate if it can't be read).
+        answer_estimate = max(4.0, len(answer.split()) / 2.3)
+        answer_secs = _audio_duration(filename, answer_estimate) if filename else answer_estimate
+        await asyncio.sleep(answer_secs + 0.5)
     finally:
+        if qa_started:
+            try:
+                await _qa_end(r, room_id)
+            except Exception as e:
+                print(f"[Q&A] Failed to clear pause flag: {e}")
         await r.aclose()

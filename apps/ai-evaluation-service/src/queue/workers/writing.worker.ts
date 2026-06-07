@@ -11,6 +11,31 @@ import { databaseService } from "../../services/database.service.js";
 
 const QUEUE_NAME = "ai-evaluation-queue";
 
+/** Round to the nearest 0.5 and clamp to the valid IELTS band range [0, 9]. */
+function normalizeBand(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(Math.max(0, Math.min(9, n)) * 2) / 2;
+}
+
+/**
+ * Parse the model's JSON response defensively. Gemini is asked for raw JSON
+ * (responseMimeType=application/json), but can still wrap it in ``` fences or
+ * trail prose, and a token-truncated reply is invalid JSON. Strip fences and
+ * extract the outermost {...} so a stray character doesn't fail the whole job.
+ */
+function parseWritingResult(raw: string): WritingEvaluationResult {
+  let text = (raw || "").trim();
+  if (text.startsWith("```")) {
+    text = text.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+  }
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    text = text.slice(start, end + 1);
+  }
+  return JSON.parse(text) as WritingEvaluationResult;
+}
+
 /**
  * Fetches an image from a URL and returns base64 data + mimeType.
  */
@@ -67,35 +92,70 @@ export function createWritingWorker(): Worker {
         }
         userMessage += `**Essay:**\n${essayText}`;
 
-        let response: string;
-
-        // For Task 1 with image: use multimodal (image + text) completion
+        // Decide the grading strategy ONCE (resolve image, finalise the message)
+        // so the retry loop below can safely re-issue the same call.
+        let imageData: { base64: string; mimeType: string } | null = null;
         if (taskType === 1 && imageUrl) {
-          const imageData = await fetchImageAsBase64(imageUrl);
-
-          if (imageData) {
-            console.log(`🤖 [Worker] Using multimodal completion (image + text) for Task 1`);
-            const textPrompt = `${userMessage}\n\n**IMPORTANT:** The image attached is the chart/graph/diagram that the student was asked to describe. Use it to evaluate Task Achievement — check whether the student accurately described the key features shown in the image.`;
-
-            response = await geminiClient.multimodalCompletion(
-              prompt,
-              imageData.base64,
-              imageData.mimeType,
-              textPrompt,
-              { temperature: 0.2, useProModel: false },
-            );
-          } else {
-            // Fallback: text-only if image fetch failed
+          imageData = await fetchImageAsBase64(imageUrl);
+          if (!imageData) {
             console.warn(`⚠️ [Worker] Image fetch failed, falling back to text-only evaluation`);
             userMessage += `\n\n**Note:** The original chart/graph image could not be loaded. Please evaluate based on the writing quality alone, but note that Task Achievement cannot be fully assessed without the visual data.`;
-            response = await geminiClient.chatCompletion(prompt, userMessage, { temperature: 0.2, useProModel: false });
+          }
+        }
+        const imageTextPrompt = `${userMessage}\n\n**IMPORTANT:** The image attached is the chart/graph/diagram that the student was asked to describe. Use it to evaluate Task Achievement — check whether the student accurately described the key features shown in the image.`;
+
+        // Pro model gives noticeably better-calibrated IELTS bands than Flash;
+        // gemini.client auto-falls back to Flash if Pro is rate-limited. The
+        // larger token budget prevents the long rubric JSON from being truncated.
+        const callOpts = { temperature: 0.2, useProModel: true, maxTokens: 8192 } as const;
+
+        const runGrading = async (): Promise<string> => {
+          if (imageData) {
+            console.log(`🤖 [Worker] Using multimodal completion (image + text) for Task 1 [Pro]`);
+            return geminiClient.multimodalCompletion(
+              prompt, imageData.base64, imageData.mimeType, imageTextPrompt, callOpts,
+            );
+          }
+          return geminiClient.chatCompletion(prompt, userMessage, callOpts);
+        };
+
+        // Grade with one retry — covers a truncated/garbled JSON reply.
+        let result: WritingEvaluationResult | null = null;
+        let lastErr: unknown = null;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            const response = await runGrading();
+            result = parseWritingResult(response);
+            break;
+          } catch (err) {
+            lastErr = err;
+            console.warn(`⚠️ [Worker] Grading attempt ${attempt}/2 failed: ${err instanceof Error ? err.message : err}`);
+          }
+        }
+        if (!result) throw lastErr ?? new Error("Writing grading produced no parseable result");
+
+        // Trust the rubric (per-criterion) scores, not the model's arithmetic:
+        // normalise each criterion and recompute overall_band as their mean. LLMs
+        // routinely miscalculate the average, leaving the overall inconsistent.
+        const crit = result.criteria;
+        if (crit) {
+          for (const key of ["task_achievement", "coherence", "lexical", "grammar"] as const) {
+            if (crit[key]) crit[key].score = normalizeBand(Number(crit[key].score));
+          }
+          const parts = [
+            crit.task_achievement?.score,
+            crit.coherence?.score,
+            crit.lexical?.score,
+            crit.grammar?.score,
+          ].map(Number);
+          if (parts.every((s) => Number.isFinite(s))) {
+            result.overall_band = normalizeBand(parts.reduce((a, b) => a + b, 0) / parts.length);
+          } else {
+            result.overall_band = normalizeBand(Number(result.overall_band));
           }
         } else {
-          // Task 2 or Task 1 without image: text-only
-          response = await geminiClient.chatCompletion(prompt, userMessage, { temperature: 0.2, useProModel: false });
+          result.overall_band = normalizeBand(Number(result.overall_band));
         }
-
-        const result: WritingEvaluationResult = JSON.parse(response);
 
         // Save result to DB
         await prisma.writingEvaluation.update({

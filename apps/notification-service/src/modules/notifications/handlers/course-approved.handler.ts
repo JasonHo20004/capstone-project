@@ -17,22 +17,215 @@ import { SERVICE_NAME } from "../../../constants.js";
 import { emailService } from "../../../services/index.js";
 import { getUserBasicInfo } from "../../../clients/identity.client.js";
 
+const formatVnd = (n: number): string => `${n.toLocaleString("vi-VN")}đ`;
+
+// Branded, email-client-safe HTML (table layout + inline styles). Renders a
+// payout-confirmation with the amount, destination bank, a short transaction
+// reference, and — when present — a button to the admin's transfer proof image.
 const renderWithdrawalApprovedEmail = (p: {
   fullName: string;
   amount: number;
   bankName: string;
   processedAt: Date | string;
-}): string => `
-  <p>Xin chào ${p.fullName || "bạn"},</p>
-  <p>Lệnh rút tiền của bạn đã được duyệt và xác nhận chuyển khoản.</p>
-  <ul>
-    <li>Số tiền: <strong>${p.amount.toLocaleString("vi-VN")}đ</strong></li>
-    <li>Ngân hàng nhận: <strong>${p.bankName}</strong></li>
-    <li>Thời gian xử lý: ${new Date(p.processedAt).toLocaleString("vi-VN")}</li>
-  </ul>
-  <p>Tiền thường về tài khoản trong 1–3 ngày làm việc tuỳ ngân hàng. Nếu quá thời gian này mà chưa nhận được, vui lòng liên hệ bộ phận hỗ trợ.</p>
-  <p>Trân trọng,<br/>Đội ngũ hỗ trợ</p>
-`;
+  requestId: string;
+  proofImageUrl?: string;
+}): string => {
+  const ref = p.requestId.slice(0, 8).toUpperCase();
+  const when = new Date(p.processedAt).toLocaleString("vi-VN");
+
+  const detailRow = (label: string, value: string): string => `
+            <tr>
+              <td style="padding:14px 20px;font-size:13px;color:#64748b;border-top:1px solid #e2e8f0;">${label}</td>
+              <td style="padding:14px 20px;font-size:14px;font-weight:600;color:#0f172a;text-align:right;border-top:1px solid #e2e8f0;">${value}</td>
+            </tr>`;
+
+  const proofButton = p.proofImageUrl
+    ? `
+        <tr>
+          <td align="center" style="padding:24px 32px 0;">
+            <a href="${p.proofImageUrl}" target="_blank" rel="noopener"
+               style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 24px;border-radius:8px;">
+              Xem ảnh xác nhận chuyển khoản
+            </a>
+          </td>
+        </tr>`
+    : "";
+
+  return `
+  <!DOCTYPE html>
+  <html lang="vi">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>Lệnh rút tiền đã được duyệt</title>
+    </head>
+    <body style="margin:0;padding:0;background:#f1f5f9;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0;">
+        <tr>
+          <td align="center">
+            <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 4px rgba(15,23,42,0.08);">
+              <!-- Header -->
+              <tr>
+                <td style="background:#4f46e5;padding:22px 32px;">
+                  <span style="color:#ffffff;font-size:18px;font-weight:700;letter-spacing:0.2px;">English Learning Platform</span>
+                </td>
+              </tr>
+              <!-- Success badge + title -->
+              <tr>
+                <td align="center" style="padding:32px 32px 0;">
+                  <div style="width:64px;height:64px;line-height:64px;border-radius:50%;background:#dcfce7;color:#16a34a;font-size:34px;font-weight:700;">&#10003;</div>
+                  <h1 style="margin:18px 0 0;font-size:22px;font-weight:700;color:#0f172a;">Lệnh rút tiền đã được duyệt</h1>
+                </td>
+              </tr>
+              <!-- Greeting -->
+              <tr>
+                <td style="padding:16px 32px 0;font-size:15px;line-height:1.6;color:#334155;">
+                  Xin chào <strong>${p.fullName || "bạn"}</strong>, lệnh rút tiền của bạn đã được quản trị viên duyệt và xác nhận chuyển khoản. Chi tiết giao dịch:
+                </td>
+              </tr>
+              <!-- Details card -->
+              <tr>
+                <td style="padding:20px 32px 0;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
+                    <tr>
+                      <td style="padding:18px 20px;font-size:13px;color:#64748b;">Số tiền</td>
+                      <td style="padding:18px 20px;font-size:22px;font-weight:700;color:#16a34a;text-align:right;">${formatVnd(p.amount)}</td>
+                    </tr>
+                    ${detailRow("Ngân hàng nhận", p.bankName)}
+                    ${detailRow("Mã giao dịch", ref)}
+                    ${detailRow("Thời gian xử lý", when)}
+                  </table>
+                </td>
+              </tr>
+              ${proofButton}
+              <!-- Note -->
+              <tr>
+                <td style="padding:24px 32px 0;font-size:13px;line-height:1.6;color:#64748b;">
+                  Tiền thường về tài khoản trong <strong>1–3 ngày làm việc</strong> tuỳ ngân hàng. Nếu quá thời gian này mà chưa nhận được, vui lòng liên hệ bộ phận hỗ trợ kèm mã giao dịch <strong>${ref}</strong>.
+                </td>
+              </tr>
+              <!-- Footer -->
+              <tr>
+                <td style="padding:28px 32px 32px;">
+                  <div style="border-top:1px solid #e2e8f0;padding-top:18px;font-size:12px;line-height:1.6;color:#94a3b8;">
+                    Đây là email tự động, vui lòng không trả lời trực tiếp.<br/>
+                    © English Learning Platform — Đội ngũ hỗ trợ.
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+  </html>`;
+};
+
+// Branded, email-client-safe HTML (table layout + inline styles). Renders a
+// payout-rejection notice with the amount, the admin's reason, a short
+// transaction reference, and a reassurance that the funds were returned to the
+// seller's available balance (mirrors the in-app refund semantics).
+const renderWithdrawalRejectedEmail = (p: {
+  fullName: string;
+  amount: number;
+  reason: string;
+  processedAt: Date | string;
+  requestId: string;
+}): string => {
+  const ref = p.requestId.slice(0, 8).toUpperCase();
+  const when = new Date(p.processedAt).toLocaleString("vi-VN");
+  const reason = p.reason?.trim() || "(không có lý do cụ thể)";
+
+  const detailRow = (label: string, value: string): string => `
+            <tr>
+              <td style="padding:14px 20px;font-size:13px;color:#64748b;border-top:1px solid #e2e8f0;">${label}</td>
+              <td style="padding:14px 20px;font-size:14px;font-weight:600;color:#0f172a;text-align:right;border-top:1px solid #e2e8f0;">${value}</td>
+            </tr>`;
+
+  return `
+  <!DOCTYPE html>
+  <html lang="vi">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>Lệnh rút tiền bị từ chối</title>
+    </head>
+    <body style="margin:0;padding:0;background:#f1f5f9;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0;">
+        <tr>
+          <td align="center">
+            <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 4px rgba(15,23,42,0.08);">
+              <!-- Header -->
+              <tr>
+                <td style="background:#4f46e5;padding:22px 32px;">
+                  <span style="color:#ffffff;font-size:18px;font-weight:700;letter-spacing:0.2px;">English Learning Platform</span>
+                </td>
+              </tr>
+              <!-- Rejected badge + title -->
+              <tr>
+                <td align="center" style="padding:32px 32px 0;">
+                  <div style="width:64px;height:64px;line-height:64px;border-radius:50%;background:#fee2e2;color:#dc2626;font-size:34px;font-weight:700;">&#10005;</div>
+                  <h1 style="margin:18px 0 0;font-size:22px;font-weight:700;color:#0f172a;">Lệnh rút tiền bị từ chối</h1>
+                </td>
+              </tr>
+              <!-- Greeting -->
+              <tr>
+                <td style="padding:16px 32px 0;font-size:15px;line-height:1.6;color:#334155;">
+                  Xin chào <strong>${p.fullName || "bạn"}</strong>, rất tiếc lệnh rút tiền của bạn đã bị quản trị viên từ chối. Chi tiết:
+                </td>
+              </tr>
+              <!-- Details card -->
+              <tr>
+                <td style="padding:20px 32px 0;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
+                    <tr>
+                      <td style="padding:18px 20px;font-size:13px;color:#64748b;">Số tiền</td>
+                      <td style="padding:18px 20px;font-size:22px;font-weight:700;color:#dc2626;text-align:right;">${formatVnd(p.amount)}</td>
+                    </tr>
+                    ${detailRow("Mã giao dịch", ref)}
+                    ${detailRow("Thời gian xử lý", when)}
+                  </table>
+                </td>
+              </tr>
+              <!-- Reason -->
+              <tr>
+                <td style="padding:20px 32px 0;">
+                  <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px 20px;">
+                    <div style="font-size:13px;font-weight:600;color:#b91c1c;margin-bottom:6px;">Lý do từ chối</div>
+                    <div style="font-size:14px;line-height:1.6;color:#7f1d1d;">${reason}</div>
+                  </div>
+                </td>
+              </tr>
+              <!-- Refund reassurance -->
+              <tr>
+                <td style="padding:20px 32px 0;">
+                  <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px 20px;font-size:14px;line-height:1.6;color:#166534;">
+                    💰 Số tiền <strong>${formatVnd(p.amount)}</strong> đã được hoàn lại vào <strong>số dư khả dụng</strong> của bạn. Bạn có thể chỉnh sửa thông tin và tạo lại lệnh rút tiền bất cứ lúc nào.
+                  </div>
+                </td>
+              </tr>
+              <!-- Note -->
+              <tr>
+                <td style="padding:24px 32px 0;font-size:13px;line-height:1.6;color:#64748b;">
+                  Nếu bạn cho rằng đây là nhầm lẫn, vui lòng liên hệ bộ phận hỗ trợ kèm mã giao dịch <strong>${ref}</strong>.
+                </td>
+              </tr>
+              <!-- Footer -->
+              <tr>
+                <td style="padding:28px 32px 32px;">
+                  <div style="border-top:1px solid #e2e8f0;padding-top:18px;font-size:12px;line-height:1.6;color:#94a3b8;">
+                    Đây là email tự động, vui lòng không trả lời trực tiếp.<br/>
+                    © English Learning Platform — Đội ngũ hỗ trợ.
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+  </html>`;
+};
 let eventBus: EventBusService;
 
 export function getNotificationEventBus(): EventBusService {
@@ -129,6 +322,8 @@ export const initializeEventHandlers = async (dbService: any) => {
               amount: payload.amount,
               bankName: payload.bankName,
               processedAt: payload.processedAt,
+              requestId: payload.requestId,
+              proofImageUrl: payload.proofImageUrl,
             }),
           });
           console.log(`📧 [${SERVICE_NAME}] WITHDRAWAL_APPROVED email sent to ${seller.email}`);
@@ -160,6 +355,30 @@ export const initializeEventHandlers = async (dbService: any) => {
           },
         },
       });
+
+      // Best-effort email — wrapped so an SMTP/identity hiccup never throws the
+      // handler (which would nack+drop the event and lose the in-app notice too).
+      try {
+        const seller = await getUserBasicInfo(payload.sellerId);
+        if (seller?.email) {
+          await emailService.sendMail({
+            to: seller.email,
+            subject: "Lệnh rút tiền bị từ chối",
+            html: renderWithdrawalRejectedEmail({
+              fullName: seller.fullName,
+              amount: payload.amount,
+              reason: payload.reason,
+              processedAt: payload.processedAt,
+              requestId: payload.requestId,
+            }),
+          });
+          console.log(`📧 [${SERVICE_NAME}] WITHDRAWAL_REJECTED email sent to ${seller.email}`);
+        } else {
+          console.warn(`⚠️ [${SERVICE_NAME}] No email for seller ${payload.sellerId}; skipped withdrawal-rejected email`);
+        }
+      } catch (err) {
+        console.error(`❌ [${SERVICE_NAME}] WITHDRAWAL_REJECTED email failed:`, err);
+      }
     }
   );
 

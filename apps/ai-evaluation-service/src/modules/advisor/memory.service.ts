@@ -82,9 +82,9 @@ class MemoryService {
     return {
       bandScoreTarget: profile.bandScoreTarget,
       bandScoreCurrent: profile.bandScoreCurrent,
-      skillGaps: profile.skillGaps as SkillGaps,
-      learningPersonality: profile.learningPersonality as LearningPersonality,
-      advisorConfig: profile.advisorConfig as AdvisorConfig,
+      skillGaps: profile.skillGaps as unknown as SkillGaps,
+      learningPersonality: profile.learningPersonality as unknown as LearningPersonality,
+      advisorConfig: profile.advisorConfig as unknown as AdvisorConfig,
     };
   }
 

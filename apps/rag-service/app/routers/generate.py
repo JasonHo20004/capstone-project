@@ -4,11 +4,11 @@ RAG Service - Generate & Ask Router
 2. POST /api/rag/ask                  → Hỏi đáp về tài liệu đã upload (TRUE RAG)
 """
 
-import requests
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request
 from app.services.pdf_extractor import extract_text_from_pdf, extract_text_from_txt
 from app.services.rag_pipeline import RAGPipeline
 from app.services.flashcard_generator import generate_flashcards
+from app.services.llm_service import generate_text
 from app.clients.flashcard_client import save_flashcards_to_service
 from app.models.schemas import (
     GenerateFlashcardsResponse,
@@ -55,7 +55,7 @@ async def generate_flashcards_endpoint(
     chunk_count = len(chunks)
 
     # Step 2: Generate flashcards via LLM
-    flashcards = generate_flashcards(chunks)
+    flashcards = await generate_flashcards(chunks)
     if not flashcards:
         raise HTTPException(500, "LLM failed to generate flashcards. Try again.")
 
@@ -106,7 +106,7 @@ async def generate_flashcards_from_text_endpoint(
     chunk_count = len(chunks)
 
     # Step 2: Generate flashcards via LLM
-    flashcards = generate_flashcards(chunks)
+    flashcards = await generate_flashcards(chunks)
     if not flashcards:
         raise HTTPException(500, "LLM failed to generate flashcards. Try again.")
 
@@ -173,22 +173,10 @@ Student's question: {body.question}
 
 Answer:"""
 
-    resp = requests.post(
-        f"{settings.ollama_base_url}/api/generate",
-        json={
-            "model": settings.ollama_model,
-            "prompt": prompt,
-            "stream": False,
-            "options": {"temperature": 0.3, "num_predict": 2048},
-        },
-        timeout=300,
-    )
-
-    if resp.status_code != 200:
-        print(f"[RAG] Ollama error {resp.status_code}: {resp.text[:500]}")
-        resp.raise_for_status()
-
-    answer = resp.json().get("response", "").strip()
+    # Gemini-first (multi-key, skip rate-limited); Ollama only as last resort.
+    answer = (await generate_text(
+        prompt, settings, temperature=0.3, max_tokens=2048, timeout=300,
+    )).strip()
 
     if not answer:
         raise HTTPException(500, "LLM failed to generate an answer. Try again.")

@@ -21,12 +21,36 @@ class Settings(BaseSettings):
     gemini_api_keys: str = ""  # e.g. "keyA,keyB,keyC" — takes priority over gemini_api_key
     gemini_model: str = "gemini-2.5-flash"
 
+    # Numbered single-key slots — the cleanest way to manage several free-tier
+    # keys (one per line in .env) without a long comma string. Filled into the
+    # rotation pool first, in order, then any comma-separated keys.
+    gemini_api_key_1: str = ""
+    gemini_api_key_2: str = ""
+    gemini_api_key_3: str = ""
+    gemini_api_key_4: str = ""
+    gemini_api_key_5: str = ""
+    gemini_api_key_6: str = ""
+
     @property
     def gemini_keys(self) -> list[str]:
-        """All configured Gemini keys, in order. Prefers the comma-separated
-        `gemini_api_keys`; falls back to the single `gemini_api_key`."""
+        """All configured Gemini keys, de-duplicated and in priority order:
+        the numbered GEMINI_API_KEY_1..6 slots first, then the comma-separated
+        `gemini_api_keys` (or the single legacy `gemini_api_key`). The full pool
+        is round-robined and skipped on 429 before any fallback to Ollama."""
+        numbered = [
+            self.gemini_api_key_1, self.gemini_api_key_2, self.gemini_api_key_3,
+            self.gemini_api_key_4, self.gemini_api_key_5, self.gemini_api_key_6,
+        ]
         raw = self.gemini_api_keys or self.gemini_api_key
-        return [k.strip() for k in raw.split(",") if k.strip()]
+        comma = raw.split(",") if raw else []
+        seen: set[str] = set()
+        out: list[str] = []
+        for k in [*numbered, *comma]:
+            k = k.strip()
+            if k and k not in seen:
+                seen.add(k)
+                out.append(k)
+        return out
 
     # Ollama (via bore tunnel from Colab) — fallback when Gemini key empty/error
     ollama_base_url: str = "http://bore.pub:11434"
@@ -34,6 +58,8 @@ class Settings(BaseSettings):
 
     # Internal services
     flashcard_service_url: str = "http://localhost:3004"
+    # course-service owns the durable Postgres archive of livestream recordings.
+    course_service_url: str = "http://localhost:3002"
 
     # Chunking
     chunk_size: int = 1000

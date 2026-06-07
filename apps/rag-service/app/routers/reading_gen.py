@@ -475,7 +475,7 @@ async def generate_reading_questions(body: ReadingGenRequest):
     want = {t: c for t, c in plan}
     allocation = _format_allocation(plan)
 
-    print(f"[Reading Gen] Calling Ollama at: {settings.ollama_base_url}/api/generate")
+    print(f"[Reading Gen] Generating via LLM (Gemini-first, Ollama fallback)")
     print(f"[Reading Gen] Passage length: {len(body.passage)}, target: {target}, plan: {plan}")
 
     prompt = READING_GEN_PROMPT.format(

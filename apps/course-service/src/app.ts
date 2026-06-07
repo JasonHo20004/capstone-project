@@ -14,6 +14,7 @@ import studentRouter from "./modules/student/routes/student.route.js";
 import adminCourseRouter from "./modules/admin/routes/admin-course.route.js";
 import adminModerationRouter from "./modules/admin/routes/admin-moderation.route.js";
 import adminQualityFlagRouter from "./modules/admin/routes/admin-quality-flag.route.js";
+import livestreamRecordingRouter from "./modules/livestream/routes/livestream-recording.route.js";
 
 const app: express.Express = express();
 
@@ -49,6 +50,7 @@ app.use("/api/student", studentRouter);
 app.use("/api/admin", adminCourseRouter);
 app.use("/api/admin", adminQualityFlagRouter);
 app.use("/api/admin/moderation", adminModerationRouter);
+app.use("/api/livestream-recordings", livestreamRecordingRouter);
 
 // Error handling
 app.use(errorHandler);

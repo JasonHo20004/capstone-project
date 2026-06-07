@@ -4,6 +4,25 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
+/**
+ * Robust rate-limit / quota detection. The @google/genai SDK is inconsistent
+ * about where it surfaces a 429 (sometimes error.status, sometimes error.code,
+ * often only in the message), so check all of them. Used to decide when to fall
+ * back from the Pro model to Flash.
+ */
+function isRateLimitError(error: any): boolean {
+  if (!error) return false;
+  if (error.status === 429 || error.code === 429) return true;
+  const msg = String(error?.message ?? error).toLowerCase();
+  return (
+    msg.includes("429") ||
+    msg.includes("quota") ||
+    msg.includes("rate limit") ||
+    msg.includes("resource_exhausted") ||
+    msg.includes("resource exhausted")
+  );
+}
+
 export interface ConversationTurn {
   role: "user" | "model";
   parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>;
@@ -63,8 +82,8 @@ class GeminiClient {
       }
       return content;
     } catch (error: any) {
-      // Auto-fallback: if pro model hits rate limit, retry with flash model
-      if (useProModel && error?.status === 429) {
+      // Auto-fallback: if the pro model is rate-limited / quota-exhausted, retry on flash.
+      if (useProModel && isRateLimitError(error)) {
         console.warn(`⚠️ [Gemini] Pro model (${this.proModel}) rate limited, falling back to ${this.model}`);
         const response = await this.ai.models.generateContent({
           model: this.model,
@@ -122,7 +141,7 @@ class GeminiClient {
       if (!content) throw new Error("Empty response from Gemini (multimodal)");
       return content;
     } catch (error: any) {
-      if (useProModel && error?.status === 429) {
+      if (useProModel && isRateLimitError(error)) {
         console.warn(`⚠️ [Gemini] Pro model (${this.proModel}) rate limited, falling back to ${this.model} (multimodal)`);
         const response = await this.ai.models.generateContent({
           model: this.model,
