@@ -193,8 +193,8 @@ Cẩn thận: NOT GIVEN ≠ thông tin sai, chỉ là không có trong passage."
 }
 
 
-def _build_prompt(body: ExplainRequest) -> str:
-    """Build the LLM prompt from request body."""
+def _build_prompt_split(body: ExplainRequest) -> tuple[str, str]:
+    """Build separate system and user prompts from request body."""
     is_listening = body.test_skill == "LISTENING"
     has_transcript = is_listening and body.passage != "[LISTENING]"
 
@@ -217,7 +217,34 @@ def _build_prompt(body: ExplainRequest) -> str:
     if has_transcript:
         type_guidance = LISTENING_TYPE_GUIDANCE.get(body.question_type, "")
         if not body.conversation_history:
-            return LISTENING_WITH_TRANSCRIPT_EXPLAIN_PROMPT.format(
+            system_prompt = """Bạn là gia sư IELTS Listening chuyên nghiệp. Hãy giải thích dựa trên transcript audio được cung cấp.
+
+Trả lời theo đúng định dạng sau (không thêm gì ngoài format này):
+
+✅ **Tại sao "{correct_answer}" là đúng:**
+[Giải thích logic, trích dẫn câu/cụm từ cụ thể từ transcript trong dấu ngoặc kép. Chỉ rõ phần nào trong audio xác nhận đáp án này.]
+
+❌ **Tại sao "{user_answer}" là sai:**
+[Giải thích bẫy hoặc lý do nhầm lẫn. Chỉ ra distractor trong transcript nếu có.]
+
+💡 **Mẹo cho dạng {question_type} trong Listening:**
+[1–2 chiến thuật nghe cụ thể để không mắc lỗi tương tự trong tương lai.]""".format(
+                correct_answer=body.correct_answer,
+                user_answer=body.user_answer,
+                question_type=body.question_type,
+            )
+            user_prompt = """Học sinh vừa trả lời sai câu hỏi nghe dưới đây.
+
+**TRANSCRIPT AUDIO:**
+{passage}
+
+**CÂU HỎI (dạng: {question_type}):**
+{question_text}
+
+{options_block}**ĐÁP ÁN ĐÚNG:** {correct_answer}
+**HỌC SINH CHỌN:** {user_answer}
+
+{type_guidance}""".format(
                 passage=body.passage[:4000],
                 question_type=body.question_type,
                 question_text=body.question_text,
@@ -226,7 +253,21 @@ def _build_prompt(body: ExplainRequest) -> str:
                 user_answer=body.user_answer,
                 type_guidance=type_guidance,
             )
-        return LISTENING_WITH_TRANSCRIPT_FOLLOWUP_PROMPT.format(
+            return system_prompt, user_prompt
+
+        system_prompt = """Bạn là gia sư IELTS Listening. Đang giải thích câu hỏi nghe dựa trên transcript.
+Hãy trả lời ngắn gọn, rõ ràng bằng tiếng Việt. Trích dẫn transcript khi cần thiết."""
+        user_prompt = """**NGỮ CẢNH:**
+- Transcript audio: {passage}
+- Câu hỏi: {question_text}
+- Đáp án đúng: {correct_answer}
+- Học sinh đã chọn: {user_answer}
+
+**LỊCH SỬ CUỘC TRÒ CHUYỆN:**
+{history_text}
+
+**CÂU HỎI MỚI CỦA HỌC SINH:**
+{followup}""".format(
             passage=body.passage[:3000],
             question_text=body.question_text,
             correct_answer=body.correct_answer,
@@ -234,12 +275,37 @@ def _build_prompt(body: ExplainRequest) -> str:
             history_text=history_text,
             followup=followup,
         )
+        return system_prompt, user_prompt
 
     # ── Listening, no transcript ──────────────────────────────────────────────
     if is_listening:
         type_guidance = LISTENING_TYPE_GUIDANCE.get(body.question_type, "")
         if not body.conversation_history:
-            return LISTENING_EXPLAIN_PROMPT.format(
+            system_prompt = """Bạn là gia sư IELTS Listening chuyên nghiệp. Hãy giải thích rõ ràng dựa trên kiến thức IELTS Listening.
+
+Trả lời theo đúng định dạng sau (không thêm gì ngoài format này):
+
+✅ **Tại sao "{correct_answer}" là đúng:**
+[Giải thích tại sao đây là đáp án đúng. Nêu keyword/signal word thường xuất hiện trong audio để xác nhận, và cách paraphrase phổ biến trong IELTS Listening.]
+
+❌ **Tại sao "{user_answer}" là sai:**
+[Giải thích bẫy phổ biến trong IELTS Listening dẫn đến lỗi này: distractor, paraphrase dễ nhầm, số/ngày/tên dễ nghe sai.]
+
+💡 **Mẹo cho dạng {question_type} trong Listening:**
+[1–2 chiến thuật nghe cụ thể để không mắc lỗi tương tự trong tương lai.]""".format(
+                correct_answer=body.correct_answer,
+                user_answer=body.user_answer,
+                question_type=body.question_type,
+            )
+            user_prompt = """Học sinh vừa trả lời sai câu hỏi nghe dưới đây.
+
+**CÂU HỎI (dạng: {question_type}):**
+{question_text}
+
+{options_block}**ĐÁP ÁN ĐÚNG:** {correct_answer}
+**HỌC SINH CHỌN:** {user_answer}
+
+{type_guidance}""".format(
                 question_type=body.question_type,
                 question_text=body.question_text,
                 options_block=options_block,
@@ -247,18 +313,59 @@ def _build_prompt(body: ExplainRequest) -> str:
                 user_answer=body.user_answer,
                 type_guidance=type_guidance,
             )
-        return LISTENING_FOLLOWUP_PROMPT.format(
+            return system_prompt, user_prompt
+
+        system_prompt = """Bạn là gia sư IELTS Listening. Đang giải thích câu hỏi nghe cho học sinh.
+Hãy trả lời ngắn gọn, rõ ràng bằng tiếng Việt. Tập trung vào kỹ năng nghe và chiến thuật IELTS Listening."""
+        user_prompt = """**NGỮ CẢNH:**
+- Câu hỏi: {question_text}
+- Đáp án đúng: {correct_answer}
+- Học sinh đã chọn: {user_answer}
+
+**LỊCH SỬ CUỘC TRÒ CHUYỆN:**
+{history_text}
+
+**CÂU HỎI MỚI CỦA HỌC SINH:**
+{followup}""".format(
             question_text=body.question_text,
             correct_answer=body.correct_answer,
             user_answer=body.user_answer,
             history_text=history_text,
             followup=followup,
         )
+        return system_prompt, user_prompt
 
     # ── Reading ───────────────────────────────────────────────────────────────
     type_guidance = TYPE_GUIDANCE.get(body.question_type, "")
     if not body.conversation_history:
-        return EXPLAIN_PROMPT.format(
+        system_prompt = """Bạn là gia sư IELTS Reading chuyên nghiệp. Hãy giải thích rõ ràng, trích dẫn đúng từ passage.
+
+Trả lời theo đúng định dạng sau (không thêm gì ngoài format này):
+
+✅ **Tại sao "{correct_answer}" là đúng:**
+[Giải thích logic, trích dẫn câu/cụm từ cụ thể từ passage trong dấu ngoặc kép. Chỉ rõ đoạn nào trong passage xác nhận điều này.]
+
+❌ **Tại sao "{user_answer}" là sai:**
+[Giải thích bẫy hoặc lý do nhầm lẫn. Nếu có thể, chỉ ra sự khác biệt giữa thông tin trong passage và đáp án sai.]
+
+💡 **Mẹo cho dạng {question_type}:**
+[1–2 chiến thuật cụ thể, thực tế để không mắc lỗi tương tự trong tương lai.]""".format(
+            correct_answer=body.correct_answer,
+            user_answer=body.user_answer,
+            question_type=body.question_type,
+        )
+        user_prompt = """Một học sinh vừa trả lời sai câu hỏi dưới đây.
+
+**PASSAGE:**
+{passage}
+
+**CÂU HỎI (dạng: {question_type}):**
+{question_text}
+
+{options_block}**ĐÁP ÁN ĐÚNG:** {correct_answer}
+**HỌC SINH CHỌN:** {user_answer}
+
+{type_guidance}""".format(
             passage=body.passage[:4000],
             question_type=body.question_type,
             question_text=body.question_text,
@@ -267,7 +374,21 @@ def _build_prompt(body: ExplainRequest) -> str:
             user_answer=body.user_answer,
             type_guidance=type_guidance,
         )
-    return FOLLOWUP_PROMPT.format(
+        return system_prompt, user_prompt
+
+    system_prompt = """Bạn là gia sư IELTS Reading. Đang giải thích câu hỏi cho học sinh.
+Hãy trả lời ngắn gọn, rõ ràng bằng tiếng Việt. Trích dẫn passage khi cần thiết."""
+    user_prompt = """**NGỮ CẢNH:**
+- Đoạn văn: {passage}
+- Câu hỏi: {question_text}
+- Đáp án đúng: {correct_answer}
+- Học sinh đã chọn: {user_answer}
+
+**LỊCH SỬ CUỘC TRÒ CHUYỆN:**
+{history_text}
+
+**CÂU HỎI MỚI CỦA HỌC SINH:**
+{followup}""".format(
         passage=body.passage[:3000],
         question_text=body.question_text,
         correct_answer=body.correct_answer,
@@ -275,6 +396,7 @@ def _build_prompt(body: ExplainRequest) -> str:
         history_text=history_text,
         followup=followup,
     )
+    return system_prompt, user_prompt
 
 
 # Local multilingual models (e.g. Qwen) often drift into Chinese for the
@@ -312,10 +434,11 @@ async def explain_answer(body: ExplainRequest):
     """AI Tutor: Non-streaming explanation (legacy). Gemini-first (multi-key),
     automatic fallback to Ollama only when every Gemini key is exhausted."""
     settings = get_settings()
-    prompt = _build_prompt(body) + _language_directive(body.language)
+    system_prompt, user_prompt = _build_prompt_split(body)
+    system_prompt += _language_directive(body.language)
 
     answer = (await generate_text(
-        prompt, settings,
+        user_prompt, settings, system_prompt=system_prompt,
         temperature=_TUTOR_TEMPERATURE, max_tokens=_TUTOR_MAX_TOKENS, timeout=300,
     )).strip()
     if not answer:
@@ -346,14 +469,15 @@ async def explain_answer_stream(body: ExplainRequest):
     is exhausted.
     """
     settings = get_settings()
-    prompt = _build_prompt(body) + _language_directive(body.language)
+    system_prompt, user_prompt = _build_prompt_split(body)
+    system_prompt += _language_directive(body.language)
 
     async def generate_sse():
         print(f"[AI Tutor SSE] type={body.question_type} history={len(body.conversation_history)}")
         full_response = ""
         try:
             async for token in generate_text_stream(
-                prompt, settings,
+                user_prompt, settings, system_prompt=system_prompt,
                 temperature=_TUTOR_TEMPERATURE, max_tokens=_TUTOR_MAX_TOKENS, timeout=300,
             ):
                 if token:

@@ -8,7 +8,12 @@ import { createProxyMiddleware, Options } from "http-proxy-middleware";
 import { services } from "./config/services.js";
 import { errorHandler } from "@capstone/common";
 
+import helmet from "helmet";
+
 const app: express.Express = express();
+
+// Use Helmet for browser security headers
+app.use(helmet());
 
 // Trust proxy
 app.set("trust proxy", 1);
@@ -16,12 +21,19 @@ app.set("trust proxy", 1);
 // CORS configuration — origins are environment-driven.
 // FRONTEND_URL: single primary origin. CORS_ORIGINS: optional comma-separated list
 // for additional environments (staging, preview deploys, etc.).
-const corsOrigins = [
-  "http://localhost:8080",
-  "http://localhost:5173",
-  process.env.FRONTEND_URL || "",
-  ...(process.env.CORS_ORIGINS?.split(",").map((s) => s.trim()) ?? []),
-].filter(Boolean);
+const isDev = process.env.NODE_ENV === "development";
+const corsOrigins = (isDev
+  ? [
+      "http://localhost:8080",
+      "http://localhost:5173",
+      process.env.FRONTEND_URL || "",
+      ...(process.env.CORS_ORIGINS?.split(",").map((s) => s.trim()) ?? []),
+    ]
+  : [
+      process.env.FRONTEND_URL || "",
+      ...(process.env.CORS_ORIGINS?.split(",").map((s) => s.trim()) ?? []),
+    ]
+).filter(Boolean);
 
 app.use(
   cors({
