@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { SellerService } from "../services/seller.service";
+import { SellerService } from "../services/seller.service.js";
 import { s3Service } from "../../../services/s3.service.js";
 import { updateSellerProfileSchema } from "../dtos/seller.dto.js";
 
