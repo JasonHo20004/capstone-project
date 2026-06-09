@@ -1,0 +1,98 @@
+x-node-common: &node-common
+  image: ${REGISTRY}/capstone-backend:${TAG:-latest}
+  restart: unless-stopped
+  env_file: .env.production
+  networks: [capstone]
+  depends_on:
+    rabbitmq:
+      condition: service_healthy
+
+services:
+  # ---------- Reverse proxy + HTTPS ----------
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [capstone]
+    depends_on: [api-gateway]
+
+  # ---------- Message broker (nội bộ, KHÔNG publish port) ----------
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks: [capstone]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ---------- API Gateway (điểm vào duy nhất) ----------
+  api-gateway:
+    <<: *node-common
+    command: node apps/api-gateway/dist/server.js
+    environment:
+      GATEWAY_PORT: 3000
+
+  # ---------- Microservices ----------
+  identity-service:
+    <<: *node-common
+    command: node apps/identity-service/dist/server.js
+    environment: { PORT: 3001 }
+
+  course-service:
+    <<: *node-common
+    command: node apps/course-service/dist/server.js
+    environment: { PORT: 3002 }
+
+  assessment-service:
+    <<: *node-common
+    command: node apps/assessment-service/dist/server.js
+    environment: { PORT: 3003 }
+
+  flashcard-service:
+    <<: *node-common
+    command: node apps/flashcard-service/dist/server.js
+    environment: { PORT: 3004 }
+
+  payment-service:
+    <<: *node-common
+    command: node apps/payment-service/dist/server.js
+    environment: { PORT: 3005 }
+
+  notification-service:
+    <<: *node-common
+    command: node apps/notification-service/dist/server.js
+    environment: { PORT: 3006 }
+
+  ai-evaluation-service:
+    <<: *node-common
+    command: node apps/ai-evaluation-service/dist/server.js
+    environment: { PORT: 3007 }
+
+  # ---------- RAG (Python) ----------
+  rag-service:
+    image: ${REGISTRY}/capstone-rag:${TAG:-latest}
+    restart: unless-stopped
+    env_file: .env.production
+    networks: [capstone]
+
+networks:
+  capstone:
+    name: capstone-network
+
+volumes:
+  rabbitmq_data:
+  caddy_data:
+  caddy_config:
