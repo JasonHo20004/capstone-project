@@ -1,0 +1,7 @@
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+apps/rag-service/venv
+.git
+*.md
