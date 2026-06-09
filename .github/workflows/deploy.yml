@@ -31,8 +31,8 @@ jobs:
       - name: Build & push backend image
         uses: docker/build-push-action@v6
         with:
-          context: ./capstone-project
-          file: ./capstone-project/Dockerfile
+          context: .
+          file: ./Dockerfile
           push: true
           tags: ${{ env.REGISTRY }}/capstone-backend:${{ github.sha }},${{ env.REGISTRY }}/capstone-backend:latest
           cache-from: type=gha
@@ -41,8 +41,8 @@ jobs:
       - name: Build & push RAG image
         uses: docker/build-push-action@v6
         with:
-          context: ./capstone-project
-          file: ./capstone-project/apps/rag-service/Dockerfile
+          context: .
+          file: ./apps/rag-service/Dockerfile
           push: true
           tags: ${{ env.REGISTRY }}/capstone-rag:${{ github.sha }},${{ env.REGISTRY }}/capstone-rag:latest
           cache-from: type=gha
