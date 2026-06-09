@@ -95,14 +95,18 @@ async function main() {
     flashcards_basic: "Thẻ ghi nhớ cơ bản",
     placement_test: "Bài kiểm tra xếp trình độ",
     community_discussion: "Thảo luận cộng đồng",
-    ai_writing_eval: "AI chấm bài Viết",
-    ai_speaking_eval: "AI chấm bài Nói",
+    ai_writing: "AI chấm bài Viết",
+    ai_speaking: "AI chấm bài Nói",
+    skill_tree: "Cây kỹ năng AI",
+    learning_path: "Lộ trình học AI",
     unlimited_practice: "Luyện tập không giới hạn",
     ai_tutor: "Gia sư AI cá nhân",
   };
   const PREMIUM_FEATURES = new Set([
-    "ai_writing_eval",
-    "ai_speaking_eval",
+    "ai_writing",
+    "ai_speaking",
+    "skill_tree",
+    "learning_path",
     "unlimited_practice",
     "ai_tutor",
   ]);

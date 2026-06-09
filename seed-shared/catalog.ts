@@ -461,7 +461,7 @@ export function computeDiscount(coupon: DemoCoupon, subtotal: number): number {
 
 export const PLANS = [
   { key: "free", name: "Free", type: "FREE" as const, price: 0,      description: "Truy cập cơ bản miễn phí.",        features: ["flashcards_basic", "placement_test", "community_discussion"] },
-  { key: "pro",  name: "Pro",  type: "PRO" as const,  price: 199000, description: "Mở khoá AI chấm bài & không giới hạn.", features: ["flashcards_basic", "placement_test", "community_discussion", "ai_writing_eval", "ai_speaking_eval", "unlimited_practice", "ai_tutor"] },
+  { key: "pro",  name: "Pro",  type: "PRO" as const,  price: 199000, description: "Mở khoá AI chấm bài & không giới hạn.", features: ["flashcards_basic", "placement_test", "community_discussion", "ai_writing", "ai_speaking", "skill_tree", "learning_path", "unlimited_practice", "ai_tutor"] },
 ];
 
 // Learners currently on PRO (active subscription); one expired.
