@@ -87,6 +87,11 @@ services:
     restart: unless-stopped
     env_file: .env.production
     networks: [capstone]
+    # GCP service-account key for Google Neural2 TTS. The host file must exist at
+    # ~/capstone-project/secrets/keyfile-tts.json (see deploy notes). In .env.production
+    # set GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/keyfile-tts.json to match this path.
+    volumes:
+      - ./secrets/keyfile-tts.json:/app/secrets/keyfile-tts.json:ro
 
 networks:
   capstone:

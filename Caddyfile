@@ -1,0 +1,23 @@
+# Caddyfile — reverse proxy + HTTPS tự động (Let's Encrypt) cho backend.
+# Frontend (www.aliciaesl.id.vn) host trên Vercel, KHÔNG đi qua Caddy này.
+# Caddy chỉ phục vụ API gateway tại subdomain api.
+#
+# Yêu cầu DNS: A record  api.aliciaesl.id.vn  ->  <IP public của server>
+# Port 80/443 đã publish trong docker-compose.prod.yml (service caddy).
+
+api.aliciaesl.id.vn {
+	encode gzip zstd
+
+	# api-gateway nằm cùng network "capstone", lắng nghe cổng 3000.
+	# reverse_proxy tự động nâng cấp WebSocket (livestream /api/livestream/.../ws).
+	reverse_proxy api-gateway:3000
+
+	# Security headers
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
