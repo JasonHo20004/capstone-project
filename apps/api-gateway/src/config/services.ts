@@ -119,6 +119,11 @@ export const services: ServiceConfig[] = [
   {
     name: "payment-service",
     url: process.env.PAYMENT_SERVICE_URL || "http://localhost:3005",
+    prefix: "/api/webhooks",
+  },
+  {
+    name: "payment-service",
+    url: process.env.PAYMENT_SERVICE_URL || "http://localhost:3005",
     prefix: "/api/wallet",
   },
   {
