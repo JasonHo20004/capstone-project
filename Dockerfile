@@ -9,10 +9,12 @@ COPY libs ./libs
 COPY apps ./apps
 RUN pnpm install --frozen-lockfile
 
+# Generate Prisma clients BEFORE building — tsc needs the generated
+# `generated/prisma` types to compile the services that import them.
+RUN pnpm -r run prisma:generate
+
 RUN pnpm --filter @capstone/common run build \
  && pnpm -r run build
-
-RUN pnpm -r run prisma:generate
 
 # ===== Runtime stage =====
 FROM node:20-alpine AS runtime
