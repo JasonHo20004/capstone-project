@@ -1,8 +1,8 @@
-import { SellerRepository } from "../repositories/seller.repository";
-import { AuthRepository } from "../../auth/repositories/auth.repository";
+import { SellerRepository } from "../repositories/seller.repository.js";
+import { AuthRepository } from "../../auth/repositories/auth.repository.js";
 import { EventBusService } from "@capstone/common";
 import { EventNames } from "@capstone/common";
-import type { ApplyForSellerInput, UpdateApplicationStatusInput } from "../dtos/seller.dto";
+import type { ApplyForSellerInput, UpdateApplicationStatusInput } from "../dtos/seller.dto.js";
 
 export class SellerService {
   private repository = new SellerRepository();
