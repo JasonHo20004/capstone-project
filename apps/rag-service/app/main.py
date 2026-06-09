@@ -20,7 +20,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
 
     app = FastAPI(
-        title="SkillBoost RAG Service",
+        title="Alicia RAG Service",
         description="Auto-generate Flashcards from PDF/TXT documents using Ollama LLM",
         version="1.0.0",
     )
