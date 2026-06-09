@@ -3,7 +3,7 @@ import multer from "multer";
 import { authenticateToken, optionalAuth } from "@capstone/common";
 import { testController } from "./test.controller.js";
 
-const router = Router();
+const router: Router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB
 
 // Internal — called by course-service. Must come BEFORE /:id so the path

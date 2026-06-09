@@ -3,7 +3,7 @@ import { authenticateToken, asyncHandler } from "@capstone/common";
 import { databaseService } from "../../services/database.service.js";
 import { identityClient } from "../../clients/identity.client.js";
 
-const router = Router();
+const router: Router = Router();
 
 // Helper: resolve testId param (could be UUID or slug) to actual UUID
 async function resolveTestId(testIdOrSlug: string): Promise<string | null> {

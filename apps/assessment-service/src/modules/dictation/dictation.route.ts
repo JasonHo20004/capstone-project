@@ -6,7 +6,7 @@ import { Router } from "express";
 import multer from "multer";
 import { dictationController } from "./dictation.controller.js";
 
-const router = Router();
+const router: Router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
 // Public — list & detail

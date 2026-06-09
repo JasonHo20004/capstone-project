@@ -184,7 +184,7 @@ export class PracticeSessionService {
                   answer: q.answer,
                   explanation: q.explanation,
                 }
-              : null,
+              : undefined,
             scoreAtSubmit: r.score,
           };
         }),

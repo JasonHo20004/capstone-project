@@ -78,7 +78,7 @@ export class DictationController {
         `${PAYMENT_SERVICE_URL}/api/subscriptions/internal/check-access/dictation?userId=${userId}`
       );
       if (!resp.ok) return false;
-      const result = await resp.json();
+      const result = (await resp.json()) as { data?: { hasAccess?: boolean } };
       return result.data?.hasAccess === true;
     } catch {
       return true; // fail-open

@@ -863,7 +863,7 @@ export class TestService {
                 answer: q.answer,
                 explanation: q.explanation,
               }
-            : null,
+            : undefined,
           scoreAtSubmit: d.scoreEarned,
         };
       });

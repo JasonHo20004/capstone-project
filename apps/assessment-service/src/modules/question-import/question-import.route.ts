@@ -8,7 +8,7 @@ import multer from "multer";
 import { authenticateToken, requireSeller } from "@capstone/common";
 import { questionImportController } from "./question-import.controller.js";
 
-const router = Router();
+const router: Router = Router();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 200 * 1024 * 1024 }, // 200 MB

@@ -20,8 +20,8 @@ export class IdentityClient {
     try {
       const response = await fetch(`${IDENTITY_SERVICE_URL}/api/users/internal/${userId}`);
       if (!response.ok) return null;
-      const data = await response.json();
-      return data.data as UserBasicInfo;
+      const data = (await response.json()) as { data?: UserBasicInfo };
+      return (data.data ?? null) as UserBasicInfo | null;
     } catch (error) {
       console.error(`[Assessment Service] Error fetching user:`, error);
       return null;
@@ -39,8 +39,8 @@ export class IdentityClient {
         body: JSON.stringify({ ids: userIds }),
       });
       if (!response.ok) throw new Error(`Batch failed: ${response.status}`);
-      const data = await response.json();
-      const users = (data.data || []) as UserBasicInfo[];
+      const data = (await response.json()) as { data?: UserBasicInfo[] };
+      const users = data.data || [];
       users.forEach((u) => result.set(u.id, u));
     } catch (error) {
       console.warn("[Assessment Service] Batch fetch failed, falling back:", error);

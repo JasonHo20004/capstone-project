@@ -2,7 +2,7 @@ import { Router } from "express";
 import { tutorController } from "./tutor.controller.js";
 import { authenticateToken } from "@capstone/common";
 
-const router = Router();
+const router: Router = Router();
 
 // GET /tutor/sessions?practiceSessionId=xxx
 router.get("/sessions", authenticateToken, tutorController.getSessions.bind(tutorController));
