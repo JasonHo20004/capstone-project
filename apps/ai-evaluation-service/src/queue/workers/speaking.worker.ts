@@ -6,6 +6,7 @@ import { Worker, Job } from "bullmq";
 import { SpeakingJobData, SpeakingEvaluationResult } from "../types.js";
 import { getBullMQConnection } from "../redis-connection.js";
 import { geminiClient } from "../../llm/gemini.client.js";
+import { llmClient } from "../../llm/llm.client.js";
 import { SPEAKING_EVALUATION_PROMPT } from "../../llm/prompts.js";
 import { databaseService } from "../../services/database.service.js";
 
@@ -47,14 +48,40 @@ export function createSpeakingWorker(): Worker {
           ? "audio/wav"
           : "audio/webm";
 
-        // Step 2: Send audio directly to Gemini for transcript + evaluation
-        console.log(`🤖 [Worker] Sending audio to Gemini for ${evaluationId}...`);
+        // Step 2: Transcribe with Groq Whisper first — it is more accurate on
+        // non-native accents than Gemini's own ASR, so it gives a reliable
+        // ground-truth of WHAT was said (drives Lexical/Grammar scoring).
+        let whisperTranscript = "";
+        try {
+          const audioBlob = new Blob([Buffer.from(audioBuffer) as any], { type: mimeType });
+          const stt = await llmClient.transcribeAudio(audioBlob, "audio.webm");
+          whisperTranscript = (stt.transcript || "").trim();
+          console.log(`🎧 [Worker] Whisper STT (${stt.duration}s, ${whisperTranscript.length} chars) for ${evaluationId}`);
+        } catch (sttErr: any) {
+          // Non-fatal: fall back to letting Gemini transcribe from the audio itself.
+          console.warn(`⚠️ [Worker] Whisper STT failed for ${evaluationId}, Gemini will transcribe:`, sttErr?.message || sttErr);
+        }
+
+        // Step 3: Send the audio to Gemini so it can HEAR pronunciation & fluency,
+        // with the Whisper transcript as the ground truth for what was said.
+        // useProModel: true → grade on Pro first (whole key pool), Flash only if
+        // the entire pool is exhausted on Pro (handled inside gemini.client).
+        console.log(`🤖 [Worker] Sending audio to Gemini [Pro] for ${evaluationId}...`);
+        const textPrompt = whisperTranscript
+          ? `Please evaluate this IELTS Speaking response.\n\n` +
+            `An accurate transcript (Whisper STT) of what the candidate said is provided below — ` +
+            `treat it as the GROUND TRUTH for the words spoken (Lexical Resource & Grammar). ` +
+            `Listen to the audio yourself to judge Pronunciation and Fluency (intonation, pace, hesitation). ` +
+            `Return this transcript in the "transcript" field.\n\n` +
+            `--- TRANSCRIPT ---\n${whisperTranscript}\n--- END TRANSCRIPT ---`
+          : "Please listen to this IELTS Speaking response and evaluate it. Provide transcript, detailed analysis, and precise scores.";
+
         const response = await geminiClient.multimodalCompletion(
           SPEAKING_EVALUATION_PROMPT,
           audioBase64,
           mimeType,
-          "Please listen to this IELTS Speaking response and evaluate it. Provide transcript, detailed analysis, and precise scores.",
-          { temperature: 0.2, useProModel: false } // Flash model for cost/rate-limit efficiency
+          textPrompt,
+          { temperature: 0.2, useProModel: true, maxTokens: 8192 }
         );
 
         const result: SpeakingEvaluationResult & { transcript?: string } = JSON.parse(response);
@@ -63,7 +90,7 @@ export function createSpeakingWorker(): Worker {
         await prisma.speakingEvaluation.update({
           where: { id: evaluationId },
           data: {
-            transcript: result.transcript || "",
+            transcript: whisperTranscript || result.transcript || "",
             overallBand: result.overall_band,
             pronunciationScore: result.pronunciation_score,
             fluencyScore: result.fluency_score,

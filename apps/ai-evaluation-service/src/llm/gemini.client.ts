@@ -2,13 +2,13 @@
 // AI Evaluation Service - Google Gemini LLM Client
 // =============================================================================
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
 /**
  * Robust rate-limit / quota detection. The @google/genai SDK is inconsistent
  * about where it surfaces a 429 (sometimes error.status, sometimes error.code,
- * often only in the message), so check all of them. Used to decide when to fall
- * back from the Pro model to Flash.
+ * often only in the message), so check all of them. Used to decide when to
+ * rotate to the next key, then fall back from the Pro model to Flash.
  */
 function isRateLimitError(error: any): boolean {
   if (!error) return false;
@@ -28,20 +28,33 @@ export interface ConversationTurn {
   parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>;
 }
 
+interface GenerateRequest {
+  contents: any;
+  config: Record<string, any>;
+}
+
 class GeminiClient {
   private static instance: GeminiClient;
-  private ai: GoogleGenAI;
+  // One SDK client per API key — @google/genai binds a key at construction, so
+  // rotating keys means rotating clients.
+  private clients: GoogleGenAI[];
   private model: string;
   private proModel: string;
+  // Round-robin pointer across the key pool (per process). Lets several free-tier
+  // keys share the load; advanced past a key once it responds OK / is exhausted.
+  private keyCursor = 0;
 
   private constructor() {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is not set in environment variables");
+    const keys = GeminiClient.loadKeys();
+    if (keys.length === 0) {
+      throw new Error(
+        "No Gemini API key configured — set GEMINI_API_KEY, GEMINI_API_KEYS (comma-separated), or GEMINI_API_KEY_1..6"
+      );
     }
-    this.ai = new GoogleGenAI({ apiKey });
+    this.clients = keys.map((apiKey) => new GoogleGenAI({ apiKey }));
     this.model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     this.proModel = process.env.GEMINI_PRO_MODEL || "gemini-2.5-pro";
+    console.log(`🤖 [Gemini] ${this.clients.length} key(s) loaded for rotation`);
     console.log(`🤖 [Gemini] Default model: ${this.model}`);
     console.log(`🤖 [Gemini] Pro model (evaluation): ${this.proModel}`);
   }
@@ -54,6 +67,88 @@ class GeminiClient {
   }
 
   /**
+   * Build the key pool, de-duplicated and in priority order: the numbered
+   * GEMINI_API_KEY_1..6 slots first, then the comma-separated GEMINI_API_KEYS
+   * (or the single legacy GEMINI_API_KEY). Mirrors the rag-service convention.
+   */
+  private static loadKeys(): string[] {
+    const numbered = [1, 2, 3, 4, 5, 6].map((i) => process.env[`GEMINI_API_KEY_${i}`] ?? "");
+    const raw = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || "";
+    const comma = raw ? raw.split(",") : [];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const candidate of [...numbered, ...comma]) {
+      const key = candidate.trim();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        out.push(key);
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Core rotation engine. Tries each model in `models` order; for each model it
+   * round-robins through every key in the pool, skipping past a key that is
+   * rate-limited or errors. Only when ALL keys are exhausted for a model does it
+   * move to the next (fallback) model.
+   *
+   * So with models=[pro, flash]: every key is tried on Pro first, and Flash is
+   * reached only after the whole pool is exhausted on Pro.
+   */
+  private async generate(models: string[], request: GenerateRequest, label: string): Promise<string> {
+    const n = this.clients.length;
+    const start = this.keyCursor % n;
+    let lastError: any = null;
+
+    for (let m = 0; m < models.length; m++) {
+      const model = models[m];
+      const isFallback = m > 0;
+      for (let offset = 0; offset < n; offset++) {
+        const idx = (start + offset) % n;
+        try {
+          const response = await this.clients[idx].models.generateContent({
+            model,
+            contents: request.contents,
+            config: request.config,
+          });
+          const content = response.text;
+          if (!content) {
+            lastError = new Error(`Empty response from Gemini (${label})`);
+            console.warn(`⚠️ [Gemini] key ${idx + 1}/${n} on ${model} returned empty (${label}) — trying next key`);
+            continue;
+          }
+          // Success — start the next request at the following key.
+          this.keyCursor = (idx + 1) % n;
+          if (isFallback || offset > 0) {
+            console.log(`✅ [Gemini] key ${idx + 1}/${n} on ${model} responded (${label})`);
+          }
+          return content;
+        } catch (error: any) {
+          lastError = error;
+          const rate = isRateLimitError(error);
+          console.warn(
+            `⚠️ [Gemini] key ${idx + 1}/${n} on ${model} ${rate ? "rate-limited" : "errored"} (${label}) — trying next key`
+          );
+          // Rotate to the next key on any failure; a single bad/exhausted key
+          // should never sink the whole request.
+        }
+      }
+      if (m < models.length - 1) {
+        console.warn(`⚠️ [Gemini] all ${n} key(s) exhausted on ${model} (${label}) — falling back to ${models[m + 1]}`);
+      }
+    }
+
+    throw lastError ?? new Error(`All Gemini keys/models exhausted (${label})`);
+  }
+
+  /** Models to try, in order: Pro first (then Flash) when useProModel, else just the default. */
+  private modelChain(useProModel: boolean): string[] {
+    if (useProModel && this.proModel !== this.model) return [this.proModel, this.model];
+    return [this.model];
+  }
+
+  /**
    * Text-only chat completion (for Writing evaluation)
    */
   public async chatCompletion(
@@ -62,11 +157,9 @@ class GeminiClient {
     options?: { maxTokens?: number; temperature?: number; useProModel?: boolean }
   ): Promise<string> {
     const { maxTokens = 4096, temperature = 0.3, useProModel = false } = options || {};
-    const selectedModel = useProModel ? this.proModel : this.model;
-
-    try {
-      const response = await this.ai.models.generateContent({
-        model: selectedModel,
+    return this.generate(
+      this.modelChain(useProModel),
+      {
         contents: userMessage,
         config: {
           systemInstruction: systemPrompt,
@@ -74,33 +167,9 @@ class GeminiClient {
           temperature,
           responseMimeType: "application/json",
         },
-      });
-
-      const content = response.text;
-      if (!content) {
-        throw new Error("Empty response from Gemini");
-      }
-      return content;
-    } catch (error: any) {
-      // Auto-fallback: if the pro model is rate-limited / quota-exhausted, retry on flash.
-      if (useProModel && isRateLimitError(error)) {
-        console.warn(`⚠️ [Gemini] Pro model (${this.proModel}) rate limited, falling back to ${this.model}`);
-        const response = await this.ai.models.generateContent({
-          model: this.model,
-          contents: userMessage,
-          config: {
-            systemInstruction: systemPrompt,
-            maxOutputTokens: maxTokens,
-            temperature,
-            responseMimeType: "application/json",
-          },
-        });
-        const content = response.text;
-        if (!content) throw new Error("Empty response from Gemini (fallback)");
-        return content;
-      }
-      throw error;
-    }
+      },
+      "chat"
+    );
   }
 
   /**
@@ -115,7 +184,6 @@ class GeminiClient {
     options?: { maxTokens?: number; temperature?: number; useProModel?: boolean }
   ): Promise<string> {
     const { maxTokens = 4096, temperature = 0.3, useProModel = false } = options || {};
-    const selectedModel = useProModel ? this.proModel : this.model;
     const contentsParts = [
       {
         role: "user" as const,
@@ -125,10 +193,9 @@ class GeminiClient {
         ],
       },
     ];
-
-    try { 
-      const response = await this.ai.models.generateContent({
-        model: selectedModel,
+    return this.generate(
+      this.modelChain(useProModel),
+      {
         contents: contentsParts,
         config: {
           systemInstruction: systemPrompt,
@@ -136,29 +203,9 @@ class GeminiClient {
           temperature,
           responseMimeType: "application/json",
         },
-      });
-      const content = response.text;
-      if (!content) throw new Error("Empty response from Gemini (multimodal)");
-      return content;
-    } catch (error: any) {
-      if (useProModel && isRateLimitError(error)) {
-        console.warn(`⚠️ [Gemini] Pro model (${this.proModel}) rate limited, falling back to ${this.model} (multimodal)`);
-        const response = await this.ai.models.generateContent({
-          model: this.model,
-          contents: contentsParts,
-          config: {
-            systemInstruction: systemPrompt,
-            maxOutputTokens: maxTokens,
-            temperature,
-            responseMimeType: "application/json",
-          },
-        });
-        const content = response.text;
-        if (!content) throw new Error("Empty response from Gemini (multimodal fallback)");
-        return content;
-      }
-      throw error;
-    }
+      },
+      "multimodal"
+    );
   }
 
   /**
@@ -171,24 +218,19 @@ class GeminiClient {
     options?: { maxTokens?: number; temperature?: number }
   ): Promise<string> {
     const { maxTokens = 4096, temperature = 0.5 } = options || {};
-
-    const response = await this.ai.models.generateContent({
-      model: this.model,
-      contents: history,
-      config: {
-        systemInstruction: systemPrompt,
-        maxOutputTokens: maxTokens,
-        temperature,
-        responseMimeType: "application/json",
+    return this.generate(
+      [this.model],
+      {
+        contents: history,
+        config: {
+          systemInstruction: systemPrompt,
+          maxOutputTokens: maxTokens,
+          temperature,
+          responseMimeType: "application/json",
+        },
       },
-    });
-
-    const content = response.text;
-    if (!content) {
-      throw new Error("Empty response from Gemini (conversation)");
-    }
-
-    return content;
+      "conversation"
+    );
   }
 
   /**
@@ -200,23 +242,18 @@ class GeminiClient {
     options?: { maxTokens?: number; temperature?: number }
   ): Promise<string> {
     const { maxTokens = 2048, temperature = 0.7 } = options || {};
-
-    const response = await this.ai.models.generateContent({
-      model: this.model,
-      contents: userMessage,
-      config: {
-        systemInstruction: systemPrompt,
-        maxOutputTokens: maxTokens,
-        temperature,
+    return this.generate(
+      [this.model],
+      {
+        contents: userMessage,
+        config: {
+          systemInstruction: systemPrompt,
+          maxOutputTokens: maxTokens,
+          temperature,
+        },
       },
-    });
-
-    const content = response.text;
-    if (!content) {
-      throw new Error("Empty response from Gemini (text)");
-    }
-
-    return content;
+      "text"
+    );
   }
 }
 

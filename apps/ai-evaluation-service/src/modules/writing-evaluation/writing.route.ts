@@ -5,9 +5,7 @@
 
 import { Router, Request, Response } from "express";
 import { databaseService } from "../../services/database.service.js";
-import { llmClient } from "../../llm/llm.client.js";
 import { geminiClient } from "../../llm/gemini.client.js";
-import { deepseekClient } from "../../llm/deepseek.client.js";
 import { WRITING_TASK1_PROMPT, WRITING_TASK2_PROMPT } from "../../llm/prompts.js";
 
 /**
@@ -53,13 +51,6 @@ function safeParseJSON(raw: string): any {
       throw new Error('Failed to parse AI response as JSON');
     }
   }
-}
-
-/**
- * Round to nearest 0.5 (IELTS standard)
- */
-function roundToHalf(n: number): number {
-  return Math.round(n * 2) / 2;
 }
 
 // Academic/sophisticated vocabulary indicators
@@ -141,102 +132,6 @@ function calibrateScores(result: any, essayText: string): any {
   console.log(`🔍 [Essay Features] TTR: ${features.ttr}, Academic words: ${features.academicWordCount}, Complex ratio: ${features.complexSentenceRatio}, Basic connectors only: ${features.hasOnlyBasicConnectors}`);
 
   return result; // Return LLM's original assessment unchanged
-}
-
-/**
- * Run ensemble scoring: 3 models in parallel (2x Groq + 1x Gemini), average their scores.
- * Returns a single merged evaluation result.
- */
-async function runEnsembleScoring(systemPrompt: string, userMessage: string): Promise<any> {
-  // Run all 3 models in parallel
-  const [groqResults, geminiResult] = await Promise.all([
-    llmClient.ensembleCompletion(
-      systemPrompt, userMessage, { jsonMode: true, temperature: 0, maxTokens: 8192 }
-    ),
-    geminiClient.chatCompletion(systemPrompt, userMessage, {
-      temperature: 0, maxTokens: 8192, useProModel: true
-    }).catch((err) => {
-      console.warn(`⚠️ [Ensemble] Gemini failed, using 2-model fallback:`, err.message);
-      return null;
-    }),
-  ]);
-
-  // Parse all results
-  const results: any[] = [];
-  try {
-    results.push(safeParseJSON(groqResults.modelA));
-    console.log(`📊 [Ensemble] Groq A (gpt-oss-120b): ${results[results.length - 1].overall_band}`);
-  } catch (e) { console.warn(`⚠️ Groq A parse failed`); }
-
-  try {
-    results.push(safeParseJSON(groqResults.modelB));
-    console.log(`📊 [Ensemble] Groq B (llama-3.3-70b): ${results[results.length - 1].overall_band}`);
-  } catch (e) { console.warn(`⚠️ Groq B parse failed`); }
-
-  if (geminiResult) {
-    try {
-      results.push(safeParseJSON(geminiResult));
-      console.log(`📊 [Ensemble] Gemini Pro: ${results[results.length - 1].overall_band}`);
-    } catch (e) { console.warn(`⚠️ Gemini parse failed`); }
-  }
-
-  if (results.length === 0) {
-    throw new Error("All ensemble models failed");
-  }
-
-  console.log(`📊 [Ensemble] ${results.length} models succeeded`);
-
-  // Average criterion scores across all successful results
-  const criteriaKeys = ["task_achievement", "coherence", "lexical", "grammar"];
-  const mergedCriteria: any = {};
-
-  for (const key of criteriaKeys) {
-    const validCriteria = results.map(r => r.criteria?.[key]).filter(Boolean);
-    if (validCriteria.length === 0) continue;
-
-    const avgScore = validCriteria.reduce((sum: number, c: any) => sum + c.score, 0) / validCriteria.length;
-    // Pick the longest (most detailed) feedback and improvements
-    const bestFeedback = validCriteria.reduce((best: any, c: any) =>
-      (c.feedback?.length || 0) > (best.feedback?.length || 0) ? c : best
-    );
-
-    mergedCriteria[key] = {
-      score: roundToHalf(avgScore),
-      feedback: bestFeedback.feedback,
-      improvements: validCriteria.reduce((best: string, c: any) =>
-        (c.improvements?.length || 0) > (best?.length || 0) ? c.improvements : best
-      , ""),
-    };
-  }
-
-  // Recalculate overall band from averaged criteria
-  const avgOverall = criteriaKeys.reduce((sum, k) => sum + (mergedCriteria[k]?.score || 0), 0) / criteriaKeys.length;
-
-  // Merge errors from all models (deduplicate by original text)
-  const allErrors: any[] = [];
-  for (const r of results) {
-    for (const err of (r.highlighted_errors || [])) {
-      if (!allErrors.some((e: any) => e.original === err.original)) {
-        allErrors.push(err);
-      }
-    }
-  }
-
-  // Pick the longest overall_feedback
-  const bestOverallFeedback = results.reduce((best, r) =>
-    (r.overall_feedback?.length || 0) > (best.overall_feedback?.length || 0) ? r : best
-  ).overall_feedback;
-
-  const mergedResult = {
-    overall_band: roundToHalf(avgOverall),
-    criteria: mergedCriteria,
-    highlighted_errors: allErrors.slice(0, 10),
-    overall_feedback: bestOverallFeedback,
-    word_count: results[0].word_count || results[1]?.word_count,
-  };
-
-  console.log(`✅ [Ensemble] Final merged band: ${mergedResult.overall_band} (from ${results.length} models)`);
-  return mergedResult;
 }
 
 const router = Router();
@@ -338,48 +233,47 @@ router.post("/submit", async (req: Request, res: Response) => {
         }
         userMessage += `**Essay:**\n${essayText}`;
 
-        let response: string;
-        let result: any;
-
-        // For Task 1 with image: use Gemini multimodal (DeepSeek doesn't support images)
+        // Resolve the grading strategy ONCE (fetch image, finalise the message) so
+        // the retry loop below can safely re-issue the same call.
+        let imageData: { base64: string; mimeType: string } | null = null;
         if (taskType === 1 && imageUrl) {
-          const imageData = await fetchImageAsBase64(imageUrl);
-          if (imageData) {
-            console.log(`🤖 [Direct] Using Gemini multimodal for Task 1 (image)`);
-            const textPrompt = `${userMessage}\n\n**IMPORTANT:** The image attached is the chart/graph/diagram that the student was asked to describe. Use it to evaluate Task Achievement.`;
-            response = await geminiClient.multimodalCompletion(
-              prompt,
-              imageData.base64,
-              imageData.mimeType,
-              textPrompt,
-              { temperature: 0, maxTokens: 8192, useProModel: true },
-            );
-            result = safeParseJSON(response);
-          } else {
+          imageData = await fetchImageAsBase64(imageUrl);
+          if (!imageData) {
+            console.warn(`⚠️ [Direct] Image fetch failed, falling back to text-only evaluation`);
             userMessage += `\n\n**Note:** The chart/graph image could not be loaded. Evaluate based on writing quality alone.`;
-            // Use DeepSeek V3 as primary, Groq ensemble as fallback
-            try {
-              console.log(`🤖 [Direct] Using DeepSeek V3 for evaluation`);
-              response = await deepseekClient.chatCompletion(prompt, userMessage, { temperature: 0, maxTokens: 8192 });
-              result = safeParseJSON(response);
-              console.log(`📊 [DeepSeek] Overall band: ${result.overall_band}`);
-            } catch (dsErr: any) {
-              console.warn(`⚠️ [Direct] DeepSeek failed, falling back to Groq ensemble:`, dsErr.message);
-              result = await runEnsembleScoring(prompt, userMessage);
-            }
-          }
-        } else {
-          // Use DeepSeek V3 as primary, Groq ensemble as fallback
-          try {
-            console.log(`🤖 [Direct] Using DeepSeek V3 for evaluation`);
-            response = await deepseekClient.chatCompletion(prompt, userMessage, { temperature: 0, maxTokens: 8192 });
-            result = safeParseJSON(response);
-            console.log(`📊 [DeepSeek] Overall band: ${result.overall_band}`);
-          } catch (dsErr: any) {
-            console.warn(`⚠️ [Direct] DeepSeek failed, falling back to Groq ensemble:`, dsErr.message);
-            result = await runEnsembleScoring(prompt, userMessage);
           }
         }
+        const imageTextPrompt = `${userMessage}\n\n**IMPORTANT:** The image attached is the chart/graph/diagram that the student was asked to describe. Use it to evaluate Task Achievement.`;
+
+        // Grade with Gemini Pro only (the client auto-falls back to Flash internally).
+        const callOpts = { temperature: 0, maxTokens: 8192, useProModel: true } as const;
+        const runGrading = async (): Promise<string> => {
+          if (imageData) {
+            console.log(`🤖 [Direct] Using Gemini Pro multimodal for Task 1 (image)`);
+            return geminiClient.multimodalCompletion(prompt, imageData.base64, imageData.mimeType, imageTextPrompt, callOpts);
+          }
+          console.log(`🤖 [Direct] Using Gemini Pro for evaluation`);
+          return geminiClient.chatCompletion(prompt, userMessage, callOpts);
+        };
+
+        // Retry up to 3× — a transient 503/429 (all keys+models momentarily busy) or
+        // a truncated/garbled JSON reply shouldn't fail the whole evaluation. Back off
+        // briefly between attempts to let transient overload clear.
+        let result: any = null;
+        let lastErr: unknown = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            const response = await runGrading();
+            result = safeParseJSON(response);
+            break;
+          } catch (err) {
+            lastErr = err;
+            console.warn(`⚠️ [Direct] Grading attempt ${attempt}/3 failed: ${err instanceof Error ? err.message : err}`);
+            if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 1500));
+          }
+        }
+        if (!result) throw lastErr ?? new Error("Writing grading produced no parseable result");
+        console.log(`📊 [Gemini Pro] Overall band: ${result.overall_band}`);
 
         // Post-processing calibration: apply objective text-metric-based score caps
         result = calibrateScores(result, essayText);
