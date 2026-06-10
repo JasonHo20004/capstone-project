@@ -145,11 +145,23 @@ function generateCertNumber(): string {
   return `CERT-${year}-${rand}`;
 }
 
+// The JWT only carries { userId, role }, NOT the user's name — so the cert
+// holder's name has to be fetched from identity-service. This sentinel is the
+// last-resort value when identity is unreachable or the name is blank; it is
+// also what older certificates were wrongly stored as (see the read-repair in
+// GET /certificate).
+const FALLBACK_USER_NAME = "Học viên";
+
+async function resolveUserName(userId: string): Promise<string> {
+  const info = await identityClient.getUserBasicInfo(userId);
+  const name = info?.fullName?.trim();
+  return name && name.length > 0 ? name : FALLBACK_USER_NAME;
+}
+
 async function tryIssueCertificate(
   prisma: any,
   userId: string,
   courseId: string,
-  userName: string,
 ) {
   const course = await prisma.course.findUnique({
     where: { id: courseId },
@@ -167,6 +179,8 @@ async function tryIssueCertificate(
   // Only issue when ALL lessons done and course has no finalTest
   // (courses with a finalTest issue the cert via POST .../certificate/issue after passing)
   if (completedCount < totalLessons || course.finalTestId) return null;
+
+  const userName = await resolveUserName(userId);
 
   return prisma.certificate.upsert({
     where: { userId_courseId: { userId, courseId } },
@@ -190,7 +204,6 @@ router.post(
     const courseId = req.params.courseId as string;
     const lessonId = req.params.lessonId as string;
     const userId = req.user!.userId as string;
-    const userName: string = (req.user as any)?.fullName ?? (req.user as any)?.name ?? "Học viên";
     const prisma = databaseService.getClient();
 
     const hasAccess = await prisma.userActivity.findFirst({
@@ -209,7 +222,7 @@ router.post(
     });
 
     // Auto-issue certificate if this was the last lesson (no finalTest courses)
-    const cert = await tryIssueCertificate(prisma, userId, courseId, userName);
+    const cert = await tryIssueCertificate(prisma, userId, courseId);
 
     res.json({
       success: true,
@@ -571,6 +584,22 @@ router.get(
       where: { userId_courseId: { userId, courseId } },
     });
 
+    // Read-repair: certificates issued before the name was sourced from
+    // identity-service were stored with the generic fallback. Backfill the real
+    // name the first time such a certificate is viewed, so legacy holders see
+    // their actual name without a manual DB migration.
+    if (cert && (!cert.userName || cert.userName === FALLBACK_USER_NAME)) {
+      const realName = await resolveUserName(userId);
+      if (realName !== FALLBACK_USER_NAME && realName !== cert.userName) {
+        const updated = await prisma.certificate.update({
+          where: { userId_courseId: { userId, courseId } },
+          data: { userName: realName },
+        });
+        res.json({ success: true, data: updated });
+        return;
+      }
+    }
+
     res.json({ success: true, data: cert ?? null });
   })
 );
@@ -585,7 +614,6 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const courseId = req.params.courseId as string;
     const userId = req.user!.userId as string;
-    const userName: string = (req.user as any)?.fullName ?? (req.user as any)?.name ?? "Học viên";
     const prisma = databaseService.getClient();
 
     const hasAccess = await prisma.userActivity.findFirst({
@@ -615,6 +643,8 @@ router.post(
       res.status(400).json({ success: false, message: "Not all lessons completed yet" });
       return;
     }
+
+    const userName = await resolveUserName(userId);
 
     const cert = await prisma.certificate.upsert({
       where: { userId_courseId: { userId, courseId } },
