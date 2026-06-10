@@ -179,17 +179,30 @@ export class CourseRepository {
 
         if (conflict) {
           // Shift every lesson at or after the target order up by one to make
-          // room. Use Prisma's typed `updateMany` (not raw SQL) so the query is
-          // schema-qualified — the DB URL pins a non-public `schema=course_db`,
-          // and an unqualified raw `UPDATE lessons` resolves against the
-          // connection search_path, which fails with `relation "lessons" does
-          // not exist`.
-          await tx.lesson.updateMany({
+          // room. Update rows ONE AT A TIME, highest order first: a bulk
+          // `updateMany({ increment: 1 })` compiles to a single
+          // `UPDATE ... SET lesson_order = lesson_order + 1`, which Postgres
+          // applies row-by-row in ascending order and trips
+          // @@unique([moduleId, lessonOrder]) the instant order N is bumped to
+          // N+1 while the row already at N+1 hasn't moved yet. Walking from the
+          // top down keeps the destination slot free at every step.
+          // Typed `update` (not raw SQL) keeps the query schema-qualified — the
+          // DB URL pins a non-public `schema=course_db`, and an unqualified raw
+          // `UPDATE lessons` resolves against the connection search_path, which
+          // fails with `relation "lessons" does not exist`.
+          const toShift = await tx.lesson.findMany({
             where: data.moduleId
               ? { moduleId: data.moduleId, lessonOrder: { gte: data.lessonOrder } }
               : { courseId: data.courseId, moduleId: null, lessonOrder: { gte: data.lessonOrder } },
-            data: { lessonOrder: { increment: 1 } },
+            select: { id: true, lessonOrder: true },
+            orderBy: { lessonOrder: "desc" },
           });
+          for (const sibling of toShift) {
+            await tx.lesson.update({
+              where: { id: sibling.id },
+              data: { lessonOrder: (sibling.lessonOrder ?? 0) + 1 },
+            });
+          }
         }
       }
 
@@ -259,21 +272,36 @@ export class CourseRepository {
             select: { id: true },
           });
           if (conflict) {
-            if (current.moduleId) {
-              await tx.$executeRaw`
-                UPDATE lessons SET lesson_order = lesson_order + 1
-                WHERE module_id = ${current.moduleId}::uuid
-                  AND lesson_order >= ${targetOrder}
-                  AND id <> ${lessonId}::uuid
-              `;
-            } else {
-              await tx.$executeRaw`
-                UPDATE lessons SET lesson_order = lesson_order + 1
-                WHERE course_id = ${current.courseId}::uuid
-                  AND module_id IS NULL
-                  AND lesson_order >= ${targetOrder}
-                  AND id <> ${lessonId}::uuid
-              `;
+            // Park the edited row at a temporary order first. When moving a
+            // lesson to an EARLIER slot, the row still occupies its current
+            // order, so shifting siblings up would collide with it; parking it
+            // out of range (-1) frees that slot. Then bump siblings one at a
+            // time, highest order first — a bulk `UPDATE ... + 1` (raw or
+            // `updateMany`) is applied row-by-row in ascending order and trips
+            // @@unique([moduleId, lessonOrder]) before the next row moves.
+            // Typed `update` also keeps the query schema-qualified; an
+            // unqualified raw `UPDATE lessons` resolves against the wrong
+            // search_path under the pinned non-public `schema=course_db`.
+            await tx.lesson.update({
+              where: { id: lessonId },
+              data: { lessonOrder: -1 },
+            });
+            const toShift = await tx.lesson.findMany({
+              where: {
+                lessonOrder: { gte: targetOrder },
+                NOT: { id: lessonId },
+                ...(current.moduleId
+                  ? { moduleId: current.moduleId }
+                  : { courseId: current.courseId, moduleId: null }),
+              },
+              select: { id: true, lessonOrder: true },
+              orderBy: { lessonOrder: "desc" },
+            });
+            for (const sibling of toShift) {
+              await tx.lesson.update({
+                where: { id: sibling.id },
+                data: { lessonOrder: (sibling.lessonOrder ?? 0) + 1 },
+              });
             }
           }
         }

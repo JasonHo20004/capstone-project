@@ -20,7 +20,6 @@ app.set("trust proxy", 1);
 
 // CORS configuration — origins are environment-driven.
 // FRONTEND_URL: single primary origin. CORS_ORIGINS: optional comma-separated list
-// for additional environments (staging, preview deploys, etc.).
 const isDev = process.env.NODE_ENV === "development";
 const corsOrigins = (isDev
   ? [
@@ -118,7 +117,6 @@ for (const service of services) {
 }
 
 // Livestream (rag-service) — dedicated proxy with WebSocket support. The generic
-// loop above only proxies HTTP; the live classroom also needs the WS upgrade at
 // /api/livestream/rooms/{id}/ws. This middleware handles both HTTP and WS; its
 // `.upgrade` handler is wired to the raw HTTP server in server.ts.
 const RAG_URL = process.env.RAG_SERVICE_URL || "http://localhost:8000";
