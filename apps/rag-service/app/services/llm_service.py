@@ -201,12 +201,18 @@ async def _stream_gemini(
     timeout: float,
     json_mode: bool = False,
     system_prompt: Optional[str] = None,
+    meta: Optional[dict] = None,
 ):
     """Async generator yielding text tokens from Gemini's SSE streaming endpoint.
 
     Raises BEFORE the first yield if the key errors / is rate-limited (so the
     caller can rotate to the next key). Once a token has been yielded the stream
     is committed — a later break is surfaced to the caller, not retried.
+
+    If `meta` is provided, its "finish_reason" is set to the candidate's
+    finishReason seen on the stream (None if the server closed early without
+    one). The caller uses this to tell a complete answer (STOP / MAX_TOKENS)
+    apart from one truncated by a mid-stream drop or rate-limit.
     """
     url = f"{GEMINI_BASE}/{model}:streamGenerateContent?alt=sse&key={api_key}"
     generation_config = {
@@ -243,6 +249,8 @@ async def _stream_gemini(
                 candidates = chunk.get("candidates", [])
                 if not candidates:
                     continue
+                if meta is not None and candidates[0].get("finishReason"):
+                    meta["finish_reason"] = candidates[0]["finishReason"]
                 parts = candidates[0].get("content", {}).get("parts", [])
                 for p in parts:
                     token = p.get("text", "")
@@ -302,6 +310,7 @@ async def generate_text_stream(
     max_tokens: int = 1024,
     timeout: float = 120.0,
     json_mode: bool = False,
+    status: Optional[dict] = None,
 ):
     """Stream text tokens with the SAME Gemini-first / Ollama-fallback policy as
     generate_text, but yielding tokens as they arrive (for SSE endpoints).
@@ -309,7 +318,17 @@ async def generate_text_stream(
     Rotation to the next Gemini key (then to Ollama) only happens BEFORE the first
     token of an attempt — once tokens start flowing we commit to that stream to
     avoid emitting duplicated text.
+
+    If `status` is provided, status["complete"] is set True only when a stream
+    finishes cleanly (Gemini finishReason STOP/MAX_TOKENS, or Ollama done). It
+    stays False when a committed stream is cut off mid-answer (rate-limit /
+    dropped connection), so the caller can repair the truncated text instead of
+    presenting it as final.
     """
+    if status is not None:
+        status["complete"] = False
+        status["finish_reason"] = None
+
     provider = (settings.llm_provider or "ollama").lower()
     keys = settings.gemini_keys
 
@@ -321,17 +340,22 @@ async def generate_text_stream(
         for offset in range(n):
             idx = (start + offset) % n
             produced = False
+            meta: dict = {}
             try:
                 async for token in _stream_gemini(
                     prompt, keys[idx], settings.gemini_model,
                     temperature, max_tokens, timeout, json_mode=json_mode,
-                    system_prompt=system_prompt,
+                    system_prompt=system_prompt, meta=meta,
                 ):
                     produced = True
                     yield token
                 if produced:
                     _key_cursor = (idx + 1) % n
-                    print(f"[LLM-stream] Gemini key {idx + 1}/{n} streamed OK")
+                    fr = meta.get("finish_reason")
+                    complete = fr in ("STOP", "MAX_TOKENS")
+                    if status is not None:
+                        status["complete"], status["finish_reason"] = complete, fr
+                    print(f"[LLM-stream] Gemini key {idx + 1}/{n} streamed {'OK' if complete else 'INCOMPLETE'} (finish={fr})")
                     return
                 print(f"[LLM-stream] Gemini key {idx + 1}/{n} produced nothing — trying next key")
             except Exception as e:
@@ -356,6 +380,10 @@ async def generate_text_stream(
             system_prompt=system_prompt,
         ):
             yield token
+        # _stream_ollama only exits its loop on the `done` flag (or no data), so
+        # reaching here means the answer finished cleanly.
+        if status is not None:
+            status["complete"], status["finish_reason"] = True, "ollama_done"
     except Exception as e:
         print(f"[LLM-stream] Ollama fallback also failed: {e}")
 

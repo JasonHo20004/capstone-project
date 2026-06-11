@@ -66,7 +66,7 @@ class Settings(BaseSettings):
     chunk_overlap: int = 200
 
     # Redis
-    redis_url: str = "redis://localhost:6379"
+    redis_url: str = ""
 
     # JWT (same secret as identity-service ACCESS_TOKEN_SECRET)
     jwt_secret: str = ""

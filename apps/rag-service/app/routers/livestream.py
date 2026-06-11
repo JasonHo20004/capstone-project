@@ -35,7 +35,7 @@ from pydantic import BaseModel
 import redis.asyncio as aioredis
 
 from app.services.tts_service import AUDIO_DIR, synthesize_to_file
-from app.services.llm_service import generate_text, extract_json_object
+from app.services.llm_service import generate_text, generate_text_stream, extract_json_object
 from app.services.image_service import fetch_images_for_queries
 from app.services.storage import store_audio_and_url
 from app.clients.course_client import save_recording_to_course_service
@@ -219,7 +219,9 @@ _PHONETIC: dict[str, str] = {
 _ACRONYM_RE = re.compile(r"\b(" + "|".join(re.escape(k) for k in _PHONETIC) + r")\b")
 
 def _normalize_tts(text: str) -> str:
-    """Replace known acronyms with TTS-friendly phonetic spellings."""
+    """Replace known acronyms with TTS-friendly phonetic spellings and strip markdown."""
+    text = re.sub(r'[*#>`~_]', '', text)
+    text = re.sub(r'^\s*[-+]\s+', '', text, flags=re.MULTILINE)
     return _ACRONYM_RE.sub(lambda m: _PHONETIC[m.group(0)], text)
 
 # ── Constants ──────────────────────────────────────────────────────────────────
@@ -1390,8 +1392,7 @@ async def _answer_question(room_id: str, question: str, user_name: str, settings
                 "5. Kết bằng gợi ý hành động cụ thể (việc nên làm trong 24h hoặc tuần này).\n"
                 "6. Văn phong ấm áp, hội thoại, thân thiện nhưng ĐẶC THÔNG TIN. "
                 "KHÔNG mở đầu bằng 'Câu hỏi hay lắm', 'Cảm ơn câu hỏi', 'Đây là một câu hỏi…'.\n"
-                "7. Văn xuôi thuần tuý — KHÔNG dùng markdown, KHÔNG dùng dấu *, #, hay danh sách bullet. "
-                "Phân đoạn bằng dòng trống.\n"
+                "7. Trình bày rõ ràng — Hãy dùng Markdown (in đậm, in nghiêng, danh sách gạch đầu dòng, tiêu đề) để câu trả lời dễ đọc, có cấu trúc tốt như ChatGPT. Phân đoạn bằng dòng trống.\n"
                 "8. TUYỆT ĐỐI không dừng giữa chừng. Trả lời PHẢI có mở-thân-kết hoàn chỉnh."
             )
             fallback = (
@@ -1418,7 +1419,7 @@ async def _answer_question(room_id: str, question: str, user_name: str, settings
                 "5. Close with a specific actionable next step (something to practice in the next 24 hours / this week).\n"
                 "6. Warm, conversational, friendly — but INFORMATION-DENSE. "
                 "Do NOT open with 'Great question', 'Thanks for asking', 'That's a great question…'.\n"
-                "7. Plain prose only — NO markdown, NO *, #, no bullet lists. Separate paragraphs with blank lines.\n"
+                "7. Format clearly — Use Markdown (bold, italics, bullet points, headers) so the answer is easy to read and well-structured like ChatGPT. Separate paragraphs with blank lines.\n"
                 "8. NEVER stop midway. Your answer MUST have a complete opening, body, and conclusion."
             )
             fallback = (
@@ -1427,13 +1428,41 @@ async def _answer_question(room_id: str, question: str, user_name: str, settings
             )
 
         answer = ""
+        stream_status: dict = {}
         try:
-            answer = await generate_text(
+            async for chunk in generate_text_stream(
                 prompt, settings,
                 temperature=0.55, max_tokens=2048, timeout=90,
-            )
+                status=stream_status,
+            ):
+                answer += chunk
+                await _broadcast(room_id, {
+                    "type": "ai_answer_chunk",
+                    "question": question,
+                    "user_name": user_name,
+                    "chunk": chunk,
+                    "text_so_far": answer
+                })
         except Exception as e:
             print(f"[Q&A] LLM error: {e}")
+
+        # The Gemini free tier sometimes drops the stream mid-answer (rate-limit /
+        # closed connection), leaving `answer` truncated. Without this check the
+        # cut-off text would be spoken and saved as the final answer (e.g. the
+        # "Chào … R" bug). Regenerate the full answer non-streaming (full key
+        # rotation) and replace it — the client's `ai_answer` handler overwrites
+        # the partial text it streamed, so the user sees the complete reply.
+        if answer and not stream_status.get("complete"):
+            print(f"[Q&A] stream incomplete (finish={stream_status.get('finish_reason')}, {len(answer)} chars) — repairing non-streaming")
+            try:
+                full = await generate_text(
+                    prompt, settings,
+                    temperature=0.55, max_tokens=2048, timeout=90,
+                )
+                if full and len(full.strip()) > len(answer.strip()):
+                    answer = full.strip()
+            except Exception as e:
+                print(f"[Q&A] repair generation failed: {e}")
 
         if not answer:
             answer = fallback

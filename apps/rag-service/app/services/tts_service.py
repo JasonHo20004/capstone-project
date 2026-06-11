@@ -1,5 +1,5 @@
 """
-Unified TTS service: Google Cloud Neural2 (premium) -> Edge-TTS (free fallback).
+Unified TTS service: Google Cloud Chirp 3: HD (premium) -> Edge-TTS (free fallback).
 
 Provider is chosen via Settings.tts_provider. If gcloud is selected but credentials
 are missing or the API call fails, we silently fall back to edge-tts so the
@@ -46,10 +46,14 @@ _GCLOUD_VOICES_EN = {
     "intermediate": ("en-US", "en-US-Neural2-J"),
     "advanced":     ("en-GB", "en-GB-Neural2-C"),
 }
+# Vietnamese — Chirp 3: HD (Google's newest generative voices, noticeably more
+# natural than Neural2). IMPORTANT: Chirp3-HD voices do NOT support SSML, so the
+# English-accent <lang> wrapping is skipped for them (see _synthesize_gcloud) —
+# the Vietnamese voice reads embedded English words natively instead.
 _GCLOUD_VOICES_VI = {
-    "beginner":     ("vi-VN", "vi-VN-Neural2-A"),
-    "intermediate": ("vi-VN", "vi-VN-Neural2-A"),
-    "advanced":     ("vi-VN", "vi-VN-Neural2-D"),
+    "beginner":     ("vi-VN", "vi-VN-Chirp3-HD-Aoede"),   # warm female
+    "intermediate": ("vi-VN", "vi-VN-Chirp3-HD-Aoede"),   # warm female
+    "advanced":     ("vi-VN", "vi-VN-Chirp3-HD-Charon"),  # warm male
 }
 
 
@@ -245,9 +249,14 @@ async def _synthesize_gcloud(text: str, level: str, language: str) -> bytes:
 
     lang_code, voice_name = pick_gcloud_voice(level, language)
 
-    # Vietnamese voice + text contains English → wrap English in SSML <lang> tags
-    # so the English vocab/examples sound native instead of Việt-accented.
-    if language == "vi":
+    # Chirp 3: HD voices accept plain text only — SSML is unsupported, so the
+    # <lang> accent trick can't be used with them (they read embedded English
+    # natively instead). The SSML path stays available for Neural2/WaveNet.
+    is_chirp = "chirp" in voice_name.lower()
+
+    # Vietnamese non-Chirp voice + text contains English → wrap English in SSML
+    # <lang> tags so the English vocab/examples sound native, not Việt-accented.
+    if language == "vi" and not is_chirp:
         ssml_body, has_english = _wrap_english_in_ssml(text)
         if has_english:
             synthesis_input = gtts.SynthesisInput(ssml=f"<speak>{ssml_body}</speak>")
@@ -304,7 +313,7 @@ async def synthesize_to_file(
         try:
             audio_bytes = await _synthesize_gcloud(text, level, language)
             _, voice_name = pick_gcloud_voice(level, language)
-            print(f"[TTS] Google Neural2 OK — voice={voice_name} lang={language} level={level}")
+            print(f"[TTS] Google Cloud OK — voice={voice_name} lang={language} level={level}")
             used_provider = "gcloud"
         except Exception as e:
             print(f"[TTS] gcloud FAILED, falling back to edge-tts: {e}")
