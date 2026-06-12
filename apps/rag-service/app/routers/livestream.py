@@ -38,7 +38,11 @@ from app.services.tts_service import AUDIO_DIR, synthesize_to_file
 from app.services.llm_service import generate_text, generate_text_stream, extract_json_object
 from app.services.image_service import fetch_images_for_queries
 from app.services.storage import store_audio_and_url
-from app.clients.course_client import save_recording_to_course_service
+from app.clients.course_client import (
+    save_recording_to_course_service,
+    list_recordings_from_course_service,
+    get_recording_from_course_service,
+)
 
 router = APIRouter(prefix="/api/livestream", tags=["Livestream"])
 
@@ -145,6 +149,95 @@ async def _wait_while_qa_active(r: aioredis.Redis, room_id: str) -> None:
     while waited < QA_PAUSE_MAX_SECONDS and await _qa_active(r, room_id):
         await asyncio.sleep(0.5)
         waited += 0.5
+
+
+# ── Live quiz checkpoints ──────────────────────────────────────────────────────
+# After every ~2 slides the lecture pauses for a Kahoot-style comprehension
+# poll: `quiz_start` opens a timed answer window, votes arrive as `quiz_answer`
+# WS messages (aggregated in a Redis hash so answers landing on any uvicorn
+# worker are counted), then `quiz_result` reveals a per-option tally + the AI's
+# spoken explanation. correct_index is withheld until the reveal.
+
+QUIZ_ANSWER_SECONDS = 15    # answering window shown to students
+QUIZ_GRACE_SECONDS = 1.5    # network grace after the window closes
+QUIZ_RESULT_MIN_SECONDS = 6.0  # minimum hold on the result chart before the next slide
+
+
+def _quiz_active_key(room_id: str) -> str:
+    """JSON {id, deadline, n_options} for the currently open quiz, if any."""
+    return f"livestream:quiz_active:{room_id}"
+
+
+def _quiz_answers_key(room_id: str, quiz_id: str) -> str:
+    """Hash user_id → chosen option index for one quiz."""
+    return f"livestream:quiz_answers:{room_id}:{quiz_id}"
+
+
+def _extract_quiz(section: dict) -> dict | None:
+    """Validate + normalise the LLM-generated quiz for a section. Returns None
+    when missing or malformed — the checkpoint is then simply skipped, so a
+    partially bad lesson (or the no-quiz fallback template) still plays fine."""
+    quiz = section.get("quiz")
+    if not isinstance(quiz, dict):
+        return None
+    question = str(quiz.get("question", "")).strip()
+    options = [str(o).strip() for o in (quiz.get("options") or []) if str(o).strip()][:4]
+    explanation = str(quiz.get("explanation", "")).strip()
+    try:
+        correct = int(quiz.get("correct_index", -1))
+    except (TypeError, ValueError):
+        return None
+    if not question or len(options) < 2 or not (0 <= correct < len(options)):
+        return None
+    return {
+        "question": question,
+        "options": options,
+        "correct_index": correct,
+        "explanation": explanation,
+    }
+
+
+# ── Choral speaking battles ────────────────────────────────────────────────────
+# Slides that carry a practice_phrase turn the solo practice card into a room
+# event: `battle_start` opens a countdown + simultaneous recording window,
+# every client scores its own attempt (same Levenshtein scoring as the solo
+# card) and submits via `battle_submit`; each accepted entry is echoed live as
+# `battle_score`, then `battle_end` reveals the leaderboard.
+
+BATTLE_COUNTDOWN_SECONDS = 5
+BATTLE_RECORD_SECONDS = 12
+# Clients upload their clip and wait on a (CPU) Whisper transcription after the
+# mic closes — 8s proved too tight: late submissions were silently dropped even
+# though the student had already been shown a local score.
+BATTLE_GRACE_SECONDS = 15
+BATTLE_RESULT_HOLD_SECONDS = 8.0  # podium time before the next slide
+
+
+def _battle_active_key(room_id: str) -> str:
+    """JSON {id, deadline} for the currently open battle, if any."""
+    return f"livestream:battle_active:{room_id}"
+
+
+def _battle_scores_key(room_id: str, battle_id: str) -> str:
+    """Hash user_id → JSON {name, score, transcript} for one battle."""
+    return f"livestream:battle_scores:{room_id}:{battle_id}"
+
+
+# ── Teacher perception signals ─────────────────────────────────────────────────
+# Cheap "the AI sees the room" loop: reactions and incoming questions are
+# counted in a Redis hash; between slides _maybe_teacher_aside reads (and
+# clears) the hash, folds in the latest quiz/battle outcome, and — only when
+# the signals cross a threshold — makes one short LLM call to produce a single
+# spoken sentence reacting to the class. Below the threshold nothing is
+# generated, so a quiet room costs zero extra LLM/TTS calls.
+
+POSITIVE_REACTIONS = {"👍", "❤️", "👏", "🎉", "🔥", "😂"}
+CONFUSED_REACTIONS = {"🤔", "😮"}
+ASIDE_MAX_HOLD_SECONDS = 25.0
+
+
+def _signals_key(room_id: str) -> str:
+    return f"livestream:signals:{room_id}"
 
 
 async def _presence_count(r: aioredis.Redis, room_id: str) -> int:
@@ -265,6 +358,30 @@ async def _save_room(r: aioredis.Redis, room: dict):
     await r.set(f"livestream:room:{room['id']}", json.dumps(room), ex=ROOM_TTL)
 
 
+# Q&A entries live in their own Redis list rather than inside the room JSON:
+# `_answer_question` (append qa) and `_deliver_lesson` (append transcript) both
+# read-modify-write the room blob concurrently, so storing qa there could lose
+# entries to the classic lost-update race. RPUSH is atomic per entry.
+
+def _qa_key(room_id: str) -> str:
+    return f"livestream:qa:{room_id}"
+
+
+async def _append_qa(r: aioredis.Redis, room_id: str, entry: dict) -> None:
+    await r.rpush(_qa_key(room_id), json.dumps(entry))
+    await r.expire(_qa_key(room_id), ROOM_TTL)
+
+
+async def _load_qa(r: aioredis.Redis, room_id: str) -> list[dict]:
+    out: list[dict] = []
+    for raw in await r.lrange(_qa_key(room_id), 0, -1):
+        try:
+            out.append(json.loads(raw))
+        except json.JSONDecodeError:
+            continue
+    return out
+
+
 async def _scan_keys(r: aioredis.Redis, pattern: str) -> list[str]:
     """Non-blocking key enumeration. KEYS is O(N) and blocks the Redis event
     loop on large keyspaces; SCAN walks the keyspace in small batches instead."""
@@ -318,7 +435,7 @@ async def _save_recording(r: aioredis.Redis, room: dict, sections: list[dict]):
         "language": room.get("language", "en"),
         "completed_at": datetime.utcnow().isoformat(),
         "sections": sections,
-        "qa": room.get("qa", []),
+        "qa": await _load_qa(r, room["id"]),
     }
     await r.set(f"livestream:recording:{room['id']}", json.dumps(recording), ex=RECORDING_TTL)
     # Durable copy in Postgres (course-service) — queryable and survives the
@@ -331,9 +448,14 @@ def _protected_filenames(recording: dict) -> set[str]:
     """Collect all audio filenames referenced by a recording."""
     files: set[str] = set()
     for s in recording.get("sections", []):
-        url = s.get("audio_url", "")
-        if url:
-            files.add(url.split("/")[-1])
+        urls = [s.get("audio_url", "")]
+        quiz = s.get("quiz") or {}
+        urls += [quiz.get("question_audio_url", ""), quiz.get("explanation_audio_url", "")]
+        battle = s.get("battle") or {}
+        urls.append(battle.get("intro_audio_url", ""))
+        for url in urls:
+            if url:
+                files.add(url.split("/")[-1])
     for qa in recording.get("qa", []):
         url = qa.get("audio_url", "")
         if url:
@@ -549,6 +671,7 @@ RULES (violating any = invalid output):
 6. "example": 1 natural English sentence (12-20 words) showing the section's idea in use.
 7. "practice_phrase" (a 6-12 word English phrase the student reads ALOUD into a mic for pronunciation scoring): this is a SPEAKING exercise, so include it ONLY when the lesson is about SPOKEN English — speaking skills, pronunciation, conversation, or vocabulary meant to be said aloud. For lessons about WRITING, reading, listening, grammar, or any study roadmap / plan / comparison / troubleshooting, leave ALL practice_phrase fields empty (""). When included, maximum 2 sections; 0 is valid and usually correct. NEVER invent a generic phrase just to fill this field.
 8. "image_query": 2-4 concrete English visual keywords for this section's content.
+9. "quiz": a live multiple-choice comprehension check on THIS section (shown to the whole class as a timed poll). "question": ONE sentence testing UNDERSTANDING or APPLICATION of this section's content — never word-for-word recall of the text. "options": EXACTLY 4 short plausible answers (each under 12 words), only ONE correct, wrong options must reflect realistic misconceptions. "correct_index": integer 0-3. "explanation": 1-2 sentences why the correct answer is right.
 
 ═══ FINAL REMINDER — re-read before generating ═══
 Directive: {lesson_focus}
@@ -556,7 +679,7 @@ Every section MUST advance THIS directive, not explain "{topic}" in general.
 ═════════════════════════════════════════════════
 
 Respond ONLY with valid JSON (no prose before or after):
-{{"sections": [{{"title": "...", "content": "...", "key_points": ["...","...","...","..."], "keywords": [{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}}], "example": "...", "practice_phrase": "...", "image_query": "..."}}, ...5 sections total]}}
+{{"sections": [{{"title": "...", "content": "...", "key_points": ["...","...","...","..."], "keywords": [{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}}], "example": "...", "practice_phrase": "...", "image_query": "...", "quiz": {{"question":"...","options":["...","...","...","..."],"correct_index":0,"explanation":"..."}}}}, ...5 sections total]}}
 
 All fields in {level}-appropriate English."""
 
@@ -588,6 +711,7 @@ LUẬT (vi phạm bất kỳ luật nào = đầu ra không hợp lệ):
 6. "example": 1 câu tiếng Anh tự nhiên 12-20 từ minh hoạ ý của phần.
 7. "practice_phrase" (cụm 6-12 từ tiếng Anh để học viên ĐỌC TO vào mic, được chấm phát âm): đây là bài tập NÓI, nên CHỈ chèn khi bài học về tiếng Anh NÓI — kỹ năng speaking, phát âm, giao tiếp, hoặc từ vựng dùng để nói ra. Với bài về WRITING, đọc hiểu, nghe, ngữ pháp, hoặc bất kỳ roadmap/lộ trình/kế hoạch/so sánh/gỡ rối nào — để TRỐNG hết practice_phrase (""). Khi có chèn: tối đa 2 phần; 0 phần là hợp lệ và thường là đúng. TUYỆT ĐỐI không bịa câu chung chung chỉ để lấp đầy field này.
 8. "image_query": 2-4 từ tiếng Anh trực quan khớp nội dung phần đó.
+9. "quiz": câu trắc nghiệm kiểm tra hiểu bài của phần này (hiện cho CẢ LỚP bình chọn trực tiếp có đếm giờ). "question": 1 câu kiểm tra mức độ HIỂU/ÁP DỤNG nội dung phần — không hỏi thuộc lòng nguyên văn. "options": ĐÚNG 4 đáp án ngắn (mỗi cái dưới 12 từ), chỉ 1 đáp án đúng, các đáp án sai phải là hiểu lầm thường gặp. "correct_index": số nguyên 0-3. "explanation": 1-2 câu giải thích vì sao đáp án đúng.
 
 ═══ NHẮC LẠI TRƯỚC KHI SINH — đọc lại trước khi viết ═══
 Directive: {lesson_focus}
@@ -595,9 +719,9 @@ Mỗi phần PHẢI đẩy directive NÀY tiến lên, không giải thích "{to
 ═════════════════════════════════════════════════════════════
 
 Chỉ trả về JSON hợp lệ (không có prose trước hoặc sau):
-{{"sections": [{{"title": "...", "content": "...", "key_points": ["...","...","...","..."], "keywords": [{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}}], "example": "...", "practice_phrase": "...", "image_query": "..."}}, ...5 phần]}}
+{{"sections": [{{"title": "...", "content": "...", "key_points": ["...","...","...","..."], "keywords": [{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}}], "example": "...", "practice_phrase": "...", "image_query": "...", "quiz": {{"question":"...","options":["...","...","...","..."],"correct_index":0,"explanation":"..."}}}}, ...5 phần]}}
 
-NGÔN NGỮ: title / content / key_points / keywords.meaning → TIẾNG VIỆT; keywords.term / example / practice_phrase / image_query → TIẾNG ANH."""
+NGÔN NGỮ: title / content / key_points / keywords.meaning / quiz.question / quiz.options / quiz.explanation → TIẾNG VIỆT (giữ thuật ngữ tiếng Anh khi cần); keywords.term / example / practice_phrase / image_query → TIẾNG ANH."""
 
 
 def _fallback_sections(topic: str, level: str, language: str) -> list[dict]:
@@ -670,8 +794,9 @@ async def _generate_lesson(
     # Bump the version prefix whenever the lesson prompt changes — old cached
     # lessons were generated under the previous rules (e.g. forced practice
     # phrases) and must not be served. v4: practice_phrase only for SPOKEN-English
-    # lessons (writing/reading/roadmap/etc. now leave it empty).
-    cache_key = "livestream:lesson:v4:" + hashlib.sha1(
+    # lessons (writing/reading/roadmap/etc. now leave it empty). v5: sections
+    # carry a "quiz" comprehension checkpoint.
+    cache_key = "livestream:lesson:v5:" + hashlib.sha1(
         f"{language}|{level}|{topic.strip()}|{lesson_prompt.strip()}".encode("utf-8")
     ).hexdigest()
     print(f"[Lesson] Generating lesson: topic={topic!r} level={level} lang={language} prompt={lesson_prompt!r}")
@@ -826,6 +951,7 @@ async def get_room(room_id: str):
             raise HTTPException(404, "Room not found")
         return {
             **room,
+            "qa": await _load_qa(r, room_id),
             "level_label": LEVEL_LABELS.get(room["level"], room["level"]),
             "participant_count": await _presence_count(r, room_id),
         }
@@ -842,24 +968,36 @@ async def list_recordings():
     r = await _get_redis(settings)
     try:
         recs = await _list_recordings(r)
-        return {
-            "recordings": [
-                {
-                    "room_id": rec["room_id"],
-                    "topic": rec["topic"],
-                    "level": rec["level"],
-                    "level_label": rec["level_label"],
-                    "host_name": rec["host_name"],
-                    "completed_at": rec["completed_at"],
-                    "section_count": len(rec["sections"]),
-                    "qa_count": len(rec.get("qa", [])),
-                    "duration_seconds": sum(s.get("duration", 0) for s in rec["sections"]),
-                }
-                for rec in recs
-            ]
-        }
+        out = [
+            {
+                "room_id": rec["room_id"],
+                "topic": rec["topic"],
+                "level": rec["level"],
+                "level_label": rec["level_label"],
+                "host_name": rec["host_name"],
+                "completed_at": rec["completed_at"],
+                "section_count": len(rec["sections"]),
+                "qa_count": len(rec.get("qa", [])),
+                "duration_seconds": sum(s.get("duration", 0) for s in rec["sections"]),
+            }
+            for rec in recs
+        ]
     finally:
         await r.aclose()
+
+    # Merge in the durable Postgres archive (course-service) so replays older
+    # than the 7-day Redis TTL still show up. Redis wins on conflicts — it's
+    # the fresher copy while both exist.
+    seen = {rec["room_id"] for rec in out}
+    for arch in await list_recordings_from_course_service():
+        if arch["room_id"] in seen:
+            continue
+        arch["level_label"] = arch.get("level_label") or LEVEL_LABELS.get(
+            arch.get("level", ""), arch.get("level", "")
+        )
+        out.append(arch)
+    out.sort(key=lambda x: x.get("completed_at") or "", reverse=True)
+    return {"recordings": out}
 
 
 @router.get("/recordings/{room_id}")
@@ -869,11 +1007,18 @@ async def get_recording(room_id: str):
     r = await _get_redis(settings)
     try:
         rec = await _load_recording(r, room_id)
-        if not rec:
-            raise HTTPException(404, "Recording not found")
-        return rec
     finally:
         await r.aclose()
+    if not rec:
+        # Redis copy expired (7-day TTL) — fall back to the Postgres archive.
+        rec = await get_recording_from_course_service(room_id)
+        if rec:
+            rec["level_label"] = rec.get("level_label") or LEVEL_LABELS.get(
+                rec.get("level", ""), rec.get("level", "")
+            )
+    if not rec:
+        raise HTTPException(404, "Recording not found")
+    return rec
 
 
 # ── REST: audio ────────────────────────────────────────────────────────────────
@@ -1023,6 +1168,45 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
         })
         await _broadcast_participants(r, room_id, room["host_id"])
 
+        # Restore an in-flight quiz/battle for a client (re)joining mid-event —
+        # without this, a reconnect during the answer window left the user
+        # staring at a blank stage while everyone else voted.
+        try:
+            raw_q = await r.get(_quiz_active_key(room_id))
+            if raw_q:
+                q = json.loads(raw_q)
+                q_remaining = float(q.get("deadline", 0)) - QUIZ_GRACE_SECONDS - time.time()
+                if q_remaining > 1 and q.get("question"):
+                    await websocket.send_json({
+                        "type": "quiz_start",
+                        "quiz_id": q["id"],
+                        "ordinal": q.get("ordinal", 1),
+                        "total": q.get("total", 1),
+                        "question": q["question"],
+                        "options": q.get("options", []),
+                        "duration_seconds": int(q_remaining),
+                        "audio_url": "",
+                    })
+            raw_b = await r.get(_battle_active_key(room_id))
+            if raw_b:
+                b = json.loads(raw_b)
+                if b.get("phrase"):
+                    b_elapsed = time.time() - float(b.get("started_at", 0))
+                    b_cd = float(b.get("countdown_seconds", BATTLE_COUNTDOWN_SECONDS))
+                    b_rec = float(b.get("record_seconds", BATTLE_RECORD_SECONDS))
+                    if b_elapsed < b_cd + b_rec:
+                        await websocket.send_json({
+                            "type": "battle_start",
+                            "battle_id": b["id"],
+                            "phrase": b["phrase"],
+                            "countdown_seconds": max(0, int(b_cd - b_elapsed)),
+                            "record_seconds": int(b_rec if b_elapsed < b_cd
+                                                  else max(0.0, b_cd + b_rec - b_elapsed)),
+                            "audio_url": "",
+                        })
+        except Exception as e:
+            print(f"[Livestream] quiz/battle restore failed: {e}")
+
         while True:
             msg = await websocket.receive_json()
             msg_type = msg.get("type")
@@ -1045,11 +1229,21 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
                 # Auto-lower hand if user was in the queue
                 if await _lower_hand(r, room_id, user_id):
                     await _broadcast_participants(r, room_id, room["host_id"])
+                # Feed the teacher's perception loop (_maybe_teacher_aside)
+                await r.hincrby(_signals_key(room_id), "questions", 1)
+                await r.expire(_signals_key(room_id), ROOM_TTL)
                 _spawn(_answer_question(room_id, question, user_name, settings))
 
             elif msg_type == "reaction":
                 emoji = msg.get("emoji", "")
                 if emoji in ALLOWED_REACTIONS:
+                    # Light per-user cap so one client can't flood the room with
+                    # reaction broadcasts (and skew the teacher-aside signals).
+                    if await _is_rate_limited(r, f"{user_id}:react", 30):
+                        continue
+                    # Feed the teacher's perception loop (_maybe_teacher_aside)
+                    await r.hincrby(_signals_key(room_id), f"r:{emoji}", 1)
+                    await r.expire(_signals_key(room_id), ROOM_TTL)
                     await _broadcast(room_id, {
                         "type": "reaction",
                         "emoji": emoji,
@@ -1115,15 +1309,92 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
                     await _broadcast(room_id, {"type": "speaker_ended", "user_id": current})
 
             elif msg_type == "practice_result":
-                # Student submitted a practice attempt — broadcast for everyone to see
+                # Student submitted a practice attempt — broadcast for everyone
+                # to see. Clamp/truncate client-supplied values: scores outside
+                # 0-100 or unbounded text would otherwise be relayed verbatim
+                # to the whole room.
+                try:
+                    p_score = max(0, min(100, int(msg.get("score", 0))))
+                except (TypeError, ValueError):
+                    continue
                 await _broadcast(room_id, {
                     "type": "practice_result",
                     "user_id": user_id,
                     "user_name": user_name,
-                    "phrase": msg.get("phrase", ""),
-                    "transcript": msg.get("transcript", ""),
-                    "score": msg.get("score", 0),
+                    "phrase": str(msg.get("phrase", ""))[:200],
+                    "transcript": str(msg.get("transcript", ""))[:300],
+                    "score": p_score,
                 })
+
+            elif msg_type == "quiz_answer":
+                # Live comprehension poll vote. First answer per user wins
+                # (Kahoot-style lock — HSETNX), and only while the window is
+                # open. The tally itself happens in _run_quiz after the window.
+                raw_active = await r.get(_quiz_active_key(room_id))
+                if not raw_active:
+                    continue
+                try:
+                    active = json.loads(raw_active)
+                    option = int(msg.get("option_index"))
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    continue
+                if str(msg.get("quiz_id")) != str(active.get("id")):
+                    continue
+                if time.time() > float(active.get("deadline", 0)):
+                    continue
+                if not (0 <= option < int(active.get("n_options", 0))):
+                    continue
+                answers_key = _quiz_answers_key(room_id, str(active["id"]))
+                if await r.hsetnx(answers_key, user_id, option):
+                    await r.expire(answers_key, 600)
+                    # Live "N answered" ticker for everyone — builds the
+                    # everyone-is-doing-this-right-now pressure.
+                    await _broadcast(room_id, {
+                        "type": "quiz_progress",
+                        "quiz_id": active["id"],
+                        "answered": await r.hlen(answers_key),
+                    })
+                # Ack with the LOCKED choice (may differ from this message if
+                # the user double-tapped) so the UI shows the vote that counts.
+                locked = await r.hget(answers_key, user_id)
+                await websocket.send_json({
+                    "type": "quiz_answer_ack",
+                    "quiz_id": active["id"],
+                    "option_index": int(locked) if locked is not None else option,
+                })
+
+            elif msg_type == "battle_submit":
+                # Speaking battle entry: the client scored its own attempt (same
+                # Levenshtein scoring as the solo practice card) and submits the
+                # result. One entry per user (HSETNX); accepted entries are
+                # echoed live so leaderboards build in real time on every screen.
+                raw_active = await r.get(_battle_active_key(room_id))
+                if not raw_active:
+                    continue
+                try:
+                    active = json.loads(raw_active)
+                    score = max(0, min(100, int(msg.get("score"))))
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    continue
+                if str(msg.get("battle_id")) != str(active.get("id")):
+                    continue
+                if time.time() > float(active.get("deadline", 0)):
+                    continue
+                scores_key = _battle_scores_key(room_id, str(active["id"]))
+                entry = json.dumps({
+                    "name": user_name,
+                    "score": score,
+                    "transcript": str(msg.get("transcript", ""))[:300],
+                })
+                if await r.hsetnx(scores_key, user_id, entry):
+                    await r.expire(scores_key, 600)
+                    await _broadcast(room_id, {
+                        "type": "battle_score",
+                        "battle_id": active["id"],
+                        "user_id": user_id,
+                        "user_name": user_name,
+                        "score": score,
+                    })
 
             elif msg_type == "end_room":
                 room = await _load_room(r, room_id) or room
@@ -1211,11 +1482,64 @@ async def _deliver_lesson(room_id: str, settings):
             # the UI can surface it instead of silently looking "done".
             await _broadcast(room_id, {"type": "lesson_info", "fallback": True})
 
+        # Remember the planned slide count so a client (re)joining mid-lesson can
+        # restore its progress bar from room_state alone. Reload first: the host
+        # may have ended the room while the LLM was generating.
+        room = await _load_room(r, room_id) or room
+        room["total_sections"] = len(sections)
+        await _save_room(r, room)
+
         # Kick off image fetch AND TTS synth for all sections in parallel.
         # Without this, each section had to wait for the next section's TTS to finish
         # (~5-10s gap of silence between sections). Doing them all upfront removes the gap.
         image_queries = [str(s.get("image_query", "")).strip() or room["topic"] for s in sections]
         section_texts = [f"{s['title']}. {s['content']}" for s in sections]
+
+        # Speaking battles fire on slides that carry a practice phrase — the
+        # whole room records the phrase simultaneously after that slide.
+        battle_phrases: dict[int, str] = {
+            i: str(s.get("practice_phrase", "")).strip()
+            for i, s in enumerate(sections)
+            if str(s.get("practice_phrase", "")).strip()
+        }
+        battle_indices = sorted(battle_phrases)
+
+        # Quiz checkpoints fire after every ~2 slides (0-based indices 1, 3, …),
+        # but never on a battle slide — one room event per slide keeps the
+        # pacing sane. Sections whose quiz failed validation are skipped
+        # silently — the fallback template has no quizzes, so fallback lessons
+        # just play straight through like before.
+        quiz_by_index: dict[int, dict] = {}
+        for i, s in enumerate(sections):
+            if i % 2 == 1 and i not in battle_phrases:
+                q = _extract_quiz(s)
+                if q:
+                    quiz_by_index[i] = q
+        quiz_indices = sorted(quiz_by_index)
+
+        # Spoken intro for the question and spoken reveal for the answer —
+        # synthesized upfront with the slide narration so the checkpoint starts
+        # with zero TTS latency.
+        quiz_texts: list[str] = []
+        for i in quiz_indices:
+            q = quiz_by_index[i]
+            correct_opt = q["options"][q["correct_index"]]
+            if lang == "vi":
+                quiz_texts.append(f"Câu hỏi nhanh cho cả lớp! {q['question']}")
+                quiz_texts.append(f"Đáp án đúng là: {correct_opt}. {q['explanation']}")
+            else:
+                quiz_texts.append(f"Time for a quick check! {q['question']}")
+                quiz_texts.append(f"The correct answer is: {correct_opt}. {q['explanation']}")
+
+        # Battle intro: the AI models the phrase aloud before the class repeats
+        # it — pre-synthesized for the same zero-latency reason.
+        battle_texts: list[str] = []
+        for i in battle_indices:
+            phrase = battle_phrases[i]
+            if lang == "vi":
+                battle_texts.append(f"Đấu trường luyện nói! Nghe câu mẫu rồi cả lớp cùng đọc to: {phrase}")
+            else:
+                battle_texts.append(f"Battle time! Listen to the phrase, then everyone reads it aloud together: {phrase}")
 
         async def _safe_synth(text: str) -> str:
             try:
@@ -1231,7 +1555,13 @@ async def _deliver_lesson(room_id: str, settings):
         image_task = asyncio.create_task(
             fetch_images_for_queries(image_queries, settings.pexels_api_key)
         )
-        tts_filenames = await asyncio.gather(*(_safe_synth(t) for t in section_texts))
+        all_filenames = await asyncio.gather(
+            *(_safe_synth(t) for t in [*section_texts, *quiz_texts, *battle_texts])
+        )
+        n_sec, n_quiz = len(section_texts), len(quiz_texts)
+        tts_filenames = all_filenames[:n_sec]
+        quiz_filenames = all_filenames[n_sec : n_sec + n_quiz]
+        battle_filenames = all_filenames[n_sec + n_quiz :]
         try:
             image_urls = await image_task
         except Exception as e:
@@ -1240,12 +1570,25 @@ async def _deliver_lesson(room_id: str, settings):
 
         # Upload each clip to S3 (when configured) so any worker — and the replay
         # page days later — can serve it; falls back to the local audio route.
-        audio_urls: list[str] = []
-        for fn in tts_filenames:
-            if fn:
-                audio_urls.append(await store_audio_and_url(AUDIO_DIR / fn, fn, settings.audio_base_url))
-            else:
-                audio_urls.append("")
+        async def _upload(fn: str) -> str:
+            return await store_audio_and_url(AUDIO_DIR / fn, fn, settings.audio_base_url) if fn else ""
+
+        audio_urls: list[str] = [await _upload(fn) for fn in tts_filenames]
+
+        # quiz audio, keyed by section index: (question clip, explanation clip)
+        quiz_audio: dict[int, dict] = {}
+        for k, i in enumerate(quiz_indices):
+            q_fn, e_fn = quiz_filenames[2 * k], quiz_filenames[2 * k + 1]
+            quiz_audio[i] = {
+                "q_url": await _upload(q_fn),
+                "e_url": await _upload(e_fn),
+                "e_fn": e_fn,
+            }
+
+        # battle intro audio, keyed by section index
+        battle_audio: dict[int, dict] = {}
+        for k, i in enumerate(battle_indices):
+            battle_audio[i] = {"url": await _upload(battle_filenames[k])}
 
         sections_with_timing: list[dict] = []
 
@@ -1317,8 +1660,66 @@ async def _deliver_lesson(room_id: str, settings):
 
             await asyncio.sleep(duration)
 
+            # ── Post-slide room events (run inline — the next slide waits) ──
+            # Battle on practice-phrase slides, quiz checkpoint on every ~2
+            # slides otherwise (mutually exclusive by construction). Room
+            # status is re-checked first: the host may have ended the room
+            # while the narration played.
+            quiz_record: dict | None = None
+            battle_record: dict | None = None
+
+            phrase = battle_phrases.get(i)
+            if phrase:
+                await _wait_while_qa_active(r, room_id)
+                room = await _load_room(r, room_id)
+                if not room or room["status"] == "ended":
+                    break
+                battle_record = await _run_battle(
+                    r, room_id, i, phrase, battle_audio.get(i, {}),
+                )
+                sections_with_timing[-1]["battle"] = battle_record
+
+            quiz = quiz_by_index.get(i)
+            if quiz:
+                await _wait_while_qa_active(r, room_id)
+                room = await _load_room(r, room_id)
+                if not room or room["status"] == "ended":
+                    break
+                quiz_record = await _run_quiz(
+                    r, room_id, i, quiz, quiz_audio.get(i, {}),
+                    ordinal=quiz_indices.index(i) + 1, total=len(quiz_indices),
+                )
+                # Recording keeps the full quiz incl. the room's tally so a
+                # future replay can re-render the checkpoint.
+                sections_with_timing[-1]["quiz"] = quiz_record
+
+            # The teacher "sees" the room between slides: reactions, incoming
+            # questions, quiz tallies, battle results. Skipped after the final
+            # slide — the Q&A window opens immediately anyway.
+            if i < len(sections) - 1:
+                room = await _load_room(r, room_id)
+                if not room or room["status"] == "ended":
+                    break
+                await _maybe_teacher_aside(
+                    r, room_id, settings, lang=lang, level=level,
+                    topic=room.get("lesson_prompt", "") or room["topic"],
+                    quiz_record=quiz_record, battle_record=battle_record,
+                )
+
         room = await _load_room(r, room_id)
-        if room and room["status"] == "live":
+        if not room:
+            return
+
+        # Persist the replay NOW — before the Q&A window — so the recording
+        # exists even if the host ends the room (or drops past the reconnect
+        # grace) before the 5-minute window runs out. That path used to skip
+        # _save_recording entirely: the UI still offered "Watch replay" and the
+        # learner got a 404. Partial lessons (host ended mid-slides) are saved
+        # too — a partial replay beats none.
+        if sections_with_timing:
+            await _save_recording(r, room, sections_with_timing)
+
+        if room["status"] == "live":
             qa_seconds = 300  # 5-minute open Q&A window
             await _broadcast(room_id, {
                 "type": "qa_period_start",
@@ -1332,16 +1733,321 @@ async def _deliver_lesson(room_id: str, settings):
                 elapsed += 10
                 room = await _load_room(r, room_id)
                 if not room or room["status"] == "ended":
+                    # Re-save so Q&A answered before the early end is kept.
+                    if room and sections_with_timing:
+                        await _save_recording(r, room, sections_with_timing)
                     return
 
             room = await _load_room(r, room_id)
             if room and room["status"] == "live":
-                await _save_recording(r, room, sections_with_timing)
+                if sections_with_timing:
+                    # Final save — includes every Q&A from the open window.
+                    await _save_recording(r, room, sections_with_timing)
                 room["status"] = "completed"
                 await _save_room(r, room)
                 await _broadcast(room_id, {"type": "lesson_complete"})
+    except Exception as e:
+        # A crash mid-delivery (LLM/TTS/Redis hiccup) used to leave the room
+        # stuck in "live" forever with no slides and no way out — start_lesson
+        # only fires from "waiting". Roll back so the host can simply retry.
+        import traceback
+        print(f"[Livestream] Lesson delivery crashed: {e!r}")
+        traceback.print_exc()
+        try:
+            room = await _load_room(r, room_id)
+            if room and room["status"] == "live":
+                room["status"] = "waiting"
+                await _save_room(r, room)
+                await _broadcast(room_id, {"type": "lesson_error"})
+        except Exception as e2:
+            print(f"[Livestream] Lesson crash recovery failed: {e2!r}")
     finally:
         await r.aclose()
+
+
+# ── Live quiz checkpoint runner ────────────────────────────────────────────────
+
+async def _run_quiz(
+    r: aioredis.Redis, room_id: str, quiz_id: int, quiz: dict, audio: dict,
+    ordinal: int, total: int,
+) -> dict:
+    """Run one comprehension checkpoint, blocking the lesson loop by design.
+
+    Flow: `quiz_start` opens a timed answer window (votes land in a Redis hash
+    via the `quiz_answer` WS handler, possibly on other workers) → after the
+    window closes, tally and broadcast `quiz_result` with the per-option counts,
+    the correct answer, and the AI's spoken explanation → hold until the
+    explanation finishes playing. Returns the quiz + tally for the recording.
+    """
+    n_options = len(quiz["options"])
+    deadline = time.time() + QUIZ_ANSWER_SECONDS + QUIZ_GRACE_SECONDS
+    # The active payload carries the full question so a client that (re)joins
+    # mid-window can have the poll restored (see the join path in room_ws).
+    # correct_index/explanation stay out of it — same no-spoiler rule as below.
+    await r.set(_quiz_active_key(room_id), json.dumps({
+        "id": quiz_id, "deadline": deadline, "n_options": n_options,
+        "question": quiz["question"], "options": quiz["options"],
+        "ordinal": ordinal, "total": total,
+    }), ex=QUIZ_ANSWER_SECONDS + 60)
+
+    # correct_index / explanation are deliberately withheld here — sending them
+    # with quiz_start would put the answer one devtools tab away.
+    await _broadcast(room_id, {
+        "type": "quiz_start",
+        "quiz_id": quiz_id,
+        "ordinal": ordinal,
+        "total": total,
+        "question": quiz["question"],
+        "options": quiz["options"],
+        "duration_seconds": QUIZ_ANSWER_SECONDS,
+        "audio_url": audio.get("q_url", ""),
+    })
+
+    await asyncio.sleep(QUIZ_ANSWER_SECONDS + QUIZ_GRACE_SECONDS)
+    await r.delete(_quiz_active_key(room_id))
+
+    answers_key = _quiz_answers_key(room_id, str(quiz_id))
+    answers = await r.hgetall(answers_key)
+    await r.delete(answers_key)
+    counts = [0] * n_options
+    for v in answers.values():
+        try:
+            idx = int(v)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= idx < n_options:
+            counts[idx] += 1
+
+    await _broadcast(room_id, {
+        "type": "quiz_result",
+        "quiz_id": quiz_id,
+        "counts": counts,
+        "total_answered": sum(counts),
+        "correct_index": quiz["correct_index"],
+        "explanation": quiz["explanation"],
+        "audio_url": audio.get("e_url", ""),
+    })
+
+    # Hold the lecture while the class reads the chart and the AI speaks the
+    # reveal — same real-audio-length pacing rule as slide narration.
+    expl_estimate = max(QUIZ_RESULT_MIN_SECONDS, len(quiz["explanation"].split()) / 2.3 + 3.0)
+    hold = _audio_duration(audio.get("e_fn", ""), expl_estimate) + 1.0
+    await asyncio.sleep(max(hold, QUIZ_RESULT_MIN_SECONDS))
+
+    return {
+        **quiz,
+        "counts": counts,
+        "total_answered": sum(counts),
+        "question_audio_url": audio.get("q_url", ""),
+        "explanation_audio_url": audio.get("e_url", ""),
+    }
+
+
+# ── Choral speaking battle runner ──────────────────────────────────────────────
+
+async def _run_battle(
+    r: aioredis.Redis, room_id: str, battle_id: int, phrase: str, audio: dict,
+) -> dict:
+    """Run one speaking battle, blocking the lesson loop by design.
+
+    Flow: `battle_start` opens a countdown + simultaneous recording window
+    (each client records the phrase, scores its own attempt and submits via the
+    `battle_submit` WS handler — accepted entries are echoed live as
+    `battle_score` so leaderboards build in real time) → after the window plus
+    a transcription grace period, tally and broadcast `battle_end` with the
+    sorted leaderboard → hold while the room soaks in the podium. Returns the
+    battle + leaderboard for the recording.
+    """
+    window = BATTLE_COUNTDOWN_SECONDS + BATTLE_RECORD_SECONDS + BATTLE_GRACE_SECONDS
+    deadline = time.time() + window
+    # Full payload so a client that (re)joins mid-battle can have the recording
+    # window restored (see the join path in room_ws).
+    await r.set(_battle_active_key(room_id), json.dumps({
+        "id": battle_id, "deadline": deadline, "phrase": phrase,
+        "countdown_seconds": BATTLE_COUNTDOWN_SECONDS,
+        "record_seconds": BATTLE_RECORD_SECONDS,
+        "started_at": time.time(),
+    }), ex=window + 60)
+
+    await _broadcast(room_id, {
+        "type": "battle_start",
+        "battle_id": battle_id,
+        "phrase": phrase,
+        "countdown_seconds": BATTLE_COUNTDOWN_SECONDS,
+        "record_seconds": BATTLE_RECORD_SECONDS,
+        "audio_url": audio.get("url", ""),
+    })
+
+    await asyncio.sleep(window)
+    await r.delete(_battle_active_key(room_id))
+
+    scores_key = _battle_scores_key(room_id, str(battle_id))
+    raw = await r.hgetall(scores_key)
+    await r.delete(scores_key)
+    entries: list[dict] = []
+    for uid, v in raw.items():
+        try:
+            e = json.loads(v)
+            entries.append({
+                "user_id": uid,
+                "user_name": str(e.get("name", "Student")),
+                "score": max(0, min(100, int(e.get("score", 0)))),
+            })
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+    entries.sort(key=lambda x: x["score"], reverse=True)
+    leaderboard = entries[:10]
+
+    await _broadcast(room_id, {
+        "type": "battle_end",
+        "battle_id": battle_id,
+        "phrase": phrase,
+        "participants": len(entries),
+        "leaderboard": leaderboard,
+    })
+
+    # Podium time — skip most of the pause if nobody took the mic.
+    await asyncio.sleep(BATTLE_RESULT_HOLD_SECONDS if leaderboard else 2.0)
+
+    return {
+        "phrase": phrase,
+        "participants": len(entries),
+        "leaderboard": leaderboard,
+        "intro_audio_url": audio.get("url", ""),
+    }
+
+
+# ── Teacher aside: the AI reacts to what's happening in the room ───────────────
+
+async def _maybe_teacher_aside(
+    r: aioredis.Redis, room_id: str, settings, *,
+    lang: str, level: str, topic: str,
+    quiz_record: dict | None = None, battle_record: dict | None = None,
+) -> None:
+    """Between slides, let the AI teacher react to the room — or stay silent.
+
+    Reads (and clears) the perception signals accumulated since the last slide
+    (reaction counts, incoming questions) and folds in the outcome of a quiz or
+    battle that just ran. Only when the signals cross a threshold does it make
+    ONE short LLM call for a single spoken sentence, TTS it, and broadcast it
+    as `teacher_aside`. A quiet room costs zero extra LLM/TTS calls.
+    """
+    sig = await r.hgetall(_signals_key(room_id))
+    await r.delete(_signals_key(room_id))
+
+    reactions: dict[str, int] = {}
+    for k, v in sig.items():
+        if k.startswith("r:"):
+            try:
+                reactions[k[2:]] = int(v)
+            except (TypeError, ValueError):
+                pass
+    try:
+        questions = int(sig.get("questions", 0))
+    except (TypeError, ValueError):
+        questions = 0
+    positive = sum(c for e, c in reactions.items() if e in POSITIVE_REACTIONS)
+    confused = sum(c for e, c in reactions.items() if e in CONFUSED_REACTIONS)
+
+    quiz_pct: int | None = None
+    quiz_answered = int(quiz_record.get("total_answered", 0)) if quiz_record else 0
+    if quiz_record and quiz_answered > 0:
+        quiz_pct = round(
+            100 * quiz_record["counts"][quiz_record["correct_index"]] / quiz_answered
+        )
+
+    battlers = int(battle_record.get("participants", 0)) if battle_record else 0
+
+    # Speak only when there is genuinely something to react to.
+    interesting = (
+        positive + confused >= 3
+        or confused >= 2
+        or questions >= 2
+        or (quiz_pct is not None and quiz_answered >= 2 and quiz_pct <= 50)
+        or battlers >= 2
+    )
+    if not interesting:
+        return
+
+    facts: list[str] = []
+    if lang == "vi":
+        if positive:
+            facts.append(f"{positive} cảm xúc tích cực (👍/🔥/👏) từ học viên")
+        if confused:
+            facts.append(f"{confused} cảm xúc bối rối/ngạc nhiên (🤔/😮)")
+        if questions:
+            facts.append(f"{questions} câu hỏi mới vừa được gửi")
+        if quiz_pct is not None:
+            facts.append(f"quiz vừa rồi: {quiz_pct}% trong {quiz_answered} câu trả lời là đúng")
+        if battle_record and battlers:
+            top = battle_record["leaderboard"][0]
+            facts.append(
+                f"đấu trường luyện nói vừa xong: {battlers} bạn tham gia, "
+                f"cao nhất {top['score']}/100 của {top['user_name']}"
+            )
+        prompt = (
+            f'Bạn là giáo viên tiếng Anh đang dạy livestream về "{topic}", '
+            f'đang nói chuyện với lớp giữa hai slide.\n'
+            f'Diễn biến trong lớp vừa rồi: {"; ".join(facts)}.\n'
+            'Nói ĐÚNG 1 câu tiếng Việt tự nhiên (tối đa 28 từ) phản ứng với diễn biến đó — '
+            'ghi nhận không khí lớp hoặc kết quả, khen đích danh khi xứng đáng, '
+            'và nói bạn sẽ làm gì tiếp (ôn nhanh, đi tiếp…). '
+            'Chỉ trả về câu nói. Không ngoặc kép, không markdown, không emoji.'
+        )
+    else:
+        if positive:
+            facts.append(f"{positive} positive reactions (👍/🔥/👏) from students")
+        if confused:
+            facts.append(f"{confused} confused/surprised reactions (🤔/😮)")
+        if questions:
+            facts.append(f"{questions} new student questions just came in")
+        if quiz_pct is not None:
+            facts.append(f"the quiz that just ran: {quiz_pct}% of {quiz_answered} answers were correct")
+        if battle_record and battlers:
+            top = battle_record["leaderboard"][0]
+            facts.append(
+                f"a speaking battle just ended: {battlers} joined, "
+                f"top score {top['score']}/100 by {top['user_name']}"
+            )
+        prompt = (
+            f'You are a live English teacher mid-lesson on "{topic}", '
+            f'speaking to your class between two slides.\n'
+            f'What just happened in the room: {"; ".join(facts)}.\n'
+            'Say EXACTLY 1 natural spoken sentence (max 28 words) reacting to it — '
+            'acknowledge the class mood or result, praise by name when deserved, '
+            'and say what you will do next (quick recap, keep going…). '
+            'Return only the sentence. No quotes, no markdown, no emoji.'
+        )
+
+    try:
+        text = (await generate_text(
+            prompt, settings, temperature=0.7, max_tokens=120, timeout=12,
+        )).strip().strip('"').strip()
+    except Exception as e:
+        print(f"[Aside] LLM error: {e}")
+        return
+    if not text:
+        return
+    text = text[:300]
+
+    audio_url = ""
+    filename = ""
+    try:
+        filename = await synthesize_to_file(
+            _normalize_tts(text), level, lang,
+            provider=settings.tts_provider,
+            credentials_path=settings.google_application_credentials,
+        )
+        audio_url = await store_audio_and_url(AUDIO_DIR / filename, filename, settings.audio_base_url)
+    except Exception as e:
+        print(f"[Aside] TTS failed: {e}")
+
+    await _broadcast(room_id, {"type": "teacher_aside", "text": text, "audio_url": audio_url})
+
+    # Hold the lecture while the aside plays — bounded so a weird clip can
+    # never stall the lesson.
+    hold = _audio_duration(filename, max(3.0, len(text.split()) / 2.3)) + 0.5
+    await asyncio.sleep(min(hold, ASIDE_MAX_HOLD_SECONDS))
 
 
 # ── Background: answer question ────────────────────────────────────────────────
@@ -1349,6 +2055,11 @@ async def _deliver_lesson(room_id: str, settings):
 async def _answer_question(room_id: str, question: str, user_name: str, settings):
     r = await _get_redis(settings)
     qa_started = False
+    # Unique id tying this question's `question_asked` / `ai_answer_chunk` /
+    # `ai_answer` messages together. Clients key the answer bubble on it — two
+    # answers streaming concurrently used to interleave and spawn a new chat
+    # bubble per chunk (the client matched on "last message's user_name").
+    qa_id = uuid.uuid4().hex[:12]
     try:
         room = await _load_room(r, room_id)
         if not room:
@@ -1359,7 +2070,10 @@ async def _answer_question(room_id: str, question: str, user_name: str, settings
         await _qa_begin(r, room_id)
         qa_started = True
 
-        await _broadcast(room_id, {"type": "question_asked", "user_name": user_name, "question": question})
+        await _broadcast(room_id, {
+            "type": "question_asked", "qa_id": qa_id,
+            "user_name": user_name, "question": question,
+        })
 
         lang = room.get("language", "en")
         level = room.get("level", "intermediate")
@@ -1438,6 +2152,7 @@ async def _answer_question(room_id: str, question: str, user_name: str, settings
                 answer += chunk
                 await _broadcast(room_id, {
                     "type": "ai_answer_chunk",
+                    "qa_id": qa_id,
                     "question": question,
                     "user_name": user_name,
                     "chunk": chunk,
@@ -1479,19 +2194,18 @@ async def _answer_question(room_id: str, question: str, user_name: str, settings
         except Exception as e:
             print(f"[TTS Q&A] Failed: {e}")
 
-        # Persist Q&A to room so it's included in recording
-        room = await _load_room(r, room_id)
-        if room:
-            room.setdefault("qa", []).append({
-                "user_name": user_name,
-                "question": question,
-                "answer": answer,
-                "audio_url": audio_url,
-            })
-            await _save_room(r, room)
+        # Persist Q&A (own Redis list — see _append_qa) so it's included in the
+        # recording without racing _deliver_lesson's writes to the room JSON.
+        await _append_qa(r, room_id, {
+            "user_name": user_name,
+            "question": question,
+            "answer": answer,
+            "audio_url": audio_url,
+        })
 
         await _broadcast(room_id, {
             "type": "ai_answer",
+            "qa_id": qa_id,
             "question": question,
             "user_name": user_name,
             "answer": answer,
