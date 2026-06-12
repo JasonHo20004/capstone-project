@@ -5,7 +5,7 @@
 import { Worker, Job } from "bullmq";
 import { WritingJobData, WritingEvaluationResult } from "../types.js";
 import { getBullMQConnection } from "../redis-connection.js";
-import { geminiClient } from "../../llm/gemini.client.js";
+import { geminiClient, extractJson } from "../../llm/gemini.client.js";
 import { WRITING_TASK1_PROMPT, WRITING_TASK2_PROMPT } from "../../llm/prompts.js";
 import { databaseService } from "../../services/database.service.js";
 
@@ -33,7 +33,7 @@ function parseWritingResult(raw: string): WritingEvaluationResult {
   if (start >= 0 && end > start) {
     text = text.slice(start, end + 1);
   }
-  return JSON.parse(text) as WritingEvaluationResult;
+  return extractJson<WritingEvaluationResult>(text);
 }
 
 /**

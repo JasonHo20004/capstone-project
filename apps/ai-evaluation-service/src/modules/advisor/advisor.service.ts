@@ -3,7 +3,7 @@
 // Orchestrates Memory + RAG + Gemini + Action Registry
 // =============================================================================
 
-import geminiClient from "../../llm/gemini.client.js";
+import geminiClient, { extractJson } from "../../llm/gemini.client.js";
 import { databaseService } from "../../services/database.service.js";
 import { memoryService, SkillGaps } from "./memory.service.js";
 import { ragService } from "./rag.service.js";
@@ -131,7 +131,7 @@ class AdvisorService {
     // 6. Parse + validate through Action Registry
     let action: AdvisorAction;
     try {
-      const parsed = JSON.parse(aiRaw);
+      const parsed = extractJson(aiRaw);
       action = validateAdvisorAction({
         type: parsed.action_type,
         message: parsed.message,
@@ -189,7 +189,7 @@ class AdvisorService {
       temperature: 0.6,
     });
 
-    const parsed = JSON.parse(aiRaw);
+    const parsed = extractJson(aiRaw);
     const action = validateAdvisorAction({
       type: parsed.action_type,
       message: parsed.message,
@@ -256,7 +256,7 @@ class AdvisorService {
         { temperature: 0.7 }
       );
 
-      const parsed = JSON.parse(aiRaw);
+      const parsed = extractJson(aiRaw);
       const action = validateAdvisorAction({
         type: parsed.action_type,
         message: parsed.message,

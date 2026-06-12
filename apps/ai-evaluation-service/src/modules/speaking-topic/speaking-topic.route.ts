@@ -4,7 +4,7 @@
 
 import { Router, Request, Response } from "express";
 import { databaseService } from "../../services/database.service.js";
-import { geminiClient } from "../../llm/gemini.client.js";
+import { geminiClient, extractJson } from "../../llm/gemini.client.js";
 import { SPEAKING_TOPIC_AUTOGEN_PROMPT } from "../../llm/prompts.js";
 
 const router = Router();
@@ -27,7 +27,7 @@ router.post("/auto-generate", async (req: Request, res: Response) => {
       `Generate a complete IELTS Speaking topic bank for the title: "${title}".`,
       { temperature: 0.7 }
     );
-    const parsed = JSON.parse(raw);
+    const parsed = extractJson(raw);
     res.json({ success: true, data: parsed });
   } catch (error: any) {
     console.error("[Speaking Topic] Auto-generate error:", error);

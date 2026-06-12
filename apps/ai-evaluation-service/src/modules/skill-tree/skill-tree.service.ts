@@ -4,7 +4,7 @@
 // =============================================================================
 
 import { databaseService } from "../../services/database.service.js";
-import geminiClient from "../../llm/gemini.client.js";
+import geminiClient, { extractJson } from "../../llm/gemini.client.js";
 import {
   GENERATE_SKILL_TREE_PROMPT,
   BRANCH_SKILL_TREE_PROMPT,
@@ -78,7 +78,7 @@ class SkillTreeService {
       { temperature: 0.7 }
     );
 
-    const parsed = JSON.parse(aiResponse);
+    const parsed = extractJson(aiResponse);
     const nodes = parsed.nodes as SkillTreeNode[];
     const edges = (parsed.edges as any[]).map(
       (e: any, i: number) => ({
@@ -163,7 +163,7 @@ class SkillTreeService {
       { temperature: 0.5 }
     );
 
-    const parsed = JSON.parse(aiResponse);
+    const parsed = extractJson(aiResponse);
     const { newNodes, newEdges, analysis } = parsed;
 
     // Remedial nodes — no position needed (frontend calculates layout)

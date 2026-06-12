@@ -197,37 +197,11 @@ def _extract_quiz(section: dict) -> dict | None:
     }
 
 
-# ── Choral speaking battles ────────────────────────────────────────────────────
-# Slides that carry a practice_phrase turn the solo practice card into a room
-# event: `battle_start` opens a countdown + simultaneous recording window,
-# every client scores its own attempt (same Levenshtein scoring as the solo
-# card) and submits via `battle_submit`; each accepted entry is echoed live as
-# `battle_score`, then `battle_end` reveals the leaderboard.
-
-BATTLE_COUNTDOWN_SECONDS = 5
-BATTLE_RECORD_SECONDS = 12
-# Clients upload their clip and wait on a (CPU) Whisper transcription after the
-# mic closes — 8s proved too tight: late submissions were silently dropped even
-# though the student had already been shown a local score.
-BATTLE_GRACE_SECONDS = 15
-BATTLE_RESULT_HOLD_SECONDS = 8.0  # podium time before the next slide
-
-
-def _battle_active_key(room_id: str) -> str:
-    """JSON {id, deadline} for the currently open battle, if any."""
-    return f"livestream:battle_active:{room_id}"
-
-
-def _battle_scores_key(room_id: str, battle_id: str) -> str:
-    """Hash user_id → JSON {name, score, transcript} for one battle."""
-    return f"livestream:battle_scores:{room_id}:{battle_id}"
-
-
 # ── Teacher perception signals ─────────────────────────────────────────────────
 # Cheap "the AI sees the room" loop: reactions and incoming questions are
 # counted in a Redis hash; between slides _maybe_teacher_aside reads (and
-# clears) the hash, folds in the latest quiz/battle outcome, and — only when
-# the signals cross a threshold — makes one short LLM call to produce a single
+# clears) the hash, folds in the latest quiz outcome, and — only when the
+# signals cross a threshold — makes one short LLM call to produce a single
 # spoken sentence reacting to the class. Below the threshold nothing is
 # generated, so a quiet room costs zero extra LLM/TTS calls.
 
@@ -451,8 +425,6 @@ def _protected_filenames(recording: dict) -> set[str]:
         urls = [s.get("audio_url", "")]
         quiz = s.get("quiz") or {}
         urls += [quiz.get("question_audio_url", ""), quiz.get("explanation_audio_url", "")]
-        battle = s.get("battle") or {}
-        urls.append(battle.get("intro_audio_url", ""))
         for url in urls:
             if url:
                 files.add(url.split("/")[-1])
@@ -667,11 +639,10 @@ RULES (violating any = invalid output):
 2. "title": 5-12 words naming the specific step/technique/phase — must NOT be a generic label name.
 3. "content": 80-130 words, warm & conversational, information-dense. NO platitudes. FORBIDDEN first words: "Welcome", "Today", "In this section", "Let's explore", "Many students".
 4. "key_points": EXACTLY 4 bullets, each 10-18 words, each a concrete actionable step (e.g. "Spend 20 min daily on Cambridge Listening Test 1 audio", NOT "practise listening").
-5. "keywords": EXACTLY 3 English terms directly tied to this section's content (not the lesson label).
-6. "example": 1 natural English sentence (12-20 words) showing the section's idea in use.
-7. "practice_phrase" (a 6-12 word English phrase the student reads ALOUD into a mic for pronunciation scoring): this is a SPEAKING exercise, so include it ONLY when the lesson is about SPOKEN English — speaking skills, pronunciation, conversation, or vocabulary meant to be said aloud. For lessons about WRITING, reading, listening, grammar, or any study roadmap / plan / comparison / troubleshooting, leave ALL practice_phrase fields empty (""). When included, maximum 2 sections; 0 is valid and usually correct. NEVER invent a generic phrase just to fill this field.
-8. "image_query": 2-4 concrete English visual keywords for this section's content.
-9. "quiz": a live multiple-choice comprehension check on THIS section (shown to the whole class as a timed poll). "question": ONE sentence testing UNDERSTANDING or APPLICATION of this section's content — never word-for-word recall of the text. "options": EXACTLY 4 short plausible answers (each under 12 words), only ONE correct, wrong options must reflect realistic misconceptions. "correct_index": integer 0-3. "explanation": 1-2 sentences why the correct answer is right.
+5. "keywords": 0-3 English terms a learner should actually LEARN from this section — real content vocabulary (words, phrases, collocations) with meanings. FORBIDDEN: meta-words about studying itself ("foundation", "vocabulary", "grammar", "practice", "roadmap", "skill"). If the section has no genuine vocabulary worth learning (e.g. a study-plan phase or comparison), return an empty list []. An empty list is valid and often correct.
+6. "example": 1 natural English sentence (12-20 words) showing the section's idea in use — include ONLY when the section teaches actual language content (vocabulary, grammar, expressions, techniques applied in English). For planning/roadmap/comparison sections, leave it empty ("").
+7. "image_query": 2-4 concrete English visual keywords for this section's content.
+8. "quiz": a live multiple-choice comprehension check on THIS section (shown to the whole class as a timed poll). "question": ONE sentence testing UNDERSTANDING or APPLICATION of this section's content — never word-for-word recall of the text. "options": EXACTLY 4 short plausible answers (each under 12 words), only ONE correct, wrong options must reflect realistic misconceptions. "correct_index": integer 0-3. "explanation": 1-2 sentences why the correct answer is right.
 
 ═══ FINAL REMINDER — re-read before generating ═══
 Directive: {lesson_focus}
@@ -679,7 +650,7 @@ Every section MUST advance THIS directive, not explain "{topic}" in general.
 ═════════════════════════════════════════════════
 
 Respond ONLY with valid JSON (no prose before or after):
-{{"sections": [{{"title": "...", "content": "...", "key_points": ["...","...","...","..."], "keywords": [{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}}], "example": "...", "practice_phrase": "...", "image_query": "...", "quiz": {{"question":"...","options":["...","...","...","..."],"correct_index":0,"explanation":"..."}}}}, ...5 sections total]}}
+{{"sections": [{{"title": "...", "content": "...", "key_points": ["...","...","...","..."], "keywords": [{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}}], "example": "...", "image_query": "...", "quiz": {{"question":"...","options":["...","...","...","..."],"correct_index":0,"explanation":"..."}}}}, ...5 sections total]}}
 
 All fields in {level}-appropriate English."""
 
@@ -707,11 +678,10 @@ LUẬT (vi phạm bất kỳ luật nào = đầu ra không hợp lệ):
 2. "title": 5-12 từ nêu rõ bước/kỹ thuật/giai đoạn cụ thể — KHÔNG được là tên nhãn bài chung chung.
 3. "content": 80-130 từ TIẾNG VIỆT, ấm áp & hội thoại, đặc thông tin. CẤM mở đầu bằng: "Chào mừng", "Bài học hôm nay", "Trong phần này", "Hãy cùng khám phá", "Nhiều bạn".
 4. "key_points": ĐÚNG 4 bullet, mỗi cái 10-18 từ TIẾNG VIỆT, actionable cụ thể (vd "Luyện 20 phút Cambridge Listening test 1 mỗi ngày", KHÔNG "luyện nghe thường xuyên").
-5. "keywords": ĐÚNG 3 từ tiếng Anh gắn trực tiếp với nội dung phần đó (không phải nhãn bài chung).
-6. "example": 1 câu tiếng Anh tự nhiên 12-20 từ minh hoạ ý của phần.
-7. "practice_phrase" (cụm 6-12 từ tiếng Anh để học viên ĐỌC TO vào mic, được chấm phát âm): đây là bài tập NÓI, nên CHỈ chèn khi bài học về tiếng Anh NÓI — kỹ năng speaking, phát âm, giao tiếp, hoặc từ vựng dùng để nói ra. Với bài về WRITING, đọc hiểu, nghe, ngữ pháp, hoặc bất kỳ roadmap/lộ trình/kế hoạch/so sánh/gỡ rối nào — để TRỐNG hết practice_phrase (""). Khi có chèn: tối đa 2 phần; 0 phần là hợp lệ và thường là đúng. TUYỆT ĐỐI không bịa câu chung chung chỉ để lấp đầy field này.
-8. "image_query": 2-4 từ tiếng Anh trực quan khớp nội dung phần đó.
-9. "quiz": câu trắc nghiệm kiểm tra hiểu bài của phần này (hiện cho CẢ LỚP bình chọn trực tiếp có đếm giờ). "question": 1 câu kiểm tra mức độ HIỂU/ÁP DỤNG nội dung phần — không hỏi thuộc lòng nguyên văn. "options": ĐÚNG 4 đáp án ngắn (mỗi cái dưới 12 từ), chỉ 1 đáp án đúng, các đáp án sai phải là hiểu lầm thường gặp. "correct_index": số nguyên 0-3. "explanation": 1-2 câu giải thích vì sao đáp án đúng.
+5. "keywords": 0-3 từ/cụm tiếng Anh học viên thực sự cần HỌC từ phần này — từ vựng nội dung thật (từ, cụm từ, collocation) kèm nghĩa tiếng Việt. CẤM meta-words nói về việc học ("foundation", "vocabulary", "grammar", "practice", "roadmap", "skill"). Nếu phần này không có từ vựng đáng học (vd một giai đoạn lộ trình, phần so sánh), trả về mảng rỗng []. Mảng rỗng là hợp lệ và thường là đúng.
+6. "example": 1 câu tiếng Anh tự nhiên 12-20 từ minh hoạ ý của phần — CHỈ chèn khi phần này dạy nội dung ngôn ngữ thật (từ vựng, ngữ pháp, mẫu câu, kỹ thuật dùng tiếng Anh). Với phần lộ trình/kế hoạch/so sánh, để trống ("").
+7. "image_query": 2-4 từ tiếng Anh trực quan khớp nội dung phần đó.
+8. "quiz": câu trắc nghiệm kiểm tra hiểu bài của phần này (hiện cho CẢ LỚP bình chọn trực tiếp có đếm giờ). "question": 1 câu kiểm tra mức độ HIỂU/ÁP DỤNG nội dung phần — không hỏi thuộc lòng nguyên văn. "options": ĐÚNG 4 đáp án ngắn (mỗi cái dưới 12 từ), chỉ 1 đáp án đúng, các đáp án sai phải là hiểu lầm thường gặp. "correct_index": số nguyên 0-3. "explanation": 1-2 câu giải thích vì sao đáp án đúng.
 
 ═══ NHẮC LẠI TRƯỚC KHI SINH — đọc lại trước khi viết ═══
 Directive: {lesson_focus}
@@ -719,62 +689,62 @@ Mỗi phần PHẢI đẩy directive NÀY tiến lên, không giải thích "{to
 ═════════════════════════════════════════════════════════════
 
 Chỉ trả về JSON hợp lệ (không có prose trước hoặc sau):
-{{"sections": [{{"title": "...", "content": "...", "key_points": ["...","...","...","..."], "keywords": [{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}}], "example": "...", "practice_phrase": "...", "image_query": "...", "quiz": {{"question":"...","options":["...","...","...","..."],"correct_index":0,"explanation":"..."}}}}, ...5 phần]}}
+{{"sections": [{{"title": "...", "content": "...", "key_points": ["...","...","...","..."], "keywords": [{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}},{{"term":"...","meaning":"..."}}], "example": "...", "image_query": "...", "quiz": {{"question":"...","options":["...","...","...","..."],"correct_index":0,"explanation":"..."}}}}, ...5 phần]}}
 
-NGÔN NGỮ: title / content / key_points / keywords.meaning / quiz.question / quiz.options / quiz.explanation → TIẾNG VIỆT (giữ thuật ngữ tiếng Anh khi cần); keywords.term / example / practice_phrase / image_query → TIẾNG ANH."""
+NGÔN NGỮ: title / content / key_points / keywords.meaning / quiz.question / quiz.options / quiz.explanation → TIẾNG VIỆT (giữ thuật ngữ tiếng Anh khi cần); keywords.term / example / image_query → TIẾNG ANH."""
 
 
 def _fallback_sections(topic: str, level: str, language: str) -> list[dict]:
     if language == "vi":
         return [
-            {"title": "Giới thiệu bài học", "practice_phrase": "", "image_query": "classroom welcome teacher",
+            {"title": "Giới thiệu bài học", "image_query": "classroom welcome teacher",
              "content": f"Chào mừng bạn đến với bài học về chủ đề {topic}. Đây là chủ đề rất hữu ích cho người học tiếng Anh trình độ {level}. Chúng ta sẽ cùng khám phá từng bước một.",
              "key_points": [f"Chủ đề: {topic}", f"Phù hợp trình độ {level}", "Học theo từng bước rõ ràng"],
              "keywords": [{"term": "lesson", "meaning": "bài học"}, {"term": "step by step", "meaning": "từng bước"}],
              "example": f"Today's lesson is about {topic}."},
-            {"title": "Từ vựng quan trọng", "practice_phrase": f"Let's learn about {topic}", "image_query": "english vocabulary dictionary book",
+            {"title": "Từ vựng quan trọng", "image_query": "english vocabulary dictionary book",
              "content": f"Trước tiên, hãy cùng tìm hiểu những từ vựng chính liên quan đến {topic}. Nắm vững từ vựng sẽ giúp bạn hiểu và sử dụng chủ đề này tự tin hơn.",
              "key_points": ["Học từ vựng cốt lõi của chủ đề", "Hiểu nghĩa và cách dùng", "Áp dụng vào giao tiếp thực tế"],
              "keywords": [{"term": "vocabulary", "meaning": "từ vựng"}, {"term": "confident", "meaning": "tự tin"}],
              "example": f"I want to improve my {topic} vocabulary."},
-            {"title": "Khái niệm cốt lõi", "practice_phrase": "", "image_query": "concept lightbulb idea brainstorm",
+            {"title": "Khái niệm cốt lõi", "image_query": "concept lightbulb idea brainstorm",
              "content": f"Nội dung chính của {topic} có thể chia thành vài ý đơn giản. Khi hiểu từng ý, bạn sẽ thấy bức tranh tổng thể rõ ràng hơn nhiều.",
              "key_points": ["Chia nhỏ thành ý đơn giản", "Hiểu từng phần một", "Tổng hợp lại bức tranh lớn"],
              "keywords": [{"term": "concept", "meaning": "khái niệm"}, {"term": "overall", "meaning": "tổng thể"}],
              "example": "Understanding the basics makes everything clearer."},
-            {"title": "Ví dụ thực tế", "practice_phrase": f"I want to practice {topic} every day", "image_query": "people conversation real life english",
+            {"title": "Ví dụ thực tế", "image_query": "people conversation real life english",
              "content": f"Hãy xem {topic} xuất hiện như thế nào trong tiếng Anh hàng ngày. Các ví dụ này sẽ cho bạn thấy cách dùng những gì đã học hôm nay.",
              "key_points": ["Quan sát ví dụ thực tế", "Học cách dùng trong ngữ cảnh", "Luyện tập hằng ngày"],
              "keywords": [{"term": "example", "meaning": "ví dụ"}, {"term": "practice", "meaning": "luyện tập"}],
              "example": f"Practice {topic} every day for the best results."},
-            {"title": "Tóm tắt & Luyện tập", "practice_phrase": "", "image_query": "student success notebook study",
+            {"title": "Tóm tắt & Luyện tập", "image_query": "student success notebook study",
              "content": f"Bạn đã hoàn thành bài học về {topic}! Hãy ôn lại từ vựng, luyện tập các ví dụ và bạn sẽ tiến bộ rất nhanh.",
              "key_points": ["Ôn lại từ vựng đã học", "Luyện tập các ví dụ", "Kiên trì để tiến bộ"],
              "keywords": [{"term": "review", "meaning": "ôn tập"}, {"term": "progress", "meaning": "tiến bộ"}],
              "example": "Review and practice are the keys to progress."},
         ]
     return [
-        {"title": "Welcome & Introduction", "practice_phrase": "", "image_query": "classroom welcome teacher",
+        {"title": "Welcome & Introduction", "image_query": "classroom welcome teacher",
          "content": f"Welcome to today's lesson about {topic}. This topic is very useful for {level} English learners. Let's explore it step by step together.",
          "key_points": [f"Today's topic: {topic}", f"Designed for {level} learners", "Step-by-step exploration"],
          "keywords": [{"term": "lesson", "meaning": "a unit of teaching"}, {"term": "explore", "meaning": "investigate or study"}],
          "example": f"Today we will explore {topic} together."},
-        {"title": "Key Vocabulary", "practice_phrase": f"Let's learn about {topic}", "image_query": "english vocabulary dictionary book",
+        {"title": "Key Vocabulary", "image_query": "english vocabulary dictionary book",
          "content": f"First, let's look at the most important words related to {topic}. Learning these words will help you understand and talk about this topic with confidence.",
          "key_points": ["Learn the core vocabulary", "Understand meanings and usage", "Speak with confidence"],
          "keywords": [{"term": "vocabulary", "meaning": "set of words known"}, {"term": "confident", "meaning": "sure of yourself"}],
          "example": f"Building vocabulary is essential for mastering {topic}."},
-        {"title": "Core Concepts", "practice_phrase": "", "image_query": "concept lightbulb idea brainstorm",
+        {"title": "Core Concepts", "image_query": "concept lightbulb idea brainstorm",
          "content": f"The main ideas behind {topic} can be broken down into a few simple parts. Once you understand each part, the whole picture becomes much clearer.",
          "key_points": ["Break down into simple parts", "Understand each piece", "See the whole picture"],
          "keywords": [{"term": "concept", "meaning": "main idea"}, {"term": "overall", "meaning": "in total"}],
          "example": "Understanding the basics makes complex ideas clearer."},
-        {"title": "Real-Life Examples", "practice_phrase": f"I want to practice {topic} every day", "image_query": "people conversation real life english",
+        {"title": "Real-Life Examples", "image_query": "people conversation real life english",
          "content": f"Let's see how {topic} appears in everyday English. These examples will show you when and how to use what you have learned today.",
          "key_points": ["Real-world examples", "Learn usage in context", "Daily practice tips"],
          "keywords": [{"term": "example", "meaning": "a sample case"}, {"term": "context", "meaning": "the situation around"}],
          "example": f"You can use {topic} in many everyday situations."},
-        {"title": "Summary & Practice Tips", "practice_phrase": "", "image_query": "student success notebook study",
+        {"title": "Summary & Practice Tips", "image_query": "student success notebook study",
          "content": f"Great job reaching the end of our lesson on {topic}! Review today's vocabulary, practice using the examples, and you will improve quickly.",
          "key_points": ["Review today's vocabulary", "Practice the examples", "Improve through repetition"],
          "keywords": [{"term": "review", "meaning": "look at again"}, {"term": "improve", "meaning": "get better"}],
@@ -792,11 +762,12 @@ async def _generate_lesson(
     prompt) for 7 days, so re-running the same lesson skips the expensive LLM call.
     """
     # Bump the version prefix whenever the lesson prompt changes — old cached
-    # lessons were generated under the previous rules (e.g. forced practice
-    # phrases) and must not be served. v4: practice_phrase only for SPOKEN-English
-    # lessons (writing/reading/roadmap/etc. now leave it empty). v5: sections
-    # carry a "quiz" comprehension checkpoint.
-    cache_key = "livestream:lesson:v5:" + hashlib.sha1(
+    # lessons were generated under the previous rules and must not be served.
+    # v5: sections carry a "quiz" comprehension checkpoint. v6: practice_phrase
+    # removed entirely (the speaking card/battle was cut from the live room).
+    # v7: keywords/example are optional — only for real language content, no
+    # meta-word filler on roadmap/comparison sections.
+    cache_key = "livestream:lesson:v7:" + hashlib.sha1(
         f"{language}|{level}|{topic.strip()}|{lesson_prompt.strip()}".encode("utf-8")
     ).hexdigest()
     print(f"[Lesson] Generating lesson: topic={topic!r} level={level} lang={language} prompt={lesson_prompt!r}")
@@ -1168,9 +1139,9 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
         })
         await _broadcast_participants(r, room_id, room["host_id"])
 
-        # Restore an in-flight quiz/battle for a client (re)joining mid-event —
-        # without this, a reconnect during the answer window left the user
-        # staring at a blank stage while everyone else voted.
+        # Restore an in-flight quiz for a client (re)joining mid-poll — without
+        # this, a reconnect during the answer window left the user staring at a
+        # blank stage while everyone else voted.
         try:
             raw_q = await r.get(_quiz_active_key(room_id))
             if raw_q:
@@ -1187,25 +1158,8 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
                         "duration_seconds": int(q_remaining),
                         "audio_url": "",
                     })
-            raw_b = await r.get(_battle_active_key(room_id))
-            if raw_b:
-                b = json.loads(raw_b)
-                if b.get("phrase"):
-                    b_elapsed = time.time() - float(b.get("started_at", 0))
-                    b_cd = float(b.get("countdown_seconds", BATTLE_COUNTDOWN_SECONDS))
-                    b_rec = float(b.get("record_seconds", BATTLE_RECORD_SECONDS))
-                    if b_elapsed < b_cd + b_rec:
-                        await websocket.send_json({
-                            "type": "battle_start",
-                            "battle_id": b["id"],
-                            "phrase": b["phrase"],
-                            "countdown_seconds": max(0, int(b_cd - b_elapsed)),
-                            "record_seconds": int(b_rec if b_elapsed < b_cd
-                                                  else max(0.0, b_cd + b_rec - b_elapsed)),
-                            "audio_url": "",
-                        })
         except Exception as e:
-            print(f"[Livestream] quiz/battle restore failed: {e}")
+            print(f"[Livestream] quiz restore failed: {e}")
 
         while True:
             msg = await websocket.receive_json()
@@ -1308,24 +1262,6 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
                     await r.delete(_speaker_key(room_id))
                     await _broadcast(room_id, {"type": "speaker_ended", "user_id": current})
 
-            elif msg_type == "practice_result":
-                # Student submitted a practice attempt — broadcast for everyone
-                # to see. Clamp/truncate client-supplied values: scores outside
-                # 0-100 or unbounded text would otherwise be relayed verbatim
-                # to the whole room.
-                try:
-                    p_score = max(0, min(100, int(msg.get("score", 0))))
-                except (TypeError, ValueError):
-                    continue
-                await _broadcast(room_id, {
-                    "type": "practice_result",
-                    "user_id": user_id,
-                    "user_name": user_name,
-                    "phrase": str(msg.get("phrase", ""))[:200],
-                    "transcript": str(msg.get("transcript", ""))[:300],
-                    "score": p_score,
-                })
-
             elif msg_type == "quiz_answer":
                 # Live comprehension poll vote. First answer per user wins
                 # (Kahoot-style lock — HSETNX), and only while the window is
@@ -1362,39 +1298,6 @@ async def room_ws(websocket: WebSocket, room_id: str, token: str = Query(default
                     "quiz_id": active["id"],
                     "option_index": int(locked) if locked is not None else option,
                 })
-
-            elif msg_type == "battle_submit":
-                # Speaking battle entry: the client scored its own attempt (same
-                # Levenshtein scoring as the solo practice card) and submits the
-                # result. One entry per user (HSETNX); accepted entries are
-                # echoed live so leaderboards build in real time on every screen.
-                raw_active = await r.get(_battle_active_key(room_id))
-                if not raw_active:
-                    continue
-                try:
-                    active = json.loads(raw_active)
-                    score = max(0, min(100, int(msg.get("score"))))
-                except (TypeError, ValueError, json.JSONDecodeError):
-                    continue
-                if str(msg.get("battle_id")) != str(active.get("id")):
-                    continue
-                if time.time() > float(active.get("deadline", 0)):
-                    continue
-                scores_key = _battle_scores_key(room_id, str(active["id"]))
-                entry = json.dumps({
-                    "name": user_name,
-                    "score": score,
-                    "transcript": str(msg.get("transcript", ""))[:300],
-                })
-                if await r.hsetnx(scores_key, user_id, entry):
-                    await r.expire(scores_key, 600)
-                    await _broadcast(room_id, {
-                        "type": "battle_score",
-                        "battle_id": active["id"],
-                        "user_id": user_id,
-                        "user_name": user_name,
-                        "score": score,
-                    })
 
             elif msg_type == "end_room":
                 room = await _load_room(r, room_id) or room
@@ -1495,23 +1398,13 @@ async def _deliver_lesson(room_id: str, settings):
         image_queries = [str(s.get("image_query", "")).strip() or room["topic"] for s in sections]
         section_texts = [f"{s['title']}. {s['content']}" for s in sections]
 
-        # Speaking battles fire on slides that carry a practice phrase — the
-        # whole room records the phrase simultaneously after that slide.
-        battle_phrases: dict[int, str] = {
-            i: str(s.get("practice_phrase", "")).strip()
-            for i, s in enumerate(sections)
-            if str(s.get("practice_phrase", "")).strip()
-        }
-        battle_indices = sorted(battle_phrases)
-
-        # Quiz checkpoints fire after every ~2 slides (0-based indices 1, 3, …),
-        # but never on a battle slide — one room event per slide keeps the
-        # pacing sane. Sections whose quiz failed validation are skipped
-        # silently — the fallback template has no quizzes, so fallback lessons
-        # just play straight through like before.
+        # Quiz checkpoints fire after every ~2 slides (0-based indices 1, 3, …).
+        # Sections whose quiz failed validation are skipped silently — the
+        # fallback template has no quizzes, so fallback lessons just play
+        # straight through like before.
         quiz_by_index: dict[int, dict] = {}
         for i, s in enumerate(sections):
-            if i % 2 == 1 and i not in battle_phrases:
+            if i % 2 == 1:
                 q = _extract_quiz(s)
                 if q:
                     quiz_by_index[i] = q
@@ -1531,16 +1424,6 @@ async def _deliver_lesson(room_id: str, settings):
                 quiz_texts.append(f"Time for a quick check! {q['question']}")
                 quiz_texts.append(f"The correct answer is: {correct_opt}. {q['explanation']}")
 
-        # Battle intro: the AI models the phrase aloud before the class repeats
-        # it — pre-synthesized for the same zero-latency reason.
-        battle_texts: list[str] = []
-        for i in battle_indices:
-            phrase = battle_phrases[i]
-            if lang == "vi":
-                battle_texts.append(f"Đấu trường luyện nói! Nghe câu mẫu rồi cả lớp cùng đọc to: {phrase}")
-            else:
-                battle_texts.append(f"Battle time! Listen to the phrase, then everyone reads it aloud together: {phrase}")
-
         async def _safe_synth(text: str) -> str:
             try:
                 return await synthesize_to_file(
@@ -1556,12 +1439,10 @@ async def _deliver_lesson(room_id: str, settings):
             fetch_images_for_queries(image_queries, settings.pexels_api_key)
         )
         all_filenames = await asyncio.gather(
-            *(_safe_synth(t) for t in [*section_texts, *quiz_texts, *battle_texts])
+            *(_safe_synth(t) for t in [*section_texts, *quiz_texts])
         )
-        n_sec, n_quiz = len(section_texts), len(quiz_texts)
-        tts_filenames = all_filenames[:n_sec]
-        quiz_filenames = all_filenames[n_sec : n_sec + n_quiz]
-        battle_filenames = all_filenames[n_sec + n_quiz :]
+        tts_filenames = all_filenames[: len(section_texts)]
+        quiz_filenames = all_filenames[len(section_texts):]
         try:
             image_urls = await image_task
         except Exception as e:
@@ -1585,11 +1466,6 @@ async def _deliver_lesson(room_id: str, settings):
                 "e_fn": e_fn,
             }
 
-        # battle intro audio, keyed by section index
-        battle_audio: dict[int, dict] = {}
-        for k, i in enumerate(battle_indices):
-            battle_audio[i] = {"url": await _upload(battle_filenames[k])}
-
         sections_with_timing: list[dict] = []
 
         for i, section in enumerate(sections):
@@ -1610,7 +1486,6 @@ async def _deliver_lesson(room_id: str, settings):
             duration = _audio_duration(tts_filenames[i], estimate) + 0.5
             audio_url = audio_urls[i]
 
-            practice_phrase = str(section.get("practice_phrase", "")).strip()
             key_points = [str(p).strip() for p in section.get("key_points", []) if str(p).strip()][:5]
             keywords_raw = section.get("keywords", []) or []
             keywords: list[dict] = []
@@ -1633,7 +1508,6 @@ async def _deliver_lesson(room_id: str, settings):
                 "index": i,
                 "title": section["title"],
                 "content": section["content"],
-                "practice_phrase": practice_phrase,
                 "audio_url": audio_url,
                 "duration": duration,
                 **slide_payload,
@@ -1642,7 +1516,6 @@ async def _deliver_lesson(room_id: str, settings):
             room["transcript"].append({
                 "title": section["title"],
                 "content": section["content"],
-                "practice_phrase": practice_phrase,
                 **slide_payload,
             })
             await _save_room(r, room)
@@ -1653,7 +1526,6 @@ async def _deliver_lesson(room_id: str, settings):
                 "total": len(sections),
                 "title": section["title"],
                 "content": section["content"],
-                "practice_phrase": practice_phrase,
                 "audio_url": audio_url,
                 **slide_payload,
             })
@@ -1661,23 +1533,10 @@ async def _deliver_lesson(room_id: str, settings):
             await asyncio.sleep(duration)
 
             # ── Post-slide room events (run inline — the next slide waits) ──
-            # Battle on practice-phrase slides, quiz checkpoint on every ~2
-            # slides otherwise (mutually exclusive by construction). Room
-            # status is re-checked first: the host may have ended the room
-            # while the narration played.
+            # Quiz checkpoint on every ~2 slides. Room status is re-checked
+            # first: the host may have ended the room while the narration
+            # played.
             quiz_record: dict | None = None
-            battle_record: dict | None = None
-
-            phrase = battle_phrases.get(i)
-            if phrase:
-                await _wait_while_qa_active(r, room_id)
-                room = await _load_room(r, room_id)
-                if not room or room["status"] == "ended":
-                    break
-                battle_record = await _run_battle(
-                    r, room_id, i, phrase, battle_audio.get(i, {}),
-                )
-                sections_with_timing[-1]["battle"] = battle_record
 
             quiz = quiz_by_index.get(i)
             if quiz:
@@ -1694,8 +1553,8 @@ async def _deliver_lesson(room_id: str, settings):
                 sections_with_timing[-1]["quiz"] = quiz_record
 
             # The teacher "sees" the room between slides: reactions, incoming
-            # questions, quiz tallies, battle results. Skipped after the final
-            # slide — the Q&A window opens immediately anyway.
+            # questions, quiz tallies. Skipped after the final slide — the Q&A
+            # window opens immediately anyway.
             if i < len(sections) - 1:
                 room = await _load_room(r, room_id)
                 if not room or room["status"] == "ended":
@@ -1703,7 +1562,7 @@ async def _deliver_lesson(room_id: str, settings):
                 await _maybe_teacher_aside(
                     r, room_id, settings, lang=lang, level=level,
                     topic=room.get("lesson_prompt", "") or room["topic"],
-                    quiz_record=quiz_record, battle_record=battle_record,
+                    quiz_record=quiz_record,
                 )
 
         room = await _load_room(r, room_id)
@@ -1843,94 +1702,20 @@ async def _run_quiz(
     }
 
 
-# ── Choral speaking battle runner ──────────────────────────────────────────────
-
-async def _run_battle(
-    r: aioredis.Redis, room_id: str, battle_id: int, phrase: str, audio: dict,
-) -> dict:
-    """Run one speaking battle, blocking the lesson loop by design.
-
-    Flow: `battle_start` opens a countdown + simultaneous recording window
-    (each client records the phrase, scores its own attempt and submits via the
-    `battle_submit` WS handler — accepted entries are echoed live as
-    `battle_score` so leaderboards build in real time) → after the window plus
-    a transcription grace period, tally and broadcast `battle_end` with the
-    sorted leaderboard → hold while the room soaks in the podium. Returns the
-    battle + leaderboard for the recording.
-    """
-    window = BATTLE_COUNTDOWN_SECONDS + BATTLE_RECORD_SECONDS + BATTLE_GRACE_SECONDS
-    deadline = time.time() + window
-    # Full payload so a client that (re)joins mid-battle can have the recording
-    # window restored (see the join path in room_ws).
-    await r.set(_battle_active_key(room_id), json.dumps({
-        "id": battle_id, "deadline": deadline, "phrase": phrase,
-        "countdown_seconds": BATTLE_COUNTDOWN_SECONDS,
-        "record_seconds": BATTLE_RECORD_SECONDS,
-        "started_at": time.time(),
-    }), ex=window + 60)
-
-    await _broadcast(room_id, {
-        "type": "battle_start",
-        "battle_id": battle_id,
-        "phrase": phrase,
-        "countdown_seconds": BATTLE_COUNTDOWN_SECONDS,
-        "record_seconds": BATTLE_RECORD_SECONDS,
-        "audio_url": audio.get("url", ""),
-    })
-
-    await asyncio.sleep(window)
-    await r.delete(_battle_active_key(room_id))
-
-    scores_key = _battle_scores_key(room_id, str(battle_id))
-    raw = await r.hgetall(scores_key)
-    await r.delete(scores_key)
-    entries: list[dict] = []
-    for uid, v in raw.items():
-        try:
-            e = json.loads(v)
-            entries.append({
-                "user_id": uid,
-                "user_name": str(e.get("name", "Student")),
-                "score": max(0, min(100, int(e.get("score", 0)))),
-            })
-        except (TypeError, ValueError, json.JSONDecodeError):
-            continue
-    entries.sort(key=lambda x: x["score"], reverse=True)
-    leaderboard = entries[:10]
-
-    await _broadcast(room_id, {
-        "type": "battle_end",
-        "battle_id": battle_id,
-        "phrase": phrase,
-        "participants": len(entries),
-        "leaderboard": leaderboard,
-    })
-
-    # Podium time — skip most of the pause if nobody took the mic.
-    await asyncio.sleep(BATTLE_RESULT_HOLD_SECONDS if leaderboard else 2.0)
-
-    return {
-        "phrase": phrase,
-        "participants": len(entries),
-        "leaderboard": leaderboard,
-        "intro_audio_url": audio.get("url", ""),
-    }
-
-
 # ── Teacher aside: the AI reacts to what's happening in the room ───────────────
 
 async def _maybe_teacher_aside(
     r: aioredis.Redis, room_id: str, settings, *,
     lang: str, level: str, topic: str,
-    quiz_record: dict | None = None, battle_record: dict | None = None,
+    quiz_record: dict | None = None,
 ) -> None:
     """Between slides, let the AI teacher react to the room — or stay silent.
 
     Reads (and clears) the perception signals accumulated since the last slide
-    (reaction counts, incoming questions) and folds in the outcome of a quiz or
-    battle that just ran. Only when the signals cross a threshold does it make
-    ONE short LLM call for a single spoken sentence, TTS it, and broadcast it
-    as `teacher_aside`. A quiet room costs zero extra LLM/TTS calls.
+    (reaction counts, incoming questions) and folds in the outcome of a quiz
+    that just ran. Only when the signals cross a threshold does it make ONE
+    short LLM call for a single spoken sentence, TTS it, and broadcast it as
+    `teacher_aside`. A quiet room costs zero extra LLM/TTS calls.
     """
     sig = await r.hgetall(_signals_key(room_id))
     await r.delete(_signals_key(room_id))
@@ -1956,15 +1741,12 @@ async def _maybe_teacher_aside(
             100 * quiz_record["counts"][quiz_record["correct_index"]] / quiz_answered
         )
 
-    battlers = int(battle_record.get("participants", 0)) if battle_record else 0
-
     # Speak only when there is genuinely something to react to.
     interesting = (
         positive + confused >= 3
         or confused >= 2
         or questions >= 2
         or (quiz_pct is not None and quiz_answered >= 2 and quiz_pct <= 50)
-        or battlers >= 2
     )
     if not interesting:
         return
@@ -1979,12 +1761,6 @@ async def _maybe_teacher_aside(
             facts.append(f"{questions} câu hỏi mới vừa được gửi")
         if quiz_pct is not None:
             facts.append(f"quiz vừa rồi: {quiz_pct}% trong {quiz_answered} câu trả lời là đúng")
-        if battle_record and battlers:
-            top = battle_record["leaderboard"][0]
-            facts.append(
-                f"đấu trường luyện nói vừa xong: {battlers} bạn tham gia, "
-                f"cao nhất {top['score']}/100 của {top['user_name']}"
-            )
         prompt = (
             f'Bạn là giáo viên tiếng Anh đang dạy livestream về "{topic}", '
             f'đang nói chuyện với lớp giữa hai slide.\n'
@@ -2003,12 +1779,6 @@ async def _maybe_teacher_aside(
             facts.append(f"{questions} new student questions just came in")
         if quiz_pct is not None:
             facts.append(f"the quiz that just ran: {quiz_pct}% of {quiz_answered} answers were correct")
-        if battle_record and battlers:
-            top = battle_record["leaderboard"][0]
-            facts.append(
-                f"a speaking battle just ended: {battlers} joined, "
-                f"top score {top['score']}/100 by {top['user_name']}"
-            )
         prompt = (
             f'You are a live English teacher mid-lesson on "{topic}", '
             f'speaking to your class between two slides.\n'

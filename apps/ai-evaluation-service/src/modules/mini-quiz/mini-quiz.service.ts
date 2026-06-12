@@ -4,7 +4,7 @@
 // =============================================================================
 
 import { databaseService } from "../../services/database.service.js";
-import geminiClient from "../../llm/gemini.client.js";
+import geminiClient, { extractJson } from "../../llm/gemini.client.js";
 import { GENERATE_MINI_QUIZ_PROMPT } from "../skill-tree/skill-tree.prompts.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
@@ -89,7 +89,7 @@ class MiniQuizService {
       { temperature: 0.7 }
     );
 
-    const parsed = JSON.parse(aiResponse);
+    const parsed = extractJson(aiResponse);
     const questions: MiniQuizQuestion[] = parsed.questions;
 
     // Save quiz to database

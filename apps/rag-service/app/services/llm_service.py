@@ -12,6 +12,7 @@ The fallback to Ollama triggers automatically when:
 """
 
 import json
+import re
 from typing import Optional
 
 import httpx
@@ -389,13 +390,36 @@ async def generate_text_stream(
 
 
 def extract_json_object(text: str) -> Optional[dict]:
-    """Best-effort JSON extraction from an LLM response that may contain stray prose."""
+    """Best-effort JSON extraction from an LLM response that may contain stray prose.
+
+    Long-form Vietnamese/English content from Gemini frequently parses with the
+    default strict json.loads ONLY when escaping is perfect. In practice the model
+    emits literal newlines/tabs inside string values (control chars), the odd
+    trailing comma, or wraps the object in ```json fences. Each of these makes a
+    structurally-complete JSON object fail json.loads and silently fall back to the
+    hardcoded template. We try progressively more forgiving parses before giving up.
+    """
     if not text:
         return None
-    start, end = text.find("{"), text.rfind("}") + 1
+    s = text.strip()
+    # Strip markdown code fences (```json ... ``` or ``` ... ```) if present.
+    if s.startswith("```"):
+        s = re.sub(r"^```[a-zA-Z0-9]*\s*", "", s)
+        s = re.sub(r"\s*```$", "", s).strip()
+    start, end = s.find("{"), s.rfind("}") + 1
     if start < 0 or end <= start:
         return None
+    candidate = s[start:end]
+    # 1) strict, 2) strict=False (tolerates literal control chars inside strings —
+    #    the most common cause of "complete but unparseable" Gemini output).
+    for kwargs in ({}, {"strict": False}):
+        try:
+            return json.loads(candidate, **kwargs)
+        except json.JSONDecodeError:
+            pass
+    # 3) drop trailing commas before a closing } or ], then retry leniently.
+    repaired = re.sub(r",(\s*[}\]])", r"\1", candidate)
     try:
-        return json.loads(text[start:end])
+        return json.loads(repaired, strict=False)
     except json.JSONDecodeError:
         return None

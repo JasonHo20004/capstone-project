@@ -5,7 +5,7 @@
 
 import { Router, Request, Response } from "express";
 import { databaseService } from "../../services/database.service.js";
-import { geminiClient } from "../../llm/gemini.client.js";
+import { geminiClient, extractJson } from "../../llm/gemini.client.js";
 import { WRITING_TASK1_PROMPT, WRITING_TASK2_PROMPT } from "../../llm/prompts.js";
 
 /**
@@ -29,27 +29,16 @@ async function fetchImageAsBase64(imageUrl: string): Promise<{ base64: string; m
 }
 
 /**
- * Safely parse JSON with repair for truncated responses.
+ * Safely parse a Gemini JSON response. Delegates to the shared extractJson, which
+ * repairs markdown fences, stray prose, literal control chars inside strings,
+ * trailing commas, and truncation (unclosed braces) before giving up.
  */
 function safeParseJSON(raw: string): any {
   try {
-    return JSON.parse(raw);
+    return extractJson(raw);
   } catch {
-    console.warn(`⚠️ JSON parse failed, attempting repair...`);
-    let fixed = raw.trim();
-    const quoteCount = (fixed.match(/(?<!\\)"/g) || []).length;
-    if (quoteCount % 2 !== 0) fixed += '"';
-    const opens = (fixed.match(/[{[]/g) || []).length;
-    const closes = (fixed.match(/[}\]]/g) || []).length;
-    for (let i = 0; i < opens - closes; i++) {
-      fixed += fixed.lastIndexOf('{') > fixed.lastIndexOf('[') ? '}' : ']';
-    }
-    try {
-      return JSON.parse(fixed);
-    } catch {
-      console.error(`❌ JSON repair failed. Raw (first 500):`, raw.slice(0, 500));
-      throw new Error('Failed to parse AI response as JSON');
-    }
+    console.error(`❌ JSON repair failed. Raw (first 500):`, raw.slice(0, 500));
+    throw new Error('Failed to parse AI response as JSON');
   }
 }
 

@@ -23,6 +23,136 @@ function isRateLimitError(error: any): boolean {
   );
 }
 
+/**
+ * Strip a leading/trailing markdown code fence (```json ... ``` or ``` ... ```)
+ * that Gemini sometimes wraps JSON in despite responseMimeType: application/json.
+ */
+function stripCodeFences(raw: string): string {
+  let s = raw.trim();
+  if (s.startsWith("```")) {
+    s = s.replace(/^```[a-zA-Z0-9]*\s*/, "").replace(/\s*```$/, "").trim();
+  }
+  return s;
+}
+
+/**
+ * Escape raw control characters (U+0000–U+001F) that appear INSIDE string
+ * literals. Gemini routinely emits literal newlines/tabs inside long-form string
+ * values, which a spec-compliant JSON.parse rejects even though the object is
+ * otherwise complete — the #1 cause of "valid-looking but unparseable" output.
+ */
+function escapeControlCharsInStrings(s: string): string {
+  let out = "";
+  let inStr = false;
+  let escaped = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (escaped) {
+        out += ch;
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        out += ch;
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        out += ch;
+        inStr = false;
+        continue;
+      }
+      const code = s.charCodeAt(i);
+      if (code < 0x20) {
+        out +=
+          ch === "\n" ? "\\n"
+          : ch === "\r" ? "\\r"
+          : ch === "\t" ? "\\t"
+          : "\\u" + code.toString(16).padStart(4, "0");
+        continue;
+      }
+      out += ch;
+    } else {
+      if (ch === '"') inStr = true;
+      out += ch;
+    }
+  }
+  return out;
+}
+
+/**
+ * Robust JSON extraction from an LLM response. Repairs the failure modes Gemini
+ * exhibits on long-form output — markdown fences, stray prose around the object,
+ * literal control chars inside strings, trailing commas, and truncation (unclosed
+ * braces/strings) — each of which makes a structurally-complete object throw on a
+ * plain JSON.parse and silently fall back. Tries progressively more forgiving
+ * repairs, then throws if nothing parses (preserving the throw-on-bad-JSON
+ * contract that raw JSON.parse callers relied on).
+ */
+export function extractJson<T = any>(raw: string): T {
+  if (!raw || !raw.trim()) throw new Error("extractJson: empty LLM response");
+  let s = stripCodeFences(raw);
+
+  // Slice to the outermost { } or [ ] so leading/trailing prose is dropped.
+  const firstObj = s.indexOf("{");
+  const firstArr = s.indexOf("[");
+  let start: number;
+  if (firstObj >= 0 && firstArr >= 0) start = Math.min(firstObj, firstArr);
+  else start = Math.max(firstObj, firstArr);
+  const end = Math.max(s.lastIndexOf("}"), s.lastIndexOf("]")) + 1;
+  if (start >= 0 && end > start) s = s.slice(start, end);
+
+  // 1) plain parse
+  try {
+    return JSON.parse(s) as T;
+  } catch {
+    /* fall through to repair */
+  }
+
+  // 2) escape literal control chars inside strings + strip trailing commas
+  let repaired = escapeControlCharsInStrings(s).replace(/,(\s*[}\]])/g, "$1");
+  try {
+    return JSON.parse(repaired) as T;
+  } catch {
+    /* fall through to truncation recovery */
+  }
+
+  // 3) truncation recovery — close any unclosed string/braces/brackets.
+  const opens: string[] = [];
+  let inString = false;
+  let escape = false;
+  for (const ch of repaired) {
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === "\\") {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "{" || ch === "[") opens.push(ch);
+    else if (ch === "}" || ch === "]") opens.pop();
+  }
+  if (inString) repaired += '"';
+  if (opens.length > 0) {
+    // Drop a trailing partial element (everything after the last comma) before
+    // closing, so we don't leave a dangling key/half-written value.
+    const lastComma = repaired.lastIndexOf(",");
+    const lastOpen = Math.max(repaired.lastIndexOf("{"), repaired.lastIndexOf("["));
+    if (lastComma > lastOpen) repaired = repaired.slice(0, lastComma);
+    for (let i = opens.length - 1; i >= 0; i--) {
+      repaired += opens[i] === "{" ? "}" : "]";
+    }
+  }
+  return JSON.parse(repaired) as T; // throws if still bad — preserves contract
+}
+
 export interface ConversationTurn {
   role: "user" | "model";
   parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>;
@@ -48,7 +178,7 @@ class GeminiClient {
     const keys = GeminiClient.loadKeys();
     if (keys.length === 0) {
       throw new Error(
-        "No Gemini API key configured — set GEMINI_API_KEY, GEMINI_API_KEYS (comma-separated), or GEMINI_API_KEY_1..6"
+        "No Gemini API key configured — set GEMINI_API_KEY, GEMINI_API_KEYS (comma-separated), or GEMINI_API_KEY_1..12"
       );
     }
     this.clients = keys.map((apiKey) => new GoogleGenAI({ apiKey }));
@@ -68,11 +198,13 @@ class GeminiClient {
 
   /**
    * Build the key pool, de-duplicated and in priority order: the numbered
-   * GEMINI_API_KEY_1..6 slots first, then the comma-separated GEMINI_API_KEYS
+   * GEMINI_API_KEY_1..12 slots first, then the comma-separated GEMINI_API_KEYS
    * (or the single legacy GEMINI_API_KEY). Mirrors the rag-service convention.
    */
   private static loadKeys(): string[] {
-    const numbered = [1, 2, 3, 4, 5, 6].map((i) => process.env[`GEMINI_API_KEY_${i}`] ?? "");
+    const numbered = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(
+      (i) => process.env[`GEMINI_API_KEY_${i}`] ?? ""
+    );
     const raw = process.env.GEMINI_API_KEYS || process.env.GEMINI_API_KEY || "";
     const comma = raw ? raw.split(",") : [];
     const seen = new Set<string>();
