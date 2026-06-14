@@ -1703,21 +1703,29 @@ async def _deliver_lesson(room_id: str, settings):
         image_queries = [str(s.get("image_query", "")).strip() or room["topic"] for s in sections]
         section_texts = [f"{s['title']}. {s['content']}" for s in sections]
 
-        # Warm, spoken-only class opening + sign-off (folded into the narration
-        # audio, NOT the displayed slide text). A real teacher greets the class
-        # before diving in ("Hi everyone, today we're going to…") and hands off
-        # into Q&A at the end — without this the AI jumped straight into slide 1.
-        # Skip on the generic fallback lesson: there's nothing specific to preview.
+        # Warm class opening + sign-off. A real teacher greets the class before
+        # diving in ("Hi everyone, today we're going to…") and hands off into Q&A
+        # at the end — without this the AI jumped straight into slide 1.
+        #   • The greeting is its OWN segment: spoken AND shown on screen (a
+        #     `lesson_intro` broadcast with text + audio, played before slide 1).
+        #   • The closing sign-off is folded onto the last slide's narration audio
+        #     (spoken-only, no separate card needed).
+        # Skipped on the generic fallback lesson: nothing specific to preview.
         narration_texts = list(section_texts)
+        intro_text = ""
         if narration_texts and not used_fallback:
             lesson_focus_for_intro = (room.get("lesson_prompt", "") or "").strip() or room["topic"]
-            intro = await _generate_intro(
+            intro_text = await _generate_intro(
                 r, lesson_focus_for_intro,
                 [str(s.get("title", "")).strip() for s in sections],
                 level, lang, settings,
             )
-            narration_texts[0] = f"{intro}\n\n{narration_texts[0]}"
             narration_texts[-1] = f"{narration_texts[-1]}\n\n{_closing_text(lang)}"
+
+        # No checkpoint may land on the FINAL slide: the closing sign-off is
+        # folded onto its narration (above), so a quiz/battle that fires after it
+        # would pop up *after* the teacher has already said goodbye to the class.
+        last_index = len(sections) - 1
 
         # Quiz checkpoints fire after every ~2 slides (0-based indices 1, 3, …).
         # Sections whose quiz failed validation are skipped silently — the
@@ -1725,7 +1733,7 @@ async def _deliver_lesson(room_id: str, settings):
         # straight through like before.
         quiz_by_index: dict[int, dict] = {}
         for i, s in enumerate(sections):
-            if i % 2 == 1:
+            if i % 2 == 1 and i != last_index:
                 q = _extract_quiz(s)
                 if q:
                     quiz_by_index[i] = q
@@ -1736,9 +1744,10 @@ async def _deliver_lesson(room_id: str, settings):
         # checkpoints never land back-to-back. TRIPLE-GATED: the lesson-level
         # is_speaking_lesson flag AND a per-section phrase AND _extract_phrase's
         # deterministic validation. Capped so a lesson is never all battles.
+        # Never on the last slide (see last_index) — the goodbye is already there.
         battle_by_index: dict[int, str] = {}
         for i, s in enumerate(sections):
-            if i > 0 and i % 2 == 0 and s.get("_is_speaking_lesson"):
+            if i > 0 and i % 2 == 0 and i != last_index and s.get("_is_speaking_lesson"):
                 phrase = _extract_phrase(s)
                 if phrase:
                     battle_by_index[i] = phrase
@@ -1760,18 +1769,23 @@ async def _deliver_lesson(room_id: str, settings):
                 quiz_texts.append(f"The correct answer is: {correct_opt}. {q['explanation']}")
 
         # AI VO that frames each battle — the teacher models the phrase, then
-        # leads the reveal. Pre-synthesized like the quiz clips.
+        # leads the reveal. Pre-synthesized like the quiz clips. Worded to be
+        # crowd-agnostic: this audio is made before anyone joins and a room is
+        # usually just one learner, so it must NOT claim "the whole class/room"
+        # (that rang false to solo learners) — the teacher leads YOU through it.
         battle_texts: list[str] = []
         for i in battle_indices:
             phrase = battle_by_index[i]
             if lang == "vi":
-                battle_texts.append(f"Cả lớp cùng nhau nào! Đọc to câu này với cô: {phrase}")
-                battle_texts.append("Đồng thanh tuyệt vời! Xem cả phòng thể hiện thế nào nhé.")
+                battle_texts.append(f"Mình cùng luyện câu này nhé! Đọc to theo cô nào: {phrase}")
+                battle_texts.append("Tốt lắm! Cùng xem bạn phát âm rõ tới đâu nhé.")
             else:
-                battle_texts.append(f"Everyone together now! Read this aloud with me: {phrase}")
-                battle_texts.append("Great chorus, class! Here's how the room did.")
+                battle_texts.append(f"Let's practice this one — read it aloud with me: {phrase}")
+                battle_texts.append("Nicely done! Let's see how clearly that came through.")
 
         async def _safe_synth(text: str) -> str:
+            if not text or not text.strip():
+                return ""
             try:
                 return await synthesize_to_file(
                     _normalize_tts(text), level, lang,
@@ -1785,14 +1799,18 @@ async def _deliver_lesson(room_id: str, settings):
         image_task = asyncio.create_task(
             fetch_images_for_queries(image_queries, settings.pexels_api_key)
         )
+        # The greeting clip is synthesized first (index 0); "" when skipped → ""
+        # filename, which the broadcast guard below treats as "no intro".
         all_filenames = await asyncio.gather(
-            *(_safe_synth(t) for t in [*narration_texts, *quiz_texts, *battle_texts])
+            *(_safe_synth(t) for t in [intro_text, *narration_texts, *quiz_texts, *battle_texts])
         )
+        intro_filename = all_filenames[0]
+        rest_filenames = all_filenames[1:]
         n_sec = len(narration_texts)
         n_quiz = len(quiz_texts)
-        tts_filenames = all_filenames[:n_sec]
-        quiz_filenames = all_filenames[n_sec:n_sec + n_quiz]
-        battle_filenames = all_filenames[n_sec + n_quiz:]
+        tts_filenames = rest_filenames[:n_sec]
+        quiz_filenames = rest_filenames[n_sec:n_sec + n_quiz]
+        battle_filenames = rest_filenames[n_sec + n_quiz:]
         try:
             image_urls = await image_task
         except Exception as e:
@@ -1825,6 +1843,24 @@ async def _deliver_lesson(room_id: str, settings):
                 "reveal_url": await _upload(reveal_fn),
                 "reveal_fn": reveal_fn,
             }
+
+        # Warm spoken+on-screen greeting, played BEFORE the first slide. The
+        # client shows `text` as a welcome card and plays `audio_url`; we then
+        # hold for the greeting's real audio length so slide 1's narration never
+        # overlaps it. Guarded so a failed/empty intro just falls through to the
+        # lesson as before.
+        intro_audio_url = await _upload(intro_filename)
+        if intro_text and intro_audio_url:
+            room = await _load_room(r, room_id)
+            if not room or room["status"] == "ended":
+                return
+            await _broadcast(room_id, {
+                "type": "lesson_intro",
+                "text": intro_text,
+                "audio_url": intro_audio_url,
+            })
+            intro_estimate = max(4.0, len(intro_text.split()) / 2.3)
+            await asyncio.sleep(_audio_duration(intro_filename, intro_estimate) + 0.5)
 
         sections_with_timing: list[dict] = []
 
