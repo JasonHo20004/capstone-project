@@ -107,7 +107,7 @@ export function createWritingWorker(): Worker {
         // Pro model gives noticeably better-calibrated IELTS bands than Flash;
         // gemini.client auto-falls back to Flash if Pro is rate-limited. The
         // larger token budget prevents the long rubric JSON from being truncated.
-        const callOpts = { temperature: 0.2, useProModel: true, maxTokens: 8192 } as const;
+        const callOpts = { temperature: 0.2, useProModel: true, maxTokens: 30000 } as const;
 
         const runGrading = async (): Promise<string> => {
           if (imageData) {

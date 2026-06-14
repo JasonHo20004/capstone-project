@@ -81,7 +81,7 @@ export function createSpeakingWorker(): Worker {
           audioBase64,
           mimeType,
           textPrompt,
-          { temperature: 0.2, useProModel: true, maxTokens: 8192 }
+          { temperature: 0.2, useProModel: true, maxTokens: 30000 }
         );
 
         const result: SpeakingEvaluationResult & { transcript?: string } = extractJson(response);

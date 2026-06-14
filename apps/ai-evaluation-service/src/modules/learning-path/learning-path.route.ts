@@ -169,7 +169,7 @@ router.post("/generate", async (req: Request, res: Response) => {
     });
 
     const aiResponse = await geminiClient.chatCompletion(LEARNING_PATH_PROMPT, llmInput, {
-      maxTokens: 8192,
+      maxTokens: 30000,
       temperature: 0.4,
     });
     const plan = safeParseLlmJson(aiResponse);

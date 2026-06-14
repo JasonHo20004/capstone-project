@@ -60,8 +60,11 @@ async def transcribe_dictation(
     if len(data) > MAX_AUDIO_BYTES:
         raise HTTPException(status_code=413, detail="Audio file too large (max 100MB)")
 
-    # Sanitize and whitelist file suffixes
-    ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac"}
+    # Sanitize and whitelist file suffixes. `.webm`/`.weba`/`.opus` cover
+    # browser MediaRecorder output (livestream + battle send "dictation.webm");
+    # PyAV/ffmpeg inside faster-whisper decodes them by sniffing the bytes, so
+    # the extension is only a guard, not the actual decoder hint.
+    ALLOWED_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac", ".webm", ".weba", ".opus"}
     suffix = os.path.splitext(audio.filename or "")[1].lower()
     if not suffix or suffix not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Unsupported audio format")

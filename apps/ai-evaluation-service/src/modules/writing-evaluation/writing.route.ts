@@ -235,7 +235,7 @@ router.post("/submit", async (req: Request, res: Response) => {
         const imageTextPrompt = `${userMessage}\n\n**IMPORTANT:** The image attached is the chart/graph/diagram that the student was asked to describe. Use it to evaluate Task Achievement.`;
 
         // Grade with Gemini Pro only (the client auto-falls back to Flash internally).
-        const callOpts = { temperature: 0, maxTokens: 8192, useProModel: true } as const;
+        const callOpts = { temperature: 0, maxTokens: 30000, useProModel: true } as const;
         const runGrading = async (): Promise<string> => {
           if (imageData) {
             console.log(`🤖 [Direct] Using Gemini Pro multimodal for Task 1 (image)`);

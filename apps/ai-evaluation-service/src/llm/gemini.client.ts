@@ -288,7 +288,7 @@ class GeminiClient {
     userMessage: string,
     options?: { maxTokens?: number; temperature?: number; useProModel?: boolean }
   ): Promise<string> {
-    const { maxTokens = 4096, temperature = 0.3, useProModel = false } = options || {};
+    const { maxTokens = 30000, temperature = 0.3, useProModel = false } = options || {};
     return this.generate(
       this.modelChain(useProModel),
       {
@@ -315,7 +315,7 @@ class GeminiClient {
     textPrompt: string,
     options?: { maxTokens?: number; temperature?: number; useProModel?: boolean }
   ): Promise<string> {
-    const { maxTokens = 4096, temperature = 0.3, useProModel = false } = options || {};
+    const { maxTokens = 30000, temperature = 0.3, useProModel = false } = options || {};
     const contentsParts = [
       {
         role: "user" as const,
@@ -349,7 +349,7 @@ class GeminiClient {
     history: ConversationTurn[],
     options?: { maxTokens?: number; temperature?: number }
   ): Promise<string> {
-    const { maxTokens = 4096, temperature = 0.5 } = options || {};
+    const { maxTokens = 30000, temperature = 0.5 } = options || {};
     return this.generate(
       [this.model],
       {

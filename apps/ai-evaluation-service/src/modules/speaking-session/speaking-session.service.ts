@@ -502,7 +502,7 @@ export class SpeakingSessionService {
       const response = await geminiClient.conversationCompletion(
         SPEAKING_FINAL_GRADING_PROMPT,
         state.conversationHistory,
-        { temperature: 0.3, maxTokens: 4096 }
+        { temperature: 0.3, maxTokens: 30000 }
       );
 
       const result = extractJson(response);
