@@ -36,24 +36,24 @@ _EDGE_VOICES_EN = {
 _EDGE_VOICES_VI = {
     "beginner":     "vi-VN-HoaiMyNeural",
     "intermediate": "vi-VN-HoaiMyNeural",
-    "advanced":     "vi-VN-NamMinhNeural",
+    "advanced":     "vi-VN-HoaiMyNeural",  # all-female (HoaiMy is the only vi-VN female neural voice)
 }
 
-# Google Cloud Neural2 voices — free tier: 1M chars/month.
-# Studio voices sound even better but are not on the free tier.
+# Google Cloud Chirp 3: HD (Google's newest generative voices, noticeably more
+# natural & expressive than Neural2). All-female. Chirp3-HD voices do NOT support
+# SSML, but English content doesn't need the <lang> accent trick anyway.
 _GCLOUD_VOICES_EN = {
-    "beginner":     ("en-US", "en-US-Neural2-F"),
-    "intermediate": ("en-US", "en-US-Neural2-J"),
-    "advanced":     ("en-GB", "en-GB-Neural2-C"),
+    "beginner":     ("en-US", "en-US-Chirp3-HD-Aoede"),  # warm, friendly female
+    "intermediate": ("en-US", "en-US-Chirp3-HD-Kore"),   # clear, confident female
+    "advanced":     ("en-GB", "en-GB-Chirp3-HD-Leda"),   # bright British female
 }
-# Vietnamese — Chirp 3: HD (Google's newest generative voices, noticeably more
-# natural than Neural2). IMPORTANT: Chirp3-HD voices do NOT support SSML, so the
-# English-accent <lang> wrapping is skipped for them (see _synthesize_gcloud) —
-# the Vietnamese voice reads embedded English words natively instead.
+# Vietnamese — Chirp 3: HD. IMPORTANT: Chirp3-HD voices do NOT support SSML, so
+# the English-accent <lang> wrapping is skipped for them (see _synthesize_gcloud)
+# — the Vietnamese voice reads embedded English words natively instead. All-female.
 _GCLOUD_VOICES_VI = {
-    "beginner":     ("vi-VN", "vi-VN-Chirp3-HD-Aoede"),   # warm female
-    "intermediate": ("vi-VN", "vi-VN-Chirp3-HD-Aoede"),   # warm female
-    "advanced":     ("vi-VN", "vi-VN-Chirp3-HD-Charon"),  # warm male
+    "beginner":     ("vi-VN", "vi-VN-Chirp3-HD-Aoede"),  # warm, expressive female
+    "intermediate": ("vi-VN", "vi-VN-Chirp3-HD-Aoede"),  # warm, expressive female
+    "advanced":     ("vi-VN", "vi-VN-Chirp3-HD-Aoede"),  # warm, expressive female
 }
 
 
@@ -64,7 +64,7 @@ def pick_edge_voice(level: str, language: str) -> str:
 
 def pick_gcloud_voice(level: str, language: str) -> tuple[str, str]:
     table = _GCLOUD_VOICES_VI if language == "vi" else _GCLOUD_VOICES_EN
-    return table.get(level, ("en-US", "en-US-Neural2-F"))
+    return table.get(level, ("en-US", "en-US-Chirp3-HD-Aoede"))
 
 
 # ── Mixed-language SSML wrapping ─────────────────────────────────────────────
