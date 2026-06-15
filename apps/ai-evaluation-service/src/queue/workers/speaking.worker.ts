@@ -5,7 +5,7 @@
 import { Worker, Job } from "bullmq";
 import { SpeakingJobData, SpeakingEvaluationResult } from "../types.js";
 import { getBullMQConnection } from "../redis-connection.js";
-import { geminiClient } from "../../llm/gemini.client.js";
+import { geminiClient, extractJson } from "../../llm/gemini.client.js";
 import { llmClient } from "../../llm/llm.client.js";
 import { SPEAKING_EVALUATION_PROMPT } from "../../llm/prompts.js";
 import { databaseService } from "../../services/database.service.js";
@@ -81,10 +81,10 @@ export function createSpeakingWorker(): Worker {
           audioBase64,
           mimeType,
           textPrompt,
-          { temperature: 0.2, useProModel: true, maxTokens: 8192 }
+          { temperature: 0.2, useProModel: true, maxTokens: 30000 }
         );
 
-        const result: SpeakingEvaluationResult & { transcript?: string } = JSON.parse(response);
+        const result: SpeakingEvaluationResult & { transcript?: string } = extractJson(response);
 
         // Save result to DB
         await prisma.speakingEvaluation.update({

@@ -5,7 +5,7 @@
 
 import { Router, Request, Response } from "express";
 import { databaseService } from "../../services/database.service.js";
-import { geminiClient } from "../../llm/gemini.client.js";
+import { geminiClient, extractJson } from "../../llm/gemini.client.js";
 import {
   internalContentClient,
   type SkillKey,
@@ -123,68 +123,14 @@ function pickSkillForRecommendation(profile: LearnerProfileInput | undefined): S
   return "Vocabulary";
 }
 
-function stripCodeFences(s: string): string {
-  return s
-    .replace(/^\s*```(?:json)?\s*/i, "")
-    .replace(/```\s*$/i, "")
-    .trim();
-}
-
 /**
- * Best-effort JSON sanitize for LLM output:
- *  - strip code fences
- *  - remove trailing commas before } or ]
- *  - if truncated mid-object, close any unclosed braces/brackets
- * Falls back to throwing if still unparseable.
+ * Best-effort JSON sanitize for LLM output. Delegates to the shared extractJson,
+ * which strips code fences/stray prose, escapes literal control chars inside
+ * strings, removes trailing commas, and closes unclosed braces on truncation.
+ * Throws if still unparseable.
  */
 function safeParseLlmJson(raw: string): unknown {
-  let s = stripCodeFences(raw);
-
-  try {
-    return JSON.parse(s);
-  } catch {
-    /* fall through to repair */
-  }
-
-  // Remove trailing commas
-  s = s.replace(/,(\s*[}\]])/g, "$1");
-
-  // Close any unclosed braces/brackets (truncation recovery)
-  const opens: string[] = [];
-  let inString = false;
-  let escape = false;
-  for (const ch of s) {
-    if (escape) {
-      escape = false;
-      continue;
-    }
-    if (ch === "\\") {
-      escape = true;
-      continue;
-    }
-    if (ch === '"') {
-      inString = !inString;
-      continue;
-    }
-    if (inString) continue;
-    if (ch === "{" || ch === "[") opens.push(ch);
-    else if (ch === "}" || ch === "]") opens.pop();
-  }
-  if (inString) s += '"';
-  // If we're mid-array or mid-object, drop the trailing partial element
-  // (last comma onwards) before closing.
-  if (opens.length > 0) {
-    const lastComma = s.lastIndexOf(",");
-    const lastOpenBrace = Math.max(s.lastIndexOf("{"), s.lastIndexOf("["));
-    if (lastComma > lastOpenBrace) {
-      s = s.slice(0, lastComma);
-    }
-    for (let i = opens.length - 1; i >= 0; i--) {
-      s += opens[i] === "{" ? "}" : "]";
-    }
-  }
-
-  return JSON.parse(s);
+  return extractJson(raw);
 }
 
 /**
@@ -223,7 +169,7 @@ router.post("/generate", async (req: Request, res: Response) => {
     });
 
     const aiResponse = await geminiClient.chatCompletion(LEARNING_PATH_PROMPT, llmInput, {
-      maxTokens: 8192,
+      maxTokens: 30000,
       temperature: 0.4,
     });
     const plan = safeParseLlmJson(aiResponse);

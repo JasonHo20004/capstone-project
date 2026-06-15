@@ -30,16 +30,24 @@ class Settings(BaseSettings):
     gemini_api_key_4: str = ""
     gemini_api_key_5: str = ""
     gemini_api_key_6: str = ""
+    gemini_api_key_7: str = ""
+    gemini_api_key_8: str = ""
+    gemini_api_key_9: str = ""
+    gemini_api_key_10: str = ""
+    gemini_api_key_11: str = ""
+    gemini_api_key_12: str = ""
 
     @property
     def gemini_keys(self) -> list[str]:
         """All configured Gemini keys, de-duplicated and in priority order:
-        the numbered GEMINI_API_KEY_1..6 slots first, then the comma-separated
+        the numbered GEMINI_API_KEY_1..12 slots first, then the comma-separated
         `gemini_api_keys` (or the single legacy `gemini_api_key`). The full pool
         is round-robined and skipped on 429 before any fallback to Ollama."""
         numbered = [
             self.gemini_api_key_1, self.gemini_api_key_2, self.gemini_api_key_3,
             self.gemini_api_key_4, self.gemini_api_key_5, self.gemini_api_key_6,
+            self.gemini_api_key_7, self.gemini_api_key_8, self.gemini_api_key_9,
+            self.gemini_api_key_10, self.gemini_api_key_11, self.gemini_api_key_12,
         ]
         raw = self.gemini_api_keys or self.gemini_api_key
         comma = raw.split(",") if raw else []
@@ -66,7 +74,7 @@ class Settings(BaseSettings):
     chunk_overlap: int = 200
 
     # Redis
-    redis_url: str = "redis://localhost:6379"
+    redis_url: str = ""
 
     # JWT (same secret as identity-service ACCESS_TOKEN_SECRET)
     jwt_secret: str = ""

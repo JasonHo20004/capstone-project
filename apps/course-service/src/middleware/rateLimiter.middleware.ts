@@ -7,6 +7,14 @@ const redisClient = createClient({
   url: process.env.REDIS_URL || "redis://localhost:6379",
 });
 
+// Attach an error listener BEFORE connecting. Without it, a socket error
+// (e.g. Aiven's transient TLS SocketClosedUnexpectedlyError on connect)
+// is emitted as an unhandled 'error' event and crashes the process.
+// node-redis reconnects automatically, so we just log here.
+redisClient.on("error", (err) => {
+  console.error("❌ [Course Service] Redis (RateLimiter) error:", err);
+});
+
 redisClient.connect().catch((err) => {
   console.error("[RateLimiter] Redis connection error:", err);
 });

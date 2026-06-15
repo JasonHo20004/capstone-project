@@ -61,7 +61,7 @@ router.get(
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
 
-    const [items, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       (prisma as any).livestreamRecording.findMany({
         orderBy: { completedAt: "desc" },
         skip: (page - 1) * limit,
@@ -77,10 +77,28 @@ router.get(
           language: true,
           completedAt: true,
           createdAt: true,
+          // Heavy jsonb columns — fetched only to derive the counts below,
+          // then stripped from the response. rag-service's replay list needs
+          // sectionCount/qaCount/durationSeconds to render recording cards
+          // after the Redis copy (7-day TTL) has expired.
+          sections: true,
+          qa: true,
         },
       }),
       (prisma as any).livestreamRecording.count(),
     ]);
+
+    const items = (rows as Record<string, unknown>[]).map((r) => {
+      const sections = Array.isArray(r.sections) ? (r.sections as { duration?: number }[]) : [];
+      const qa = Array.isArray(r.qa) ? (r.qa as unknown[]) : [];
+      const { sections: _sections, qa: _qa, ...rest } = r;
+      return {
+        ...rest,
+        sectionCount: sections.length,
+        qaCount: qa.length,
+        durationSeconds: sections.reduce((a, s) => a + (Number(s?.duration) || 0), 0),
+      };
+    });
 
     res.json({ success: true, data: { items, total, page, limit } });
   })

@@ -5,7 +5,7 @@
 import { Worker, Job } from "bullmq";
 import { WritingJobData, WritingEvaluationResult } from "../types.js";
 import { getBullMQConnection } from "../redis-connection.js";
-import { geminiClient } from "../../llm/gemini.client.js";
+import { geminiClient, extractJson } from "../../llm/gemini.client.js";
 import { WRITING_TASK1_PROMPT, WRITING_TASK2_PROMPT } from "../../llm/prompts.js";
 import { databaseService } from "../../services/database.service.js";
 
@@ -33,7 +33,7 @@ function parseWritingResult(raw: string): WritingEvaluationResult {
   if (start >= 0 && end > start) {
     text = text.slice(start, end + 1);
   }
-  return JSON.parse(text) as WritingEvaluationResult;
+  return extractJson<WritingEvaluationResult>(text);
 }
 
 /**
@@ -107,7 +107,7 @@ export function createWritingWorker(): Worker {
         // Pro model gives noticeably better-calibrated IELTS bands than Flash;
         // gemini.client auto-falls back to Flash if Pro is rate-limited. The
         // larger token budget prevents the long rubric JSON from being truncated.
-        const callOpts = { temperature: 0.2, useProModel: true, maxTokens: 8192 } as const;
+        const callOpts = { temperature: 0.2, useProModel: true, maxTokens: 30000 } as const;
 
         const runGrading = async (): Promise<string> => {
           if (imageData) {

@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { SpeakingSessionService } from "./speaking-session.service.js";
 import { s3Service } from "../../services/s3.service.js";
 import { databaseService } from "../../services/database.service.js";
-import { geminiClient } from "../../llm/gemini.client.js";
+import { geminiClient, extractJson } from "../../llm/gemini.client.js";
 import {
   SPEAKING_VOCAB_SUGGESTIONS_PROMPT,
   SPEAKING_MODEL_ANSWER_PROMPT,
@@ -295,7 +295,7 @@ router.post("/vocab-suggestions", async (req: Request, res: Response) => {
       `Topic: "${topic}"`,
       { temperature: 0.7 }
     );
-    const parsed = JSON.parse(raw);
+    const parsed = extractJson(raw);
     res.json({ success: true, data: parsed });
   } catch (error: any) {
     console.error("[Speaking] Vocab suggestions error:", error);
@@ -321,7 +321,7 @@ router.post("/model-answer", async (req: Request, res: Response) => {
       user,
       { temperature: 0.6 }
     );
-    const parsed = JSON.parse(raw);
+    const parsed = extractJson(raw);
     res.json({ success: true, data: parsed });
   } catch (error: any) {
     console.error("[Speaking] Model answer error:", error);
@@ -346,7 +346,7 @@ router.post("/highlight-errors", async (req: Request, res: Response) => {
       `Transcript: "${transcript}"`,
       { temperature: 0.2 }
     );
-    const parsed = JSON.parse(raw);
+    const parsed = extractJson(raw);
     res.json({ success: true, data: parsed });
   } catch (error: any) {
     console.error("[Speaking] Highlight errors error:", error);

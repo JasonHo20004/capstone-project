@@ -3,7 +3,7 @@
 // =============================================================================
 
 import { databaseService } from "../../services/database.service.js";
-import { geminiClient, ConversationTurn } from "../../llm/gemini.client.js";
+import { geminiClient, extractJson, ConversationTurn } from "../../llm/gemini.client.js";
 import { llmClient } from "../../llm/llm.client.js";
 import {
   EXAMINER_PART1_PROMPT,
@@ -232,7 +232,7 @@ export class SpeakingSessionService {
       { temperature: 0.5 }
     );
 
-    const parsed = JSON.parse(response);
+    const parsed = extractJson(response);
 
     // Track transcript per part
     const partKey = `part${state.currentPart}` as keyof typeof state.partTranscripts;
@@ -454,7 +454,7 @@ export class SpeakingSessionService {
         systemPrompt,
         `Generate the first question for Part ${part} of an IELTS Speaking test about the topic "${topic}".`,
       );
-      const parsed = JSON.parse(response);
+      const parsed = extractJson(response);
       return parsed.question;
     }
 
@@ -463,7 +463,7 @@ export class SpeakingSessionService {
       systemPrompt,
       history,
     );
-    const parsed = JSON.parse(response);
+    const parsed = extractJson(response);
     return parsed.question;
   }
 
@@ -478,7 +478,7 @@ export class SpeakingSessionService {
       EXAMINER_PART2_PROMPT,
       `Generate a Part 2 cue card related to the topic "${topic}". The candidate has just finished Part 1.`,
     );
-    const parsed = JSON.parse(response);
+    const parsed = extractJson(response);
     return {
       question: parsed.question || "Here is your topic card. You have 1 minute to prepare, then please speak for 1-2 minutes.",
       cueCard: {
@@ -502,10 +502,10 @@ export class SpeakingSessionService {
       const response = await geminiClient.conversationCompletion(
         SPEAKING_FINAL_GRADING_PROMPT,
         state.conversationHistory,
-        { temperature: 0.3, maxTokens: 4096 }
+        { temperature: 0.3, maxTokens: 30000 }
       );
 
-      const result = JSON.parse(response);
+      const result = extractJson(response);
 
       // Save scores to DB
       await prisma.speakingSession.update({

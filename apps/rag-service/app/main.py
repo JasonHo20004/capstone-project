@@ -42,7 +42,14 @@ def create_app() -> FastAPI:
     app.include_router(listening_gen.router)
     app.include_router(livestream.router)
     app.include_router(find_justification.router)
+    # Transcribe is mounted TWICE on purpose:
+    #  - /transcribe/...          → internal service-to-service calls
+    #    (assessment-service hits RAG_SERVICE_URL/transcribe/dictation directly)
+    #  - /api/rag/transcribe/...  → browser traffic through the api-gateway,
+    #    which forwards /api/rag/* verbatim (every other rag router declares
+    #    its full /api/rag/... path itself; this one predates that convention).
     app.include_router(transcribe.router)
+    app.include_router(transcribe.router, prefix="/api/rag")
 
     @app.on_event("startup")
     async def startup():

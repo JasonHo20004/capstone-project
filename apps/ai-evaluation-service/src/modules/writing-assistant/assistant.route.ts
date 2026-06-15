@@ -5,6 +5,7 @@
 
 import { Router, Request, Response } from "express";
 import { llmClient } from "../../llm/llm.client.js";
+import { extractJson } from "../../llm/gemini.client.js";
 import { WRITING_ASSISTANT_PROMPT } from "../../llm/prompts.js";
 import { redisService } from "../../services/redis.service.js";
 import crypto from "crypto";
@@ -70,7 +71,7 @@ router.post("/", async (req: Request, res: Response) => {
       userMessage
     );
 
-    const result = JSON.parse(response);
+    const result = extractJson(response);
 
     // Cache the result
     await redisService.setWithTTL(cacheKey, JSON.stringify(result), CACHE_TTL_SECONDS);
