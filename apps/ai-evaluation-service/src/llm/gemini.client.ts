@@ -3,6 +3,7 @@
 // =============================================================================
 
 import { GoogleGenAI } from "@google/genai";
+import { readFileSync } from "node:fs";
 
 /**
  * Robust rate-limit / quota detection. The @google/genai SDK is inconsistent
@@ -168,6 +169,10 @@ class GeminiClient {
   // One SDK client per API key — @google/genai binds a key at construction, so
   // rotating keys means rotating clients.
   private clients: GoogleGenAI[];
+  // Vertex AI client (Gemini billed to the $300 GCP credit). Tried BEFORE the
+  // AI Studio keys when configured — it has Pro quota the free keys lack and
+  // sidesteps their rate-limits / ToS bans. null when Vertex isn't configured.
+  private vertexClient: GoogleGenAI | null;
   private model: string;
   private proModel: string;
   // Round-robin pointer across the key pool (per process). Lets several free-tier
@@ -176,15 +181,17 @@ class GeminiClient {
 
   private constructor() {
     const keys = GeminiClient.loadKeys();
-    if (keys.length === 0) {
+    this.vertexClient = GeminiClient.loadVertexClient();
+    if (keys.length === 0 && !this.vertexClient) {
       throw new Error(
-        "No Gemini API key configured — set GEMINI_API_KEY, GEMINI_API_KEYS (comma-separated), or GEMINI_API_KEY_1..12"
+        "No Gemini provider configured — set VERTEX_CREDENTIALS (a service account with Vertex AI access), or GEMINI_API_KEY_1..12 / GEMINI_API_KEYS"
       );
     }
     this.clients = keys.map((apiKey) => new GoogleGenAI({ apiKey }));
     this.model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     this.proModel = process.env.GEMINI_PRO_MODEL || "gemini-2.5-pro";
-    console.log(`🤖 [Gemini] ${this.clients.length} key(s) loaded for rotation`);
+    console.log(`🤖 [Gemini] ${this.clients.length} AI Studio key(s) loaded for rotation`);
+    console.log(`🤖 [Gemini] Vertex AI: ${this.vertexClient ? "ENABLED (tried first)" : "disabled"}`);
     console.log(`🤖 [Gemini] Default model: ${this.model}`);
     console.log(`🤖 [Gemini] Pro model (evaluation): ${this.proModel}`);
   }
@@ -220,6 +227,44 @@ class GeminiClient {
   }
 
   /**
+   * Build a Vertex AI client (Gemini on Google Cloud, billed to the $300 credit)
+   * when VERTEX_CREDENTIALS (a service-account JSON) is set. Auth goes through ADC
+   * — we point GOOGLE_APPLICATION_CREDENTIALS at the key so the SDK picks it up
+   * (this service has no other use for that var). The project comes from
+   * VERTEX_PROJECT, else the JSON's project_id. Returns null (→ API-keys-only) when
+   * not configured or on any init failure; set GEMINI_USE_VERTEX=false to disable.
+   */
+  private static loadVertexClient(): GoogleGenAI | null {
+    if ((process.env.GEMINI_USE_VERTEX ?? "true").toLowerCase() === "false") return null;
+    const credPath = (process.env.VERTEX_CREDENTIALS || process.env.GOOGLE_APPLICATION_CREDENTIALS || "").trim();
+    if (!credPath) return null;
+
+    let project = (process.env.VERTEX_PROJECT || "").trim();
+    if (!project) {
+      try {
+        project = (JSON.parse(readFileSync(credPath, "utf-8")).project_id || "").trim();
+      } catch (e) {
+        console.warn(`⚠️ [Gemini/Vertex] could not read project_id from ${credPath}: ${e}`);
+      }
+    }
+    if (!project) {
+      console.warn("⚠️ [Gemini/Vertex] no project id (set VERTEX_PROJECT) — using API keys only");
+      return null;
+    }
+
+    const location = (process.env.VERTEX_LOCATION || "us-central1").trim();
+    try {
+      process.env.GOOGLE_APPLICATION_CREDENTIALS = credPath; // ADC for the SDK
+      const client = new GoogleGenAI({ vertexai: true, project, location });
+      console.log(`🤖 [Gemini/Vertex] project=${project}, location=${location}, key=${credPath}`);
+      return client;
+    } catch (e) {
+      console.warn(`⚠️ [Gemini/Vertex] init failed: ${e} — using API keys only`);
+      return null;
+    }
+  }
+
+  /**
    * Core rotation engine. Tries each model in `models` order; for each model it
    * round-robins through every key in the pool, skipping past a key that is
    * rate-limited or errors. Only when ALL keys are exhausted for a model does it
@@ -230,12 +275,36 @@ class GeminiClient {
    */
   private async generate(models: string[], request: GenerateRequest, label: string): Promise<string> {
     const n = this.clients.length;
-    const start = this.keyCursor % n;
+    const start = n > 0 ? this.keyCursor % n : 0;
     let lastError: any = null;
 
     for (let m = 0; m < models.length; m++) {
       const model = models[m];
       const isFallback = m > 0;
+
+      // Vertex AI first (when configured): it has the Pro quota the free AI Studio
+      // keys lack and avoids their rate-limits / bans. Any failure falls through
+      // to the key rotation below for this same model.
+      if (this.vertexClient) {
+        try {
+          const response = await this.vertexClient.models.generateContent({
+            model,
+            contents: request.contents,
+            config: request.config,
+          });
+          const content = response.text;
+          if (content) {
+            console.log(`✅ [Gemini/Vertex] ${model} responded (${label})`);
+            return content;
+          }
+          console.warn(`⚠️ [Gemini/Vertex] ${model} returned empty (${label}) — trying API keys`);
+        } catch (error: any) {
+          lastError = error;
+          const rate = isRateLimitError(error);
+          console.warn(`⚠️ [Gemini/Vertex] ${model} ${rate ? "rate-limited" : "errored"} (${label}) — trying API keys`);
+        }
+      }
+
       for (let offset = 0; offset < n; offset++) {
         const idx = (start + offset) % n;
         try {

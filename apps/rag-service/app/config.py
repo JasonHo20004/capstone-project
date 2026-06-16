@@ -9,8 +9,21 @@ from functools import lru_cache
 class Settings(BaseSettings):
     rag_service_port: int = 8000
 
-    # LLM provider — "gemini" (Gemini Flash, recommended) or "ollama" (local fallback)
+    # LLM provider — "vertex" (Gemini via Google Cloud / Vertex AI, billed to the
+    # $300 credit), "gemini" (Gemini Flash via AI Studio API keys), or "ollama"
+    # (local fallback). "vertex" tries Vertex first, then the AI Studio keys, then
+    # Ollama; "gemini" tries the keys then Ollama.
     llm_provider: str = "gemini"
+
+    # Vertex AI (Google Cloud) — used when llm_provider="vertex". Auth uses the
+    # VERTEX_CREDENTIALS service-account JSON, falling back to
+    # GOOGLE_APPLICATION_CREDENTIALS when blank. Keeping a separate key lets the
+    # Vertex SA and the Cloud TTS SA each carry only their own role.
+    # The project is taken from vertex_project, or the JSON's project_id when
+    # blank. Uses the GEMINI_MODEL id (gemini-2.5-flash works on Vertex too).
+    vertex_credentials: str = ""
+    vertex_project: str = ""
+    vertex_location: str = "us-central1"
 
     # Gemini (Google AI Studio)
     # Single key (backward compatible) OR several comma-separated keys in
@@ -111,6 +124,13 @@ class Settings(BaseSettings):
     whisper_model: str = "large-v3-turbo"
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
+    # A small, fast model used ONLY for the live speaking-battle scoring, where
+    # latency matters far more than transcription fidelity: the learner reads a
+    # short English phrase and we just need word-level intelligibility within a
+    # ~9s window. "large-v3-turbo" on CPU is far too slow for that (the score
+    # wasn't ready before the battle closed). "base.en" transcribes a ~13s clip
+    # in ~1-3s on CPU. Pre-warmed at startup so the first battle isn't slow.
+    whisper_battle_model: str = "base.en"
 
     class Config:
         env_file = ".env"

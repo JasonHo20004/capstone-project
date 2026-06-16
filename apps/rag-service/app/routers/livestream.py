@@ -732,7 +732,7 @@ Respond ONLY with valid JSON (no prose before or after):
 
 All fields in {level}-appropriate English."""
 
-_LESSON_PROMPT_VI = """Bạn là giáo viên tiếng Anh giỏi đang dạy livestream.
+_LESSON_PROMPT_VI = """Bạn là cô giáo tiếng Anh giỏi đang dạy livestream. Khi tự xưng LUÔN dùng "cô" (KHÔNG dùng "thầy", "tôi", "mình") và gọi học viên là "các bạn".
 
 ═══ NỘI DUNG CẦN DẠY — đây là điều DUY NHẤT bạn phải trả lời ═══
 {lesson_focus}
@@ -955,17 +955,17 @@ The parts you'll cover today: {titles}
 
 Output ONLY the spoken greeting, nothing else."""
 
-_INTRO_PROMPT_VI = """Bạn là một cô/thầy giáo tiếng Anh ấm áp, cuốn hút, chuẩn bị LÊN SÓNG livestream cho lớp học.
+_INTRO_PROMPT_VI = """Bạn là một cô giáo tiếng Anh ấm áp, cuốn hút, chuẩn bị LÊN SÓNG livestream cho lớp học.
 Chỉ viết đúng những lời bạn NÓI RA trong khoảng 30 giây đầu để mở bài — ngôn ngữ nói tự nhiên, KHÔNG chỉ dẫn sân khấu, KHÔNG markdown, KHÔNG gạch đầu dòng, KHÔNG tiêu đề.
 
 Làm tất cả những điều sau, một cách mạch lạc tự nhiên:
 • Chào cả lớp thật ấm áp và thân thiện (vd "Chào cả lớp! Rất vui được gặp lại các bạn hôm nay nha.").
 • Một hai câu nói rõ buổi học hôm nay sẽ giúp các bạn làm được gì — khiến các bạn MUỐN học.
-• Gợi ý rằng cô/thầy sẽ cùng các bạn đi qua từng bước một.
-• Mời các bạn thả tim, thả emoji và đặt câu hỏi trong khung chat bất cứ lúc nào — cô/thầy luôn để ý.
+• Gợi ý rằng cô sẽ cùng các bạn đi qua từng bước một.
+• Mời các bạn thả tim, thả emoji và đặt câu hỏi trong khung chat bất cứ lúc nào — cô luôn để ý.
 • Kết bằng một câu hô hào bắt đầu đầy năng lượng (vd "Sẵn sàng chưa? Mình bắt đầu thôi nào!").
 
-Giọng điệu: thân thiện, năng lượng, khích lệ — như một cô giáo được yêu thích đang lên hình, không phải sách giáo khoa. 60-90 từ tiếng Việt. Xưng "cô/thầy" và gọi học viên là "các bạn". Đối tượng: học viên trình độ {level}.
+Giọng điệu: thân thiện, năng lượng, khích lệ — như một cô giáo được yêu thích đang lên hình, không phải sách giáo khoa. 60-90 từ tiếng Việt. Xưng "cô" và gọi học viên là "các bạn". Đối tượng: học viên trình độ {level}.
 
 Nội dung buổi học hôm nay: {lesson_focus}
 Các phần sẽ học hôm nay: {titles}
@@ -1007,13 +1007,31 @@ def _closing_text(language: str) -> str:
     )
 
 
+def _force_co(text: str) -> str:
+    """The AI teacher's greeting must self-refer as "cô" only. The model still
+    occasionally slips in "thầy/cô", "cô/thầy" or a bare "thầy" despite the
+    prompt, so normalise every variant to "cô" to keep a consistent voice.
+    Combined forms are handled before the bare "thầy" so "thầy/cô" collapses to
+    "cô" rather than "cô/cô". Capitalisation of the original match is preserved
+    so a sentence-initial "Thầy cô" stays "Cô"."""
+    def repl(m):
+        return 'Cô' if m.group(0)[:1].isupper() else 'cô'
+    # "cô/thầy", "thầy/cô", "cô và thầy", "thầy và cô", "cô, thầy", "thầy, cô"
+    text = re.sub(r'\b(?:cô|thầy)\s*(?:/|và|,)\s*(?:thầy|cô)\b', repl, text, flags=re.IGNORECASE)
+    # "thầy cô" / "cô thầy" written as adjacent words
+    text = re.sub(r'\b(?:thầy\s+cô|cô\s+thầy)\b', repl, text, flags=re.IGNORECASE)
+    # Any remaining standalone self-reference "thầy" -> "cô"
+    text = re.sub(r'\bthầy\b', repl, text, flags=re.IGNORECASE)
+    return text
+
+
 async def _generate_intro(
     r: aioredis.Redis, lesson_focus: str, titles: list[str], level: str,
     language: str, settings,
 ) -> str:
     """Short, warm spoken greeting to open the class. LLM-generated and cached;
     falls back to a friendly template so the room always opens warmly."""
-    cache_key = "livestream:intro:v1:" + hashlib.sha1(
+    cache_key = "livestream:intro:v2:" + hashlib.sha1(
         f"{language}|{level}|{lesson_focus.strip()}|{'|'.join(titles)}".encode("utf-8")
     ).hexdigest()
     try:
@@ -1032,6 +1050,8 @@ async def _generate_intro(
             temperature=0.7, max_tokens=400, timeout=30,
         )
         intro = re.sub(r'[*#>`~_]', '', (raw or "")).strip()
+        if language == "vi":
+            intro = _force_co(intro)
         # Guard against the model returning junk / JSON / something too short.
         if intro and 20 <= len(intro) <= 1200 and not intro.lstrip().startswith("{"):
             try:
@@ -1882,6 +1902,19 @@ async def _deliver_lesson(room_id: str, settings):
             duration = _audio_duration(tts_filenames[i], estimate) + 0.5
             audio_url = audio_urls[i]
 
+            # The narration clip speaks "{title}. {content}" (+ a closing sign-off
+            # on the last slide), but the frontend only shows {content}. Tell it
+            # how many characters are spoken BEFORE the content (the title) and
+            # AFTER it (the closing) so the karaoke word-highlight stays in sync —
+            # otherwise the first content words light up while the teacher is still
+            # reading the title, and the last slide's fill lags through the sign-off.
+            content_str = section["content"]
+            _pos = text.find(content_str)
+            if _pos >= 0:
+                lead_chars, tail_chars = _pos, len(text) - _pos - len(content_str)
+            else:
+                lead_chars, tail_chars = len(section["title"]) + 2, 0
+
             key_points = [str(p).strip() for p in section.get("key_points", []) if str(p).strip()][:5]
             keywords_raw = section.get("keywords", []) or []
             keywords: list[dict] = []
@@ -1906,6 +1939,8 @@ async def _deliver_lesson(room_id: str, settings):
                 "content": section["content"],
                 "audio_url": audio_url,
                 "duration": duration,
+                "lead_chars": lead_chars,
+                "tail_chars": tail_chars,
                 **slide_payload,
             })
 
@@ -1923,6 +1958,8 @@ async def _deliver_lesson(room_id: str, settings):
                 "title": section["title"],
                 "content": section["content"],
                 "audio_url": audio_url,
+                "lead_chars": lead_chars,
+                "tail_chars": tail_chars,
                 **slide_payload,
             })
 
@@ -2251,8 +2288,8 @@ async def _maybe_teacher_aside(
         if quiz_pct is not None:
             facts.append(f"quiz vừa rồi: {quiz_pct}% trong {quiz_answered} câu trả lời là đúng")
         prompt = (
-            f'Bạn là giáo viên tiếng Anh đang dạy livestream về "{topic}", '
-            f'đang nói chuyện với lớp giữa hai slide.\n'
+            f'Bạn là cô giáo tiếng Anh đang dạy livestream về "{topic}", '
+            f'đang nói chuyện với lớp giữa hai slide. Tự xưng "cô" (không dùng "thầy"/"tôi"/"mình").\n'
             f'Diễn biến trong lớp vừa rồi: {"; ".join(facts)}.\n'
             'Nói ĐÚNG 1 câu tiếng Việt tự nhiên (tối đa 28 từ) phản ứng với diễn biến đó — '
             'ghi nhận không khí lớp hoặc kết quả, khen đích danh khi xứng đáng, '
@@ -2347,7 +2384,7 @@ async def _answer_question(room_id: str, question: str, user_name: str, settings
 
         if lang == "vi":
             prompt = (
-                f'Bạn là giáo viên tiếng Anh trực tiếp đang dạy lớp livestream.\n'
+                f'Bạn là cô giáo tiếng Anh trực tiếp đang dạy lớp livestream. Tự xưng "cô" (không dùng "thầy"/"tôi"/"mình").\n'
                 f'Tiêu đề bài: "{room["topic"]}". Trình độ học viên: {room["level"]}.\n'
                 f'Nội dung trọng tâm của buổi học: {lesson_directive}\n'
                 + (f'Nội dung vừa giảng gần đây: {recent_transcript}\n' if recent_transcript else '')
@@ -2362,8 +2399,13 @@ async def _answer_question(room_id: str, question: str, user_name: str, settings
                 "   - Câu hỏi sâu (so sánh, phân tích, lộ trình) → 15-30 câu, chia 3-5 đoạn rõ ràng.\n"
                 "3. Bám sát nội dung trọng tâm buổi học — KHÔNG lan man sang chủ đề khác.\n"
                 "4. Đưa ra ÍT NHẤT 1 ví dụ tiếng Anh cụ thể (kèm dịch nếu cần). Câu hỏi phức tạp → 2-3 ví dụ.\n"
-                "5. Kết bằng gợi ý hành động cụ thể (việc nên làm trong 24h hoặc tuần này).\n"
+                "5. Kết bằng MỘT gợi ý luyện tập ngắn gắn TRỰC TIẾP với câu hỏi này. "
+                "TUYỆT ĐỐI KHÔNG tổng kết/kết thúc buổi học, KHÔNG giao bài về nhà kiểu dặn dò, "
+                "KHÔNG nói 'hẹn gặp buổi học tới' hay 'buổi sau'.\n"
                 "6. Văn phong ấm áp, hội thoại, thân thiện nhưng ĐẶC THÔNG TIN. "
+                "ĐÂY LÀ CÂU TRẢ LỜI HỎI-ĐÁP GIỮA GIỜ — đi THẲNG vào nội dung trả lời: "
+                "KHÔNG chào hỏi ('Chào các em…'), KHÔNG tự giới thiệu ('cô là cô giáo tiếng Anh…'), "
+                "KHÔNG nhắc lại tên chủ đề/trình độ buổi học, "
                 "KHÔNG mở đầu bằng 'Câu hỏi hay lắm', 'Cảm ơn câu hỏi', 'Đây là một câu hỏi…'.\n"
                 "7. Trình bày rõ ràng — Hãy dùng Markdown (in đậm, in nghiêng, danh sách gạch đầu dòng, tiêu đề) để câu trả lời dễ đọc, có cấu trúc tốt như ChatGPT. Phân đoạn bằng dòng trống.\n"
                 "8. TUYỆT ĐỐI không dừng giữa chừng. Trả lời PHẢI có mở-thân-kết hoàn chỉnh."
@@ -2389,9 +2431,14 @@ async def _answer_question(room_id: str, question: str, user_name: str, settings
                 "   - Deep question (comparison, analysis, roadmap) → 15-30 sentences, 3-5 clear paragraphs.\n"
                 "3. Stay anchored to the lesson focus — no tangents.\n"
                 "4. Include AT LEAST one concrete English example. Complex questions → 2-3 examples.\n"
-                "5. Close with a specific actionable next step (something to practice in the next 24 hours / this week).\n"
+                "5. End with ONE short practice tip tied DIRECTLY to this question. "
+                "Do NOT wrap up or end the lesson, do NOT assign homework, do NOT say "
+                "'see you next class' / 'until next time'.\n"
                 "6. Warm, conversational, friendly — but INFORMATION-DENSE. "
-                "Do NOT open with 'Great question', 'Thanks for asking', 'That's a great question…'.\n"
+                "THIS IS A MID-SESSION Q&A REPLY — go STRAIGHT to the answer: "
+                "do NOT greet ('Hello everyone…'), do NOT introduce yourself ('I'm your English teacher…'), "
+                "do NOT restate the lesson topic/level, "
+                "do NOT open with 'Great question', 'Thanks for asking', 'That's a great question…'.\n"
                 "7. Format clearly — Use Markdown (bold, italics, bullet points, headers) so the answer is easy to read and well-structured like ChatGPT. Separate paragraphs with blank lines.\n"
                 "8. NEVER stop midway. Your answer MUST have a complete opening, body, and conclusion."
             )

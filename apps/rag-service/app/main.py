@@ -13,6 +13,7 @@ load_dotenv()
 from app.routers import health, generate, explain, reading_gen, listening_gen, livestream, find_justification, transcribe
 from app.routers.livestream import AUDIO_DIR, cleanup_audio_loop, start_pubsub_listener
 from app.config import get_settings
+from app.services import whisper_service
 from app.services.tts_service import is_gcloud_configured
 
 
@@ -60,6 +61,13 @@ def create_app() -> FastAPI:
         # Per-process Redis Pub/Sub listener — delivers broadcast messages to the
         # sockets connected to THIS worker (required for multi-worker correctness).
         start_pubsub_listener()
+        # Pre-warm the fast battle Whisper model in the background so the first
+        # live speaking-battle scores quickly (the download/load doesn't happen
+        # mid-window). Best-effort: warmup() swallows its own errors. Kept on
+        # app.state so the task isn't GC'd before it runs.
+        app.state.whisper_warm_task = asyncio.create_task(
+            asyncio.to_thread(whisper_service.warmup, settings.whisper_battle_model)
+        )
         print(f"RAG Service started on port {settings.rag_service_port}")
         print(f"Ollama: {settings.ollama_base_url} (model: {settings.ollama_model})")
         gcloud_ok = is_gcloud_configured(settings.google_application_credentials)
