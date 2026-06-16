@@ -52,6 +52,22 @@ interface TopicBankData {
 
 export class SpeakingSessionService {
   /**
+   * Sanitize a user-supplied topic before it is stored and later interpolated into
+   * the examiner system prompt. Strips line breaks / control characters and clamps
+   * the length so a malicious "topic" cannot smuggle multi-line instructions into
+   * the system role (prompt injection). Admin-created DB topic titles are short,
+   * clean strings, so this is a no-op for legitimate values.
+   */
+  private static sanitizeTopic(raw: string): string {
+    return (raw || "")
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u001F\u007F]/g, " ") // control chars + newlines → space
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 80);
+  }
+
+  /**
    * Start a new interactive speaking session
    */
   static async startSession(userId: string, topic?: string): Promise<{
@@ -61,6 +77,10 @@ export class SpeakingSessionService {
     topic: string;
   }> {
     const prisma = databaseService.getClient();
+
+    // Sanitize any user-supplied topic up front so the cleaned value is what we
+    // match in the DB, store, and later interpolate into the examiner system prompt.
+    if (topic) topic = SpeakingSessionService.sanitizeTopic(topic);
 
     // Try to fetch a random active topic from the DB
     let topicBank: TopicBankData | null = null;

@@ -60,21 +60,41 @@ class RagService {
       const embedding = await this.embed(query);
       const vectorLiteral = `[${embedding.join(",")}]`;
 
-      // Build filter clauses
-      const skillFilter = skill ? `AND skill = '${skill}'` : "";
-      const bandFilter = bandRange ? `AND band_range = '${bandRange}'` : "";
+      // Parameterized query: every caller-influenced value is bound as a $N
+      // placeholder, never string-interpolated, so `skill`/`bandRange` can't break
+      // out of the SQL. The query SHAPE is assembled from constants only; the bound
+      // params (passed as the trailing args to $queryRawUnsafe) carry all data.
+      const params: unknown[] = [];
+      const conditions: string[] = ["embedding IS NOT NULL"];
 
-      // Raw SQL for cosine similarity search (pgvector syntax)
-      const results = await prisma.$queryRawUnsafe<KnowledgeChunk[]>(`
+      if (skill) {
+        params.push(skill);
+        conditions.push(`skill = $${params.length}`);
+      }
+      if (bandRange) {
+        params.push(bandRange);
+        conditions.push(`band_range = $${params.length}`);
+      }
+
+      params.push(vectorLiteral);
+      const vectorParam = `$${params.length}`;
+
+      // Clamp topK to a sane integer for LIMIT (defense-in-depth, even though it's
+      // not caller-controlled today).
+      params.push(Math.max(1, Math.min(50, Math.floor(topK) || 5)));
+      const limitParam = `$${params.length}`;
+
+      // Raw SQL for cosine similarity search (pgvector syntax). Column/schema names
+      // are static; only $N placeholders vary.
+      const sql = `
         SELECT id, content, skill, band_range as "bandRange", source
         FROM ai_evaluation_db.ielts_knowledge_base
-        WHERE embedding IS NOT NULL
-        ${skillFilter}
-        ${bandFilter}
-        ORDER BY embedding <=> '${vectorLiteral}'::vector
-        LIMIT ${topK}
-      `);
+        WHERE ${conditions.join(" AND ")}
+        ORDER BY embedding <=> ${vectorParam}::vector
+        LIMIT ${limitParam}
+      `;
 
+      const results = await prisma.$queryRawUnsafe<KnowledgeChunk[]>(sql, ...params);
       return results;
     } catch (error) {
       // RAG failure is non-fatal — return empty (AI will use general knowledge)

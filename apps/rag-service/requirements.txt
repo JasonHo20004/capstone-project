@@ -11,6 +11,7 @@ numpy
 edge-tts
 google-cloud-texttospeech
 google-generativeai
+google-auth
 redis[asyncio]
 PyJWT
 mutagen

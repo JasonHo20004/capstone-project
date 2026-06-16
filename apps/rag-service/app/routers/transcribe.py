@@ -20,6 +20,7 @@ import tempfile
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
+from app.config import get_settings
 from app.services import whisper_service
 from app.services.dictation_pipeline import build_sentences
 
@@ -53,6 +54,7 @@ async def transcribe_dictation(
     language: str = Form("en"),
     skip_before_seconds: float = Form(0),
     skip_first_n: int = Form(0),
+    fast: bool = Form(False, description="Use the small fast model (live battle scoring)"),
 ):
     data = await audio.read()
     if not data:
@@ -76,8 +78,11 @@ async def transcribe_dictation(
             tmp.write(data)
             tmp_path = tmp.name
 
-        # CPU transcription is blocking — run it off the event loop.
-        segments = await asyncio.to_thread(whisper_service.transcribe, tmp_path, language)
+        # CPU transcription is blocking — run it off the event loop. The live
+        # speaking battle passes fast=True to use the small low-latency model so
+        # the score is ready before the battle window closes.
+        model_name = get_settings().whisper_battle_model if fast else None
+        segments = await asyncio.to_thread(whisper_service.transcribe, tmp_path, language, model_name)
     except HTTPException:
         raise
     except Exception as exc:
