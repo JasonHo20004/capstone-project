@@ -102,6 +102,10 @@ class Settings(BaseSettings):
     audio_base_url: str = "http://localhost:8000"
     max_room_participants: int = 30
     questions_per_minute: int = 6
+    # Open Q&A window after the lecture's last slide, before the class auto-ends.
+    # Broadcast to the client as `duration_seconds`, which drives the countdown
+    # and the "{{mins}} minutes left" message, so changing this is all it takes.
+    qa_window_seconds: int = 1200  # 20 minutes
     # Comma-separated roles allowed to create/host a live room
     # (e.g. "ADMINISTRATOR,COURSESELLER"). Empty = any authenticated user may
     # host. Requires jwt_secret to be set. Valid roles issued by identity-service:
