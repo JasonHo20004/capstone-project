@@ -226,18 +226,23 @@ model UserLearningProfile {
 }
 
 // ─── IELTS Knowledge Base (pgvector RAG) ───────────────────────────────────────
-// Note: embedding column is managed via raw SQL migration (Prisma doesn't support vector natively)
+// Note: `embedding` is a pgvector column Prisma cannot type natively. It is mapped
+// here as Unsupported("vector(768)") ONLY so Prisma sees it as part of the schema
+// and never treats it as drift to drop (see migration 20260526071101_y, which did
+// exactly that and broke RAG retrieval). Read/write the column via raw SQL; the
+// generated client exposes it as a placeholder you should not query through Prisma.
+// The ivfflat cosine index (ielts_kb_embedding_idx) cannot be expressed in Prisma
+// for an Unsupported column, so it stays managed by raw SQL migration.
 
 model IeltsKnowledgeBase {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   content     String   // The text chunk for retrieval
+  embedding   Unsupported("vector(768)")? // managed via raw SQL; in-schema to prevent drift-drops
   skill       String   @db.VarChar(20)  // 'listening' | 'reading' | 'writing' | 'speaking' | 'general'
   bandRange   String   @map("band_range") @db.VarChar(10) // '4.0-5.0' | '5.0-6.0' | '6.0-7.0' | '7.0-9.0'
   source      String?  @db.VarChar(200) // e.g. "Cambridge IELTS 17", "IELTS.org official band descriptors"
   metadata    Json     @default("{}") // extra tags, topic, etc.
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  // embedding VECTOR(768) — managed by raw SQL, not Prisma
 
   @@index([skill])
   @@index([bandRange])

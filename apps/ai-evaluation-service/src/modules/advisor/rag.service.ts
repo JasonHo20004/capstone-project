@@ -70,7 +70,7 @@ class RagService {
         SELECT id, content, skill, band_range as "bandRange", source
         FROM ai_evaluation_db.ielts_knowledge_base
         WHERE ${conditions.join(" AND ")}
-        ORDER BY embedding <=> ${vectorParam}::vector
+        ORDER BY embedding OPERATOR(public.<=>) ${vectorParam}::public.vector
         LIMIT ${limitParam}
       `;
 

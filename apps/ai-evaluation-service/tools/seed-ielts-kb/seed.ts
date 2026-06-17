@@ -8,6 +8,7 @@
 
 import "dotenv/config";
 import { PrismaClient } from "../../generated/prisma/index.js";
+import geminiClient from "../../src/llm/gemini.client.js";
 
 const prisma = new PrismaClient({
   datasources: {
@@ -17,32 +18,13 @@ const prisma = new PrismaClient({
   },
 });
 
-const GOOGLE_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-
 // ─── Embedding Helper ──────────────────────────────────────────────────────────
 
+// Delegates to the shared Gemini client (Vertex AI first). Same embed path as the
+// query side in RagService, so seeded vectors and query vectors share one model
+// and live in the same space — a prerequisite for correct cosine similarity.
 async function embed(text: string): Promise<number[]> {
-  if (!GOOGLE_API_KEY) throw new Error("GEMINI_API_KEY not set");
-
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${GOOGLE_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "models/text-embedding-004",
-        content: { parts: [{ text }] },
-      }),
-    }
-  );
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Embedding API error: ${res.status} — ${err}`);
-  }
-
-  const json = (await res.json()) as { embedding: { values: number[] } };
-  return json.embedding.values;
+  return geminiClient.embed(text);
 }
 
 // ─── Knowledge Chunks ─────────────────────────────────────────────────────────
@@ -499,7 +481,7 @@ async function seed() {
       // 3. Update embedding via raw SQL (pgvector column not in Prisma schema)
       await prisma.$executeRawUnsafe(
         `UPDATE ai_evaluation_db.ielts_knowledge_base 
-         SET embedding = '${vectorLiteral}'::vector 
+         SET embedding = '${vectorLiteral}'::public.vector
          WHERE id = '${record.id}'`
       );
 
