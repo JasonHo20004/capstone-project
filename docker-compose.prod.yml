@@ -80,6 +80,8 @@ services:
     <<: *node-common
     command: node apps/ai-evaluation-service/dist/server.js
     environment: { PORT: 3007 }
+    volumes:
+      - ./secrets/key-vertex-ai.json:/app/secrets/key-vertex-ai.json:ro
 
   # ---------- RAG (Python) ----------
   rag-service:
@@ -92,6 +94,8 @@ services:
     # set GOOGLE_APPLICATION_CREDENTIALS=/app/secrets/keyfile-tts.json to match this path.
     volumes:
       - ./secrets/keyfile-tts.json:/app/secrets/keyfile-tts.json:ro
+      - ./secrets/key-vertex-ai.json:/app/secrets/key-vertex-ai.json:ro
+
 
 networks:
   capstone:
