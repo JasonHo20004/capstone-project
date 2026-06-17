@@ -27,6 +27,7 @@ class GenerateFromTextRequest(BaseModel):
     title: str = Field("AI Generated Deck", description="Tên bộ flashcard")
     user_id: str = Field(..., description="User ID")
     save_to_service: bool = Field(True, description="Lưu vào flashcard-service")
+    deck_id: Optional[str] = Field(None, description="Deck có sẵn để thêm card vào; None = tạo deck mới")
 
 
 class AskQuestionRequest(BaseModel):
