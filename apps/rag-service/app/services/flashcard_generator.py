@@ -1,6 +1,7 @@
 """
 RAG Service - Flashcard Generator
-Calls Ollama LLM to generate flashcards from document chunks.
+Generates flashcards from document chunks via the LLM service
+(Vertex AI first, then Ollama — the AI Studio Gemini keys are skipped here).
 """
 
 import json
@@ -35,9 +36,10 @@ Generate flashcards for ALL important terms/concepts as a JSON array:"""
 
 async def generate_flashcards(chunks: list[str]) -> list[FlashcardItem]:
     """
-    Generate flashcards from document chunks. Uses Gemini first (multi-key, with
-    rate-limit rotation); falls back to Ollama only when every Gemini key is
-    exhausted. The LLM decides how many flashcards to create based on content.
+    Generate flashcards from document chunks. Uses Vertex AI (Gemini on the GCP
+    credit) first and falls back straight to Ollama — the AI Studio Gemini keys
+    are skipped (use_api_keys=False) because they 429 / risk ToS bans. The LLM
+    decides how many flashcards to create based on content.
     """
     settings = get_settings()
     context = "\n\n---\n\n".join(chunks[:10])  # Limit context size
@@ -46,8 +48,10 @@ async def generate_flashcards(chunks: list[str]) -> list[FlashcardItem]:
 
     # json_mode constrains the provider to emit valid JSON (the prompt asks for a
     # JSON array) so _parse_json_array rarely has to salvage.
+    # use_api_keys=False → Vertex → Ollama, skipping the AI Studio key tier.
     raw_text = await generate_text(
-        prompt, settings, temperature=0.3, max_tokens=8192, timeout=300, json_mode=True,
+        prompt, settings, temperature=0.3, max_tokens=8192, timeout=300,
+        json_mode=True, use_api_keys=False,
     )
 
     # Parse JSON from LLM response

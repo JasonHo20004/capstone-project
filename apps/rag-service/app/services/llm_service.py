@@ -294,12 +294,18 @@ async def generate_text(
     timeout: float = 60.0,
     json_mode: bool = False,
     usage: Optional[dict] = None,
+    use_api_keys: bool = True,
 ) -> str:
     """Generate text from the configured LLM with automatic fallback to Ollama.
 
     Set json_mode=True when the prompt asks for a JSON object — both providers are
     then constrained to emit valid JSON (much more reliable parsing). Leave it
     False for free-form prose (e.g. Q&A answers).
+
+    Set use_api_keys=False to SKIP the AI Studio Gemini-key tier, so the chain
+    becomes Vertex → Ollama (no key round-robin in between). Use for callers that
+    should not lean on the free-tier keys (they 429 / risk ToS bans); Vertex bills
+    the GCP credit, Ollama is the last resort.
 
     Pass a dict as `usage` to learn which provider/model actually produced the
     text: on success it is filled with {"provider": ..., "model": ...}; if every
@@ -311,7 +317,7 @@ async def generate_text(
 
     provider = (settings.llm_provider or "ollama").lower()
 
-    # Vertex first when selected; on any failure fall through to the AI Studio keys.
+    # Vertex first when selected; on any failure fall through to the next tier.
     if provider == "vertex":
         text = await _try_vertex_generate(
             prompt, settings,
@@ -322,9 +328,10 @@ async def generate_text(
             if usage is not None:
                 usage["provider"], usage["model"] = "vertex", settings.gemini_model
             return text
-        print("[LLM] Vertex unavailable/empty — falling back to Gemini API keys")
+        print("[LLM] Vertex unavailable/empty — falling back to "
+              + ("Gemini API keys" if use_api_keys else "Ollama"))
 
-    keys = settings.gemini_keys
+    keys = settings.gemini_keys if use_api_keys else []
     if provider in ("gemini", "vertex") and keys:
         global _key_cursor
         n = len(keys)
