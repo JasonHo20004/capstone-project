@@ -60,6 +60,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ~/capstone-project
+            git fetch origin main && git reset --hard origin/main
             OWNER="${{ github.repository_owner }}"
             export REGISTRY="ghcr.io/${OWNER,,}"
             export TAG=${{ github.sha }}

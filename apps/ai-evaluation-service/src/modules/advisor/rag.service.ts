@@ -16,32 +16,12 @@ interface KnowledgeChunk {
 
 class RagService {
   /**
-   * Generate an embedding vector for a query string.
-   * Uses Google text-embedding-004 (768 dimensions) — same API key as Gemini.
+   * Generate an embedding vector for a query string. Delegates to the shared
+   * Gemini client, which embeds via Vertex AI (same service account as chat) and
+   * falls back to the AI Studio key pool — no separate embedding API key needed.
    */
   private async embed(text: string): Promise<number[]> {
-    // Use Gemini client's embedding method if available, otherwise call REST directly
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    if (!apiKey) throw new Error("RAG: GEMINI_API_KEY not configured");
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "models/text-embedding-004",
-          content: { parts: [{ text }] },
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`RAG embedding failed: ${response.statusText}`);
-    }
-
-    const json = (await response.json()) as { embedding: { values: number[] } };
-    return json.embedding.values;
+    return geminiClient.embed(text);
   }
 
   /**

@@ -175,6 +175,11 @@ class GeminiClient {
   private vertexClient: GoogleGenAI | null;
   private model: string;
   private proModel: string;
+  // Embedding model + output dimension, env-configurable. Defaults match the
+  // VECTOR(768) column and the text-embedding-004 vectors already stored in the
+  // knowledge base, so switching the query path to Vertex needs no re-embedding.
+  private embedModel: string;
+  private embedDimensions: number;
   // Round-robin pointer across the key pool (per process). Lets several free-tier
   // keys share the load; advanced past a key once it responds OK / is exhausted.
   private keyCursor = 0;
@@ -190,6 +195,8 @@ class GeminiClient {
     this.clients = keys.map((apiKey) => new GoogleGenAI({ apiKey }));
     this.model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
     this.proModel = process.env.GEMINI_PRO_MODEL || "gemini-2.5-pro";
+    this.embedModel = process.env.VERTEX_EMBED_MODEL || "text-embedding-004";
+    this.embedDimensions = parseInt(process.env.EMBED_DIMENSIONS || "768", 10);
     console.log(`🤖 [Gemini] ${this.clients.length} AI Studio key(s) loaded for rotation`);
     console.log(`🤖 [Gemini] Vertex AI: ${this.vertexClient ? "ENABLED (tried first)" : "disabled"}`);
     console.log(`🤖 [Gemini] Default model: ${this.model}`);
@@ -455,6 +462,59 @@ class GeminiClient {
       },
       "text"
     );
+  }
+
+  /**
+   * Generate an embedding vector for a single text string. Tries Vertex AI first
+   * (same service account as chat — no separate API key needed), then falls back
+   * to the AI Studio key pool. Model + output dimension are env-configurable and
+   * default to text-embedding-004 @ 768 dims to match the stored KB vectors.
+   */
+  public async embed(text: string): Promise<number[]> {
+    const params = {
+      model: this.embedModel,
+      contents: text,
+      config: this.embedDimensions
+        ? { outputDimensionality: this.embedDimensions }
+        : {},
+    };
+
+    // Vertex first (when configured) — has embedding quota the free keys lack.
+    if (this.vertexClient) {
+      try {
+        const res = await this.vertexClient.models.embedContent(params);
+        const values = res.embeddings?.[0]?.values;
+        if (values?.length) return values;
+        console.warn(`⚠️ [Gemini/Vertex] embed ${this.embedModel} returned no vector — trying API keys`);
+      } catch (error: any) {
+        console.warn(
+          `⚠️ [Gemini/Vertex] embed ${this.embedModel} ${isRateLimitError(error) ? "rate-limited" : "errored"}: ${error?.message ?? error} — trying API keys`
+        );
+      }
+    }
+
+    // Fallback: round-robin the AI Studio key pool.
+    const n = this.clients.length;
+    const start = n > 0 ? this.keyCursor % n : 0;
+    let lastError: any = null;
+    for (let offset = 0; offset < n; offset++) {
+      const idx = (start + offset) % n;
+      try {
+        const res = await this.clients[idx].models.embedContent(params);
+        const values = res.embeddings?.[0]?.values;
+        if (values?.length) {
+          this.keyCursor = (idx + 1) % n;
+          return values;
+        }
+        lastError = new Error("Empty embedding response");
+      } catch (error: any) {
+        lastError = error;
+        console.warn(
+          `⚠️ [Gemini] embed key ${idx + 1}/${n} ${isRateLimitError(error) ? "rate-limited" : "errored"} — trying next key`
+        );
+      }
+    }
+    throw lastError ?? new Error("All providers failed to produce an embedding");
   }
 }
 
